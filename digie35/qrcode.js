@@ -1,1 +1,1 @@
-../contrib/qrcode/qrcode.js
+../contrib/qrcodejs/qrcode.js

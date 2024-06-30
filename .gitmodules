@@ -1,5 +1,5 @@
-[submodule "contrib/qrcode"]
-	path = contrib/qrcode
+[submodule "contrib/qrcodejs"]
+	path = contrib/qrcodejs
 	url = https://github.com/davidshimjs/qrcodejs.git
 [submodule "contrib/mtp-tools"]
 	path = contrib/mtp-tools
@@ -16,4 +16,3 @@
 [submodule "contrib/gphoto2"]
 	path = contrib/gphoto2
 	url = git@github.com:gphoto/gphoto2.git
-
