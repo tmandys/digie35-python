@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Digie35
+GenericName=Digie35
+Comment=Digie35 GUI
+Categories=GTK;WebBrowser;Photography;
+Exec=chromium-browser http://localhost/digie35.html
+Icon=digie35-film-strip
+Terminal=false
+StartupNotify=true
+Actions=Private;

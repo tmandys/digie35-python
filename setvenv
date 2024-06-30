@@ -1,0 +1,10 @@
+#!/bin/env sh
+
+# set local environment for development
+pip install .
+# this show warning about deprecated stuff
+#python -m pip install -e .
+
+# run as ". setvenv"
+#python3 -m venv venv
+#source venv/bin/activate

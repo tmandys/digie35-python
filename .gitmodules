@@ -1,0 +1,19 @@
+[submodule "contrib/qrcode"]
+	path = contrib/qrcode
+	url = https://github.com/davidshimjs/qrcodejs.git
+[submodule "contrib/mtp-tools"]
+	path = contrib/mtp-tools
+	url = https://github.com/tmandys/mtp-tools.git
+[submodule "contrib/SonyAlphaUSB"]
+	path = contrib/SonyAlphaUSB
+	url = https://github.com/pixeltris/SonyAlphaUSB.git
+[submodule "contrib/libgphoto2"]
+	path = contrib/libgphoto2
+	url = git@github.com:gphoto/libgphoto2.git
+[submodule "contrib/python-gphoto2"]
+	path = contrib/python-gphoto2
+	url = git@github.com:jim-easterbrook/python-gphoto2.git
+[submodule "contrib/gphoto2"]
+	path = contrib/gphoto2
+	url = git@github.com:gphoto/gphoto2.git
+

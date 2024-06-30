@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" type="image/x-png" href="images/digie35-film-strip-96.png" />
+	<script type="text/javascript" src="qrcode.js"></script>
+    <title>Digie35</title>
+
+    <style>
+        body, textarea {
+            font-family: "Arial";
+            font-size: 13px;
+        }
+
+        button {
+            font-size: 12px;
+        }
+
+        .current-action {
+            background-color: #4CAF50;
+        }
+
+        .pre-action {
+            background-color: #f3f2bb;
+        }
+
+        .centered-btn {
+            text-align: center;
+        }
+
+        .vertical-spacer {
+            padding-top: 3px;
+            padding-bottom: 3px;
+        }
+
+        select {
+            width: 27ch;
+        }
+
+        textarea.description {
+            width: 37ch;
+        }
+
+        input.id {
+            width: 25ch;
+        }
+
+        .menu {
+            float: left;
+            width: 42ch;
+        }
+
+        .preview {
+            margin-left: 42ch;
+        }
+
+        /*
+        .preview img {
+        }*/
+
+		.wrapper {
+			transform: scale(1);
+			transform-origin: left top;
+		}
+
+        .wrapper:after {
+            height: 100%;
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        .error {
+             color: #ff0000;
+        }
+
+        .warning {
+            color: #ff0000;
+        }
+
+        .clickable {
+            text-decoration: underline;
+        }
+
+        .detail {
+            display: none;
+        }
+
+        /*
+        .hidden {
+            xdisplay: none;
+        } */
+
+        .invert {
+            filter: invert(100%);
+        }
+
+        .rotate180 {
+            transform: rotate(180deg);
+        }
+
+        .rotate90 {
+            transform: rotate(90deg) scale(0.55, 0.55);
+        }
+
+        .rotate270 {
+            transform: rotate(-90deg) scale(0.55, 0.55);
+        }
+
+        .flip-horizontal {
+            transform: rotateY(180deg);
+        }
+
+        .flip-vertical {
+            transform: rotateX(180deg);
+        }
+
+        .grey-border {
+            padding: 5px;
+            background-color: #D0D0D0;
+        }
+
+        input[type="number"]:focus, input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none !important;
+            border: 2px solid #2d282f;
+            background-color: #b7f3fb;
+        }
+
+        /*
+        input[type="range"]:focus {
+
+        } */
+        .hotkey-enabled {
+            border-color: #2c562c;
+        }
+
+        #stream {
+            width: 1200px;
+            object-fit: cover;
+            /*object-position: 95px 0px;*/
+        }
+        .range-value {
+            font-size: 12px;
+        }
+
+
+    </style>
+</head>
+
+<body onload="do_onload()">
+    <div class="wrapper">
+        <div class="menu">
+            <fieldset id="connection-fieldset">
+                <legend>Connection</legend>
+                <div class="vertical-spacer">
+                    <button onclick="connect()">Connect</button>
+                    <button onclick="disconnect()">Disconnect</button>&nbsp;
+                    <!-- <button id="hotplug-btn" onclick="hotplug()">Hotplug</button>&nbsp; -->
+                    <span id="server-name" class="clickable" onclick="toggle_status(this, 'server-detail')" title="Click to toggle server details" ></span>
+                    <span id="remote-control" class="clickable" onclick="toggle_status(this, 'remote-control-detail')" title="Click to toggle remote control" >Remote control</span>
+                </div>
+                <div id="server-detail" class="detail"><textarea id="server-info" class="description" readonly placeholder="click connect..."></textarea></div>
+                <div id="status-info" class="error"></div>
+				<div id="remote-control-detail" class="detail">
+					<div id="rc-url"></div>
+					<div id="rc-qrcode"></div>
+				</div>
+            </fieldset>
+
+            <fieldset id="camera-fieldset">
+                <legend>Camera</legend>
+                <div>
+                    <select id="camera-list" name="camera_id" onchange="adjust(); adjust_camera_preview(); sendCommand('SET_CAMERA', ['camera-list'])">
+                        <option value="" selected disabled>select camera...</option>
+                    </select>
+                    &nbsp;
+                    <button onclick="sendCommand('LIST_CAMERAS')">Refresh</button>
+                </div>
+                <div id="camera-info" class="vertical-spacer">
+                    <span id="battery-info" class="clickable" onclick="toggle_status(this, 'camera-detail')" title="Click to toggle camera details" >Battery: <span id="battery-level" style="width: 6ch"></span></span>&nbsp;
+                    <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview()" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
+                </div>
+                <div id="camera-detail" class="vertical-spacer detail"><textarea id="camera-abilities" class="description" readonly></textarea></div>
+            </fieldset>
+
+            <fieldset id="volume-fieldset">
+                <legend>Volumes</legend>
+                <div id="select-volume">
+                    <select id="volume-list" onchange="set_volume()">
+                        <option value="" selected>select volume...</option>
+                    </select>
+                    &nbsp;
+                    <button onclick="sendCommand('LIST_VOLUMES')">Refresh</button>
+                </div>
+                <div id="volume-info" class="vertical-spacer"></div>
+            </fieldset>
+
+            <fieldset id="project-fieldset">
+                <legend>Projects</legend>
+                <select id="project-list" onchange="update_project_selection(false);adjust()">
+                    <option value="" selected>select project...</option>
+                </select>
+                &nbsp;
+                <button onclick="sendCommand('LIST_PROJECTS')">Refresh</button>
+                <hr />
+                <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
+                <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
+                <div>
+                    <button id="create-project-btn" onclick="sendCommand('CREATE_PROJECT', ['project_id', 'project_descr']);">Create</button>
+                    <button id="update-project-btn" onclick="sendCommand('UPDATE_PROJECT', ['project_id', 'project_descr']);sendCommand('LIST_PROJECTS')">Update</button>
+                    <button id="delete-project-btn" onclick="sendCommand('DELETE_PROJECT', ['project_id']);sendCommand('LIST_PROJECTS')">Delete</button>
+                </div>
+            </fieldset>
+
+            <fieldset id="film-fieldset">
+                <legend>Film</legend>
+                <select id="film-list" onchange="update_project_selection(true);adjust()">
+                    <option value="" selected>select film...</option>
+                </select>
+                &nbsp;
+                <button onclick="sendCommand('GET_PROJECT', ['project_id'])">Refresh</button>
+                <hr />
+                <div class="vertical-spacer">
+                    <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
+                    <button id="film_id-plus" title="Create new film id" onclick="create_next_film_id()">+</button>
+                    <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" title="Auto increment film id when lead-in film">a-Inc</label>
+                </div>
+                <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
+                <div id="capture-count" class="clickable vertical-spacer" onclick="toggle_status(this, 'capture-detail')" title="Click to toggle captured photo details" ></div>
+                <div id="capture-detail" class="vertical-spacer detail"><textarea id="capture-list" class="description" readonly></textarea></div>
+                <div class="vertical-spacer">
+                    <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
+                    <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id'])">Update</button>
+                    <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
+                </div>
+            </fieldset>
+
+            <fieldset id="motion-fieldset">
+                <legend>Motion</legend>
+                <div class="centered-btn vertical-spacer">
+                    <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
+                </div>
+                <div class="centered-btn vertical-spacer">
+                    <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
+                    <button id="move-3b-btn" title="KeyS">&lt;&lt;&lt;</button>
+                    <button id="move-3f-btn" title="KeyK">&gt;&gt;&gt;</button>
+                    <button id="move-4f-btn" title="ArrowRight, KeyL">&gt;&gt;&gt;&gt;</button>
+                </div>
+                <div class="centered-btn vertical-spacer">
+                    <button id="move-2b-btn" title="Shift+ArrowLeft, KeyD">&lt;&lt;</button>
+                    <button id="move-1b-btn" title="KeyF">&lt;</button>
+                    <button id="stop-btn"    title="Esc, KeyG">STOP</button>
+                    <button id="move-1f-btn" title="KeyH">&gt;</button>
+                    <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
+                </div>
+                <div class="centered-btn vertical-spacer">
+                    <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
+                    <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
+                    <input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Space correction in mm" />
+                    <input type="checkbox" id="autocorrection-cb" value="0" title="Set correction from consequent capture positions" />
+                    <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
+                    <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
+                </div>
+                <div class="centered-btn vertical-spacer">
+                    <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
+                    <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
+                    <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
+                </div>
+                <div class="centered-btn">
+                    <input type="checkbox" id="reverse-cb" value="1" /><label for="reverse-cb" accesskey="r" title="Reverse sense of movement"><u>R</u>everse</label>
+                    <input type="checkbox" id="autolead-cb" value="1" checked /><label for="autolead-cb" accesskey="l" title="Autolead-in film into adapter">a-<u>L</u>ead</label>
+                    <input type="checkbox" id="sticky-cb" value="1" checked /><label for="sticky-cb" accesskey="s" title="Sticky movement buttons"><u>S</u>ticky</label>
+                    <input type="checkbox" id="automove-cb" value="1" checked /><label for="automove-cb" accesskey="m" title="Move when captured">a-<u>M</u>ove</label>
+                </div>
+            </fieldset>
+
+            <fieldset id="capture-fieldset">
+                <legend>Capture</legend>
+                <div id="backlight-fieldset" class="centered-btn">
+                    <input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label>
+                    <select id="backlight-color-list" style="width:8ch" onchange="adjust_backlight(true)">
+                        <option value="white" selected>White</option>
+                        <option value="red+green+blue">RGB</option>
+                        <option value="ir">IR</option>
+                        <option value="external">Manual</option>
+                    </select>
+                    <span id="backlight-color-ranges">
+                        <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
+                        <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
+                        <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
+                        <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
+                        <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
+                        <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                    </span>
+                </div>
+                 <div class="centered-btn vertical-spacer">
+                    <select id="capture-mode-list" style="width:8ch" onchange="adjust()" title="Select capture mode. Serial optional will capture when film frame is ready and is available for motorized adapters only and implies auto move">
+                        <option value="single" selected>Single</option>
+                        <option value="serial">Serial</option>
+                        <option value="multi">Multi</option>
+                    </select>
+
+                    <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
+                    <span id="serial-capture-delay" class="hidden">
+                        <input type="range" id="serial-capture-delay-rng" value="1" min="0" max="10" onchange="adjust_capture_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
+                        <span id="serial-capture-delay-value" class="range-value" />
+                    </span>
+				</div>
+                <div class="vertical-spacer centered-btn">
+                    <button id="capture-btn" title="Numpad0,X">Capture image</button>
+                </div>
+            </fieldset>
+        </div>
+        <div id="preview" class="preview">
+            <fieldset id="preview-fieldset">
+                <legend>Preview (<span id="preview-source"></span>)</legend>
+                <div id="stream-error" class="error">Stream is not available</div>
+                <div id="stream-container">
+                    <div id="stream-control">
+                        <input type="checkbox" id="invert-cb" value="invert" onchange="adjust_preview()" /><label for="invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
+                        <input type="radio" name="rotate" id="rotate0-rb" value="" onchange="adjust_preview()" checked /><label for="rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                        <input type="radio" name="rotate" id="rotate270-rb" value="rotate270" onchange="adjust_preview()" /><label for="rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
+                        <input type="radio" name="rotate" id="rotate180-rb" value="rotate180" onchange="adjust_preview()" /><label for="rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
+                        <input type="radio" name="rotate" id="rotate90-rb" value="rotate90" onchange="adjust_preview()" /><label for="rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
+                        <input type="radio" name="rotate" id="flip-horizontal-rb"value="flip-horizontal" onchange="adjust_preview()" /><label for="flip-horizontal-rb" accesskey="h" title="Flip horizontal">Flip <u>h</u>orizontal</label>
+                        <input type="radio" name="rotate" id="flip-vertical-rb" value="flip-vertical" onchange="adjust_preview()" /><label for="flip-vertical-rb" accesskey="v" title="Flip vertical">Flip <u>v</u>ertical</label>
+                        <input type="range" id="clip-horizontal-rng" value="95" min="0" max="500" onchange="adjust_preview()" class="clipping" title="Horizontal clipping" />
+                        <input type="range" id="clip-vertical-rng" value="0" min="0" max="300" onchange="adjust_preview()" class="clipping" title="Vertical clipping" />
+                        <input type="range" id="background-rng" value="200" min="0" max="255" onchange="adjust_preview()" class="clipping" title="Background color" />
+                    </div>
+                    <div id="stream-border" class="grey-border">
+                        <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
+                    </div>
+                </div>
+            </fieldset>
+        </div>
+    </div>
+</body>
+
+<script>
+    window.frame_width_in_mm = 36+2;
+    window.move_by_in_mm = 0.4;  // TODO: how is calculated movement when 3 / 0.4 gives 1.2 ?
+    window.move_by_speed = 3;
+    window.frame_speed = 4;
+
+    function adjust() {
+        var connected = document.getElementById("server-info").value != "";
+        var volume = window.current_volume;
+        var camera_list = document.getElementById("camera-list");
+        var project_list = document.getElementById("project-list");
+        var film_list = document.getElementById("film-list");
+
+        if (camera_list.selectedIndex == 0) {
+            update_battery();
+        }
+        var abilities = (camera_list.selectedIndex > 0) && (typeof window.current_camera != "undefined");
+        var usbpreview = connected && abilities && document.getElementById("usb-preview-cb").checked && window.current_camera.capture_preview;
+        if (usbpreview != window.current_usbpreview) {
+            document.getElementById("stream").src = "http://"+window._hostname+ ":" + (usbpreview ? "8408" : "8409") + "/stream";
+            document.getElementById("preview-source").innerHTML = usbpreview ? "USB" : "HDMI";
+            if (connected) {
+            }
+            window.current_usbpreview = usbpreview;
+        }
+
+        document.getElementById("camera-fieldset").disabled = !connected;
+        document.getElementById("camera-info").disabled = !abilities;
+        document.getElementById("usb-preview-cb").disabled = !abilities || !window.current_camera.capture_preview;
+        if (!abilities) {
+            set_visible(document.getElementById("camera-detail"), false);
+        }
+
+        var project_id = document.getElementById("project_id");
+        project_id.value = project_list.value;
+        project_id.readOnly = project_id.value != "";
+
+        var project_description = document.getElementById("project_descr");
+        var fl = []
+        if (project_list.selectedIndex > 0) {
+            var custom = project_list.options[project_list.selectedIndex]._custom_data;
+            project_description.value = custom["descr"];
+            if (typeof custom["film_list"] != "undefined") {
+                fl = custom["film_list"];
+            }
+        } else {
+            project_description.value = "";
+        }
+        update_select_options("film-list", fl, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["film_ids"][project_list.value] : "");
+
+        document.getElementById("volume-fieldset").disabled = !connected;
+        document.getElementById("project-fieldset").disabled = !connected || !volume;
+        document.getElementById("create-project-btn").disabled = project_id.value != "";
+        document.getElementById("update-project-btn").disabled = !document.getElementById("create-project-btn").disabled;
+        document.getElementById("delete-project-btn").disabled = document.getElementById("update-project-btn").disabled || (film_list.length > 1);
+
+        document.getElementById("film-fieldset").disabled = !connected || !volume || (project_id.value == "");
+        var film_id = document.getElementById("film_id");
+        film_id.value = film_list.value;
+        film_id.readOnly = film_id.value != "";
+
+        var film_description = document.getElementById("film_descr");
+        var cnt = 0;
+        var capture_list = document.getElementById("capture-list");
+
+        function shorten_bytes(n) {
+            const k = n > 0 ? Math.floor((Math.log2(n)/10)) : 0;
+            const rank = (k > 0 ? 'kMGT'[k - 1] : '') + 'B';
+            const count = Math.floor(n / Math.pow(1024, k));
+            return count + rank;
+        }
+
+        if (film_list.selectedIndex > 0) {
+            var custom = film_list.options[film_list.selectedIndex]._custom_data;
+            film_description.value = custom["descr"];
+            cnt = custom["captured"].length;
+            var f = [];
+            for (const i in custom["captured"]) {
+
+                f.push(custom["captured"][i]["name"] +" ("+ shorten_bytes(custom["captured"][i]["size"]) + ")");
+            }
+            capture_list.value = f.join("\n");
+        } else {
+            film_description.value = "";
+            capture_list.value = "";
+        }
+        document.getElementById("capture-count").innerHTML = "Picture count: " + cnt;
+
+        document.getElementById("create-film-btn").disabled = (project_id.value == "") || (film_id.value != "");
+        document.getElementById("update-film-btn").disabled = (project_id.value == "") || (film_id.value == "");
+        document.getElementById("delete-film-btn").disabled = document.getElementById("update-film-btn").disabled || (cnt >0);
+
+        document.getElementById("motion-fieldset").disabled = !connected;
+        document.getElementById("capture-fieldset").disabled = !connected;
+        document.getElementById("capture-btn").disabled = (camera_list.value == "") || (project_id.value == "") || (film_id.value == "") || !volume || !abilities || !window.current_camera.capture_image;
+
+        var elem = document.getElementById("capture-mode-list");
+        set_visible(document.getElementById("capture-multi"), elem.value == "multi", "");
+        set_visible(document.getElementById("serial-capture-delay"), elem.value != "single", "");
+    }
+
+    function adjust_adapter(data) {
+        if (typeof window.last_adapter_data != "undefined") {
+            var update = (window.last_adapter_data.movement != data.movement) ||
+                (window.last_adapter_data.film_inserted != data.film_inserted) ||
+                (window.last_adapter_data.frame_ready != data.frame_ready) ||
+                (window.last_adapter_data.action != data.action) ||
+                (window.last_adapter_data.capturing != data.capturing);
+        } else {
+            var update = true;
+        }
+        window.last_adapter_data = data;
+        if (update) {
+            function adjust_class(prefix, dir, value, class_name = "current-action") {
+                var elem = get_adapter_button(prefix, dir);
+                if (value != elem.classList.contains(class_name)) {
+                    elem.classList.toggle(class_name);
+                }
+            }
+            adjust_class("insert", "", data.action=="LEAD_IN");
+            adjust_class("insert", "", data.film_inserted, "pre-action");
+            adjust_class("stop", "", data.movement==0);
+            var arr = window.adapter_buttons['move'].idx;
+            for (const i in arr) {
+                adjust_class("move", arr[i], (data.action=="MOVE") && (data.movement == reverse(arr[i])));
+            }
+            arr = window.adapter_buttons['moveby'].idx;
+            for (const i in arr) {
+                adjust_class("moveby", arr[i], (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(arr[i]) > 0)) && (Math.abs(data.movement) == window.move_by_speed));
+            }
+            arr = window.adapter_buttons['frame'].idx;
+            for (const i in arr) {
+                adjust_class("frame", arr[i], (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(arr[i]) > 0)) && (Math.abs(data.movement) == window.frame_speed));
+            }
+            window.adapter_buttons['eject'].idx;
+            for (const i in arr) {
+                adjust_class("eject", arr[i], (data.action=="EJECT") && ((data.movement > 0) == (reverse(arr[i]) > 0)));
+            }
+            if (typeof data.capturing != "undefined") {
+                adjust_class("capture", "", data.capturing);
+            }
+            adjust_class("capture", "", data.frame_ready, "pre-action");
+        }
+    }
+
+    function adjust_capabilities() {
+        var elem = document.getElementById("motion-fieldset");
+        set_visible(elem, window.capabilities.motorized);
+        elem = document.getElementById("backlight-fieldset");
+        set_visible(elem, window.capabilities.backlight_control);
+        // TODO: setup backlight stuff, white,RGB,IR,preview...
+        //elem = document.getElementById("preview-backlight-fieldset");
+        //elem.style.display = window.capabilities.preview_backlight_control ? "block" : "none";
+        //elem = document.getElementById("hotplug-btn");
+        //elem.disabled = !window.capabilities.hot_plug;
+
+        elem = document.getElementById("backlight-color-list");
+        items = elem.options;
+        for (var i = 0; i < items.length; i++) {
+            var opt = items[i];
+            if (opt.value == "white") {
+                opt.disabled = !window.capabilities.white_backlight;
+            } else if (opt.value == "ir") {
+                opt.disabled = !window.capabilities.ir_backlight;
+            } else if (opt.value == "external") {
+                opt.disabled = !window.capabilities.preview_backlight;
+            } else {
+                opt.disabled = !window.capabilities.rgb_backlight;
+            }
+        }
+        adjust_backlight(true);
+
+        elem = document.getElementById("capture-mode-list");
+        var items = elem.options;
+        for (var i = 0; i < items.length; i++) {
+            var opt = items[i];
+            if (opt.value == "serial") {
+                opt.disabled = !window.capabilities.motorized;
+                if (opt.disabled && elem.value == "serial") {
+                    elem.value = "single";
+                }
+            }
+        }
+    }
+
+    function adjust_camera_preview() {
+        var usbpreview = (document.getElementById("camera-list").selectedIndex > 0) && document.getElementById("usb-preview-cb").checked;
+        if (usbpreview) {
+            sendCommand("START_PREVIEW", ["camera-list"]);
+        } else {
+            sendCommand("STOP_PREVIEW", ["camera-list"]);
+        }
+    }
+
+    function adjust_camera_list(camera_id) {
+        // camera_id contains usbid which is increasing, so do some heuristic
+        if (typeof camera_id == "undefined") {
+            return;
+        }
+        var elem = document.getElementById("camera-list");
+        if (elem.selectedIndex == 0) {
+            var id_name = camera_id.split('|');
+            if (id_name.length > 1) {
+                var items = elem.options;
+                for (var i = 1; i < items.length; i++) {
+                    var opt = items[i];
+                    if (opt.value.split("|")[1] == id_name[1]) {
+                        elem.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    function set_volume() {
+        var volume = document.getElementById("volume-list").value;
+        if (volume == "") {
+            window.current_volume = ""
+        } else {
+            sendCommand2("SET_VOLUME", {"volume": volume})
+        }
+        update_select_options("project-list", [], "name", "name");
+        update_volume_info(false);
+        adjust();
+    }
+
+    function format_volume_info(volume) {
+        var a = [];
+        if (volume.partlabel || volume.name) {
+            a.push(volume.partlabel ? volume.partlabel : volume.name);
+        }
+        a.push(volume.size);
+        a.push(" used: "+volume["use%"]);
+        return a.join(": ");
+    }
+
+    function update_volume_info(volume) {
+        var elem = document.getElementById("volume-info");
+        if (volume !== false) {
+            elem.innerHTML = format_volume_info(volume);
+            var low_space = Number(volume["use%"].slice(0, -1)) > 95;
+            if (low_space != elem.classList.contains("warning")) {
+                elem.classList.toggle("warning");
+            }
+        } else {
+            elem.innerHTML = "";
+        }
+    }
+
+    function update_battery(level) {
+        var elem = document.getElementById("battery-level");
+        var low_battery = false;
+        if (typeof level == "undefined") {
+            elem.innerHTML = "N/A";
+        } else {
+            elem.innerHTML = level;
+            var n;
+            if (level.charAt(level.length-1) == "%") {
+                n = Number(level.slice(0, -1));
+            } else {
+                n = Number(level);
+            }
+            low_battery = n < 10;
+        }
+        if (low_battery != elem.classList.contains("warning")) {
+            elem.classList.toggle("warning");
+        }
+    }
+
+    function update_select_options(id, items, id_field, name_field, selected) {
+        var list = document.getElementById(id);
+        if (typeof selected != "undefined") {
+            var sel = selected;
+        } else {
+            var sel = list.value;
+            if (typeof window.pending_settings[id] != "undefined") {
+                sel = window.pending_settings[id];
+                delete window.pending_settings[id];
+            }
+        }
+        while (list.length > 1) {
+            list.remove(list.length-1);
+        }
+        var sel2 = "";
+        items.forEach((item)=> {
+            var opt = new Option(item[name_field], item[id_field]);
+            opt._custom_data = item;
+            list.add(opt);
+            if (sel == item[id_field]) {
+                sel2 = sel;
+            }
+        })
+        list.value = sel2;
+    }
+
+    function update_status_info(s) {
+        document.getElementById("status-info").innerHTML = s;
+	}
+
+    function parse_id_as_int(val) {
+        var idx = val.search(new RegExp(/[0-9]+/));
+        if (idx >= 0) {
+            var res = {};
+            res.prefix = val.substring(0, idx);
+            var val = val.slice(idx);
+            idx = val.search(new RegExp(/[^0-9]/));
+            if (idx >= 0) {
+                res.suffix = val.slice(idx);
+				val = val.slice(0, idx);
+            } else {
+                res.suffix = "";
+            }
+            res.num = Number(val);
+            res.len = val.length;
+        } else {
+            res = {"prefix": val, "len": 0, "suffix": ""};
+        }
+		return res;
+    }
+
+	function create_next_film_id() {
+        var list = document.getElementById("film-list");
+        if (list.selectedIndex > 0) {
+            var it = parse_id_as_int(list.options[list.selectedIndex].text);
+            if (it.len == 0) {
+                it = parse_id_as_int("0");
+            }
+        } else {
+            var it = parse_id_as_int("0");
+        }
+        it.num++;
+		var items = [];
+        for (var i = 1; i < list.options.length; i++) {
+            var x = parse_id_as_int(list.options[i].text);
+            if (x.len > 0 && x.num >= it.num) {
+                x.idx = i;
+                items.push(x);
+            }
+        }
+        items.sort((a, b) => a.num - b.num);  // sort by num ascending
+        for (var i = 0; i < items.length; i++) {
+		    if (items[i].num > it.num) {
+                // free slot found
+                break;
+            } else if (items[i].num == it.num) {
+                if (list.options[items[i].idx]._custom_data.captured.length == 0) {
+                    list.selectedIndex = items[i].idx;
+                    update_project_selection(true);
+                    adjust();
+                    return;
+                }
+			    it.num++;
+            }
+        }
+        var s = it.num.toString();
+		while (s.length < it.len) {
+            s = "0"+s;
+		}
+		s = it.prefix + s + it.suffix;
+		list.selectedIndex = 0;
+		document.getElementById("film_id").value = s;
+		document.getElementById("film_descr").value = "";
+        document.getElementById("create-film-btn").onclick();
+	}
+
+    function check_multicapture() {
+        if (typeof window.automove_in_progress != "undefined") {
+            if (!window.stop_multicapture) {
+                if (window.automove_in_progress == false && window.download_in_progress == false) {
+                    var capture_mode = document.getElementById("capture-mode-list").value;
+                    if (capture_mode == "multi") {
+                        var cnt_elem = document.getElementById("capture-multi");
+                        var cnt = Number(+cnt_elem.value || 1);
+                    } else if (capture_mode == "serial") {
+                        var cnt = 999;
+                    } else {
+                        var cnt = 1;
+                    }
+                    if (cnt > 1) {
+                        // delay range is 0..500ms
+                        var val = Number(document.getElementById("serial-capture-delay-rng").value) * 500;
+                        setTimeout(function() {
+                            if (!window.stop_multicapture) {
+                                if (capture_mode == "multi") {
+                                    cnt_elem.value = (cnt - 1).toString();
+                                }
+                                window.adapter_buttons.capture.action(undefined);
+                                delete window.automove_in_progress;
+                            }
+                        }, val);
+                    } else {
+                        delete window.automove_in_progress;
+                    }
+                }
+            } else {
+                delete window.automove_in_progress;
+            }
+        }
+    }
+
+    function connect() {
+        if (typeof window.socket == "undefined") {
+            window.socket = new WebSocket('ws://'+window._hostname+':8400');
+            window.socket.onopen = function(e) {
+                console.log("[open] Connection established");
+                window.socket.send("HELLO");
+            };
+            window.socket.onmessage = function(event) {
+                console.log(`[message] Data received from server: ${event.data}`);
+                if (event.data[0] == "{") {
+                    try {
+                        var data = JSON.parse(event.data);
+                    } catch(err) {
+                        update_status_info(err);
+                    }
+                    if (typeof data.payload != "undefined" && typeof data.payload.film_position != "undefined") {
+                        var x = data.payload.film_position;
+                        x = x.toFixed(2);
+                        document.getElementById("film-position").value = x.toString();
+                    }
+                    if ((data.cmd == "ADAPTER") && (typeof data.payload != "undefined")) {
+                        if (typeof data.payload.capabilities != "undefined") {
+                            // hotplug
+                            window.steps_per_mm = data.payload.steps_per_mm;
+							window.capabilities = data.payload.capabilities;
+                            adjust_capabilities()
+                        }
+                        adjust_adapter(data.payload);
+                        if (window.capabilities.motorized) {
+                            if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
+                                window.adapter_buttons.insert.action(undefined);
+                            }
+                            if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
+                                if (data.payload.frame_ready) {
+                                    window.automove_in_progress = false;
+                                    check_multicapture();
+                                } else {
+                                    delete window.automove_in_progress;
+                                }
+                            }
+                        }
+                        document.getElementById("backlight-cb").checked = data.payload.backlight.color != "";
+                        if (data.payload.backlight.color != "") {
+                            var color_list = document.getElementById("backlight-color-list");
+                            if (Array.from(color_list.options).filter(
+                                opt => (opt.value == data.payload.backlight.color))
+                            .length > 0) {
+                                color_list.value = data.payload.backlight.color;
+                                var colors = data.payload.backlight.color.split("+");
+                                var intensity = data.payload.backlight.intensity;
+                                for (var i = colors.length-1; i >= 0; i--) {
+                                    document.getElementById("backlight-"+colors[i]+"-rng").value = intensity & 0xFF;
+                                    intensity = intensity >> 8;
+                                }
+                                adjust_backlight(true, false);
+                            }
+                        }
+                    } else if ((data.cmd == "CAMERA") && (typeof data.payload != "undefined")) {
+                        document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
+                        adjust_adapter(data.payload)
+                    } else if (typeof data.payload != "undefined") {
+                        if (typeof data.payload.volume_list != "undefined") {
+                            var vl = [];
+                            var act = false;
+                            var act_id = "";
+                            data.payload.volume_list.forEach((vol)=>{
+                                vl.push({"id": vol.name, "name": format_volume_info(vol)});
+                                if (vol.active) {
+                                    act = vol;
+                                    act_id = vol.name;
+                                }
+                            });
+                            update_select_options("volume-list", vl, "id", "name");
+                            var elem = document.getElementById("volume-list");
+                            if (elem.value != act_id) {
+                                elem.value = act_id;
+                            }
+                            if (act_id != window.current_volume) {
+                                update_select_options("project-list", [], "name", "name");
+                                window.current_volume = act_id;
+                                update_volume_info(act);
+                                if (act !== false) {
+                                    sendCommand("LIST_PROJECTS");
+                                }
+                            }
+                        }
+
+                        if (typeof data.payload.camera_list != "undefined") {
+                            var elem = document.getElementById("camera-list");
+                            var current_camera_id = elem.value;
+                            update_select_options("camera-list", data.payload.camera_list, "id", "name");
+                            data.payload.camera_list.forEach((item)=> {
+                                if (item.current) {
+                                    update_battery(item.battery);
+                                }
+                            })
+                            adjust_camera_list(current_camera_id);
+                            if (elem.selectedIndex > 0 /*typeof pend != typeof window.pending_settings["camera-list"]*/ ) {
+                                sendCommand("SET_CAMERA", ["camera-list"]);
+                            }
+                        }
+                        if (typeof data.payload.project_list != "undefined") {
+                            update_select_options("project-list", data.payload.project_list, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["project_id"]: "");
+                            update_project_selection(false);
+                        }
+                        if (typeof data.payload.volume != "undefined") {
+                            update_volume_info(data.payload.volume);
+                        }
+                        if (data.cmd == "SET_CAMERA") {
+                            document.getElementById("camera-list").value = data.payload.id;
+                            window.current_camera = data.payload;
+                            document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
+                            update_battery(data.payload.battery);
+                        } else if (data.cmd == "GET_PROJECT") {
+                            var project_list = document.getElementById("project-list");
+                            var film_list = document.getElementById("film-list");
+                            if ((project_list.value == data.payload.id) && (project_list.selectedIndex > 0)) {
+                                project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
+                            }
+                        } else if (data.cmd == "CAPTURE") {
+                            if (window.capabilities.motorized) {
+                                if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
+                                    var x = Math.abs(window.last_capture_position - data.payload.film_position);
+                                    x -= window.frame_width_in_mm;
+                                    x = x.toFixed(2);
+                                    if (Math.abs(x) < 10) {
+                                        document.getElementById("frame-correction").value = x.toString();
+                                    }
+                                }
+                                window.last_capture_position = data.payload.film_position;
+                                if (!window.stop_multicapture) {
+                                    if (document.getElementById("automove-cb").checked || document.getElementById("capture-mode-list").value == "serial") {
+                                        window.automove_in_progress = true;
+                                        window.adapter_buttons.frame.action(1);
+                                    } else {
+                                        window.automove_in_progress = false;
+                                    }
+                                }
+                                window.download_in_progress = true;
+                            }
+                            update_battery(data.payload.battery);
+
+                        } else if (data.cmd == "DOWNLOAD") {
+                            sendCommand('GET_PROJECT', ['project_id']);
+                            if (typeof data.payload.error != "undefined") {
+                                window.stop_multicapture = true;
+                                update_status_info(data.payload.error);
+                            }
+                            if (!window.capabilities.motorized) {
+                                window.automove_in_progress = false;
+                            }
+							window.download_in_progress = false;
+							check_multicapture();
+                        } else if (data.cmd == "CREATE_FILM") {
+                            // add new film into select box as placeholder
+                            var elem = document.getElementById("film-list");
+                            var opt = new Option(data.payload.id, data.payload.id);
+                            elem.add(opt);
+                            elem.value = data.payload.id;
+                            update_project_selection(true);
+                            var project_list = document.getElementById("project-list");
+                            project_list.options[project_list.selectedIndex]._custom_data.film_list.push(data.payload);
+                            sendCommand('GET_PROJECT', ['project_id']);
+                        } else if (data.cmd == "CREATE_PROJECT") {
+                            // add new project into select box as placeholder
+                            var elem = document.getElementById("project-list");
+                            var opt = new Option(data.payload.id, data.payload.id);
+                            elem.add(opt);
+                            elem.value = data.payload.id;
+                            update_project_selection(false);
+                            sendCommand('LIST_PROJECTS');
+                        } else if (data.cmd == "HELLO" || data.cmd == "HOTPLUG") {
+                            document.getElementById("server-name").innerHTML = data.payload.program;
+                            document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
+                            window.steps_per_mm = data.payload.steps_per_mm;
+							window.capabilities = data.payload.capabilities;
+                            adjust_capabilities()
+                            if (typeof data.payload.volume_list == "undefined") {
+                                set_visible(document.getElementById("select-volume"), false);
+                                window.current_volume = true
+                            }
+							var is_lan_control = typeof data.payload.lan_ip != "undefined";
+							var elem = document.getElementById("rc-qrcode");
+							set_visible(elem, is_lan_control);
+							var url = location.protocol + "//" + (is_lan_control ? data.payload.lan_ip : "localhost");
+							if (location.port != "") {
+								url += ":" + location.port;
+							}
+							document.getElementById("rc-url").innerHTML = url;
+							var elem = document.getElementById("rc-qrcode");
+							elem.innerHTML = "";
+							if (is_lan_control) {
+								var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
+							}
+
+							adjust_backlight();
+
+                            sendCommand("LIST_CAMERAS");
+                            if (window.current_volume) {
+                                sendCommand("LIST_PROJECTS");
+                            }
+                            document.onkeydown = do_onkeydown;
+                            document.onkeyup = do_onkeyup;
+                            adjust_adapter({"movement": 0, });
+                        } else if (data.cmd == "LIST_CAMERAS") {
+                            adjust_camera_preview();
+                        } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
+                            document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
+                        }
+                        adjust();
+                    }
+                    console.log(data);
+                } else {
+                    update_status_info(event.data);
+                }
+
+            };
+
+            window.socket.onclose = function(event) {
+                if (event.wasClean) {
+                    window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                } else {
+                    // e.g. server process killed or network down
+                    // event.code is usually 1006 in this case
+                    console.log('[close] Connection died');
+                    do_disconnect();
+                }
+            }
+
+            window.socket.onerror = function(error) {
+                console.log(`[error]`);
+            };
+        }
+    }
+
+    function disconnect() {
+        if (typeof window.socket != "undefined") {
+            window.socket.send("BYE");
+            window.socket.onclose = function () {};
+            window.socket.close();
+            do_disconnect();
+        }
+    }
+
+    function hotplug() {
+        if (typeof window.socket != "undefined") {
+            window.socket.send("HOTPLUG");
+        }
+    }
+
+    function sendCommand2(cmd, obj) {
+        if (typeof window.socket != "undefined" && window.socket.readyState == window.socket.OPEN) {
+            if (typeof obj != "undefined") {
+                cmd = cmd + ":" + JSON.stringify(obj);
+            }
+            update_status_info("");
+            console.log('[send]: ' + cmd);
+            window.socket.send(cmd);
+        }
+    }
+
+    function sendCommand(cmd, params, obj = {}) {
+        if (typeof params != "undefined") {
+            params.forEach((key)=> {
+                var elem = document.getElementById(key);
+                if (elem.name != "") {
+                    key = elem.name;
+                }
+                obj[key] = elem.value;
+            })
+        }
+        sendCommand2(cmd, obj);
+    }
+
+    function do_disconnect()  {
+        document.onkeydown = function(event) {};
+        document.onkeyup = function(event) {};
+        document.getElementById("server-name").innerHTML = "";
+        set_visible(document.getElementById("server-detail"), false);
+        document.getElementById("server-info").value = "";
+        delete window.socket;
+        adjust();
+        adjust_adapter({});
+    }
+
+    function get_adapter_button(name, dir) {
+        if (dir != "") {
+            name += "-" + Math.abs(dir) + (dir > 0 ? "f" : "b");
+        }
+        name += "-btn";
+        return document.getElementById(name);
+    }
+
+    function is_touch_device() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints;
+    }
+
+    function consume_event_propagation(event) {
+        event.preventDefault();   // to consume event to avoid mousedown
+        event.cancelBubble = true;
+        if (typeof event.stopPropagation != "undefined") {
+            event.stopPropagation();
+        }
+    }
+
+	function do_onresize(event) {
+		// adjust zoom to avoid scrollbars in preview area
+		var width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+		//var height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+        var preview = document.getElementById("preview");
+		var stream_container = document.getElementById("stream-container");
+		var req_width = stream_container.offsetLeft + preview.scrollWidth;
+		var scale = Math.max(Math.min(width / req_width, 1), 0.5);
+		var cls = document.getElementsByClassName('wrapper')[0];
+		cls.style["transform"] = "scale("+scale+")";
+        console.log(`[onresize]: scale: ${scale}`);
+	}
+
+    function do_onfocusin(event) {
+        switch (event.target.tagName) {
+            case "INPUT":
+                if (event.target.type == "checkbox") {
+                    break;
+                }
+            case "TEXTAREA":
+            case "SELECT":
+                // somohow indicate that keyboard hotkeys are not working
+                adjust_adapter_button_style(false);
+                break;
+        }
+    }
+
+    function do_onfocusout(event) {
+        // keyboards shortcuts working
+        adjust_adapter_button_style(true);
+    }
+
+    function adjust_adapter_button_style(hotkeys) {
+        function adj_button(btn) {
+            if (hotkeys != btn.classList.contains("hotkey-enabled")) {
+                btn.classList.toggle("hotkey-enabled");
+            }
+        }
+        for (const key in window.adapter_buttons) {
+            var cmd = window.adapter_buttons[key];
+            if (typeof cmd.idx != "undefined") {
+                for (const i in cmd.idx) {
+                    adj_button(get_adapter_button(key, cmd.idx[i]));
+                }
+            } else {
+                adj_button(get_adapter_button(key, ""));
+            }
+        }
+    }
+
+    function do_onload() {
+        // setup hostname
+        window._hostname = location.hostname != "" ? location.hostname : "localhost";
+        //window.current_usbpreview = false;
+		window.onresize = do_onresize;
+        window.stop_multicapture = false;
+		do_onresize(undefined);
+        document.addEventListener("focusin", do_onfocusin);
+        document.addEventListener("focusout", do_onfocusout);
+
+        window.settings = {
+            "control.capture.mode": "capture-mode-list",
+            "preview.rotate": "rotate",
+            "preview.invert": "invert-cb",
+            "preview.clip.x": "clip-horizontal-rng",
+            "preview.clip.y": "clip-vertical-rng",
+            "praview.background_color": "background-rng",
+            "preview.usb": "usb-preview-cb",
+            "control.autoinc": "autoinc-cb",
+            "control.automove": "automove-cb",
+            "control.autolead": "autolead-cb",
+            "control.reverse": "reverse-cb",
+            "control.sticky": "sticky-cb",
+            "control.frame_correction": "frame-correction",
+            "control.auto_correction": "autocorrection-cb",
+			"control.backlight": "backlight-cb",
+			"control.backlight.color": "backlight-color-list",
+			"control.backlight.white": "backlight-white-rng",
+			"control.backlight.red": "backlight-red-rng",
+			"control.backlight.green": "backlight-green-rng",
+			"control.backlight.blue": "backlight-blue-rng",
+			"control.backlight.ir": "backlight-ir-rng",
+			"control.backlight.external": "backlight-external-rng",
+            //"control.capture.mode": "capture-mode-list",
+            "control.capture.serial_delay": "serial-capture-delay-rng",
+            "select.camera": "camera-list",
+            "select.volume": "volume-list",
+            "select.project": "project-list",
+            "select.film": "film-list",
+        };
+
+        // add listeners for adapter
+        window.adapter_buttons = {
+            "move": {
+                "idx": [-4, -3, -2, -1, 1, 2, 3, 4],
+                "action": function(dir) {
+                    sendCommand2('MOVE', {'direction': dir});
+                },
+            },
+            "stop": {
+                "action": function(dir) {
+                    window.stop_multicapture = true;
+                    sendCommand2('STOP');
+                },
+            },
+
+            "moveby": {
+                "idx": [-1, 1],
+                "action": function(dir) {
+                    sendCommand2("MOVE_BY", {'mm': dir*window.move_by_in_mm, 'speed': window.move_by_speed});
+                },
+            },
+
+            "frame": {
+                "idx": [-1, 1],
+                "action": function(dir) {
+                    sendCommand2("MOVE_BY", {'mm': dir*(window.frame_width_in_mm + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': window.frame_speed});
+                },
+            },
+
+            "eject": {
+                "idx": [-1, 1],
+                "action": function(dir) {
+                    sendCommand2("EJECT", {'forward': dir});
+                },
+            },
+
+            "insert": {
+                "action": function(dir) {
+					if (!document.getElementById("film-fieldset").disabled && document.getElementById("autoinc-cb").checked) {
+						var film_list = document.getElementById("film-list");
+						if (film_list.selectedIndex == 0 || film_list.options[film_list.selectedIndex]._custom_data.captured.length > 0) {
+							create_next_film_id();
+						}
+					}
+                    sendCommand2('INSERT');
+                },
+            },
+
+            "capture": {
+                "action": function(dir) {
+                    if (window.capabilities.motorized) {
+						sendCommand2("STOP");
+					}
+                    window.stop_multicapture = false;
+                    sendCommand('CAPTURE', ['camera-list', 'project_id', 'film_id']);
+                },
+            },
+        };
+
+        function do_adapter_onclick(obj) {
+            if (window.sticky_mouse == event.currentTarget.id) {
+                // if mousedown and mouseup are invoked from the same button then unconditionally follows onclick event
+                sendCommand2("STOP");
+                delete window.sticky_mouse;
+                return;
+            }
+            const arr = obj.currentTarget.id.split("-");
+            var cmd = window.adapter_buttons[arr[0]];
+            var dir = "";
+            if (arr.length > 2) {
+                dir = Number(arr[1][0]);
+                if (arr[1][1] == "b") {
+                    dir = -dir;
+                }
+                dir = reverse(dir);
+            }
+            cmd.action(dir);
+        }
+
+        function do_adapter_onmousedown(event) {
+            console.log("[onmousedown]: "+JSON.stringify(event));
+            if (document.getElementById("sticky-cb").checked) {
+                event.currentTarget.click();
+                window.sticky_mouse = event.currentTarget.id;
+                delete window.sticky_key;
+                delete window.sticky_touch;
+            }
+        }
+
+        function do_adapter_onmouseup(event) {
+            console.log("[onmouseup]: "+JSON.stringify(event));
+            if (typeof window.sticky_mouse != "undefined") {
+                // if mousedown and mouseup are invoked from the same button then uncoditionally follows onclick event
+                if (window.sticky_mouse != event.currentTarget.id) {
+                    sendCommand2("STOP");
+                    delete window.sticky_mouse;
+                }
+                consume_event_propagation(event);   // to consume event to avoid page scroll
+            }
+        }
+
+        function do_adapter_ontouchstart(event) {
+            console.log("[ontouchstart]: "+event.currentTarget.id);
+            if (document.getElementById("sticky-cb").checked) {
+                // event.currentTarget.click();
+                window.sticky_touch = event.currentTarget.id;
+                delete window.sticky_key;
+                delete window.sticky_mouse;
+                event.currentTarget.click();
+                consume_event_propagation(event);
+            }
+        }
+
+        function do_adapter_ontouchend(event) {
+            console.log("[ontouchend]: "+event.currentTarget.id);
+            if (typeof window.sticky_touch != "undefined") {
+                sendCommand2("STOP");
+                delete window.sticky_touch;
+            }
+        }
+
+        function do_adapter_ontouchcancel(event) {
+            console.log("[ontouchcancel]: "+event.currentTarget.id);
+            if (typeof window.sticky_touch != "undefined") {
+                sendCommand2("STOP");
+                delete window.sticky_touch;
+            }
+        }
+
+        console.log("Touch device: " + is_touch_device())
+        for (const key in window.adapter_buttons) {
+            var cmd = window.adapter_buttons[key];
+            if (typeof cmd.idx != "undefined") {
+                for (const i in cmd.idx) {
+                    get_adapter_button(key, cmd.idx[i]).onclick = do_adapter_onclick;
+                }
+            } else {
+                get_adapter_button(key, "").onclick = do_adapter_onclick;
+            }
+        }
+        var key = "move";
+        var cmd = window.adapter_buttons[key];
+        for (const i in cmd.idx) {
+            var btn = get_adapter_button(key, cmd.idx[i]);
+            btn.onmousedown = do_adapter_onmousedown;
+            btn.onmouseup = do_adapter_onmouseup;
+            if (is_touch_device()) {
+                // assignment to btn.ontouchxxxx does not work
+                btn.addEventListener("touchstart", do_adapter_ontouchstart, false);
+                btn.addEventListener("touchend", do_adapter_ontouchend, false);
+                btn.addEventListener("touchcancel", do_adapter_ontouchcancel, false);
+            }
+        }
+        adjust_adapter_button_style(true);
+        document.onmouseup = do_adapter_onmouseup;
+
+        window.pending_settings = {};
+
+        try {
+            const RETENTION_PERIOD = 1000*60*60*24*7;
+            var cps = Object.assign({}, JSON.parse(localStorage.getItem("current_project_selection")));
+            window.current_project_selection = Object.keys(cps).reduce(function(volume_filtered, volume_id) {
+                // filter out old records not to grow local storage
+                var rec = cps[volume_id];
+                cps[volume_id] = Object.keys(cps[volume_id]["updated"]).reduce(function(filtered2, project_id) {
+                    if (Date.now() - cps[volume_id]["updated"][project_id] < RETENTION_PERIOD) {
+                        filtered2["updated"][project_id] = cps[volume_id]["updated"][project_id];
+                        filtered2["film_ids"][project_id] = cps[volume_id]["film_ids"][project_id];
+                    }
+                    return filtered2;
+                }, {"updated": {}, "film_ids": {}, "project_id": cps[volume_id]["project_id"]});
+
+                if (Object.keys(cps[volume_id]["updated"]).length > 0) {
+                    volume_filtered[volume_id] = cps[volume_id];
+                }
+                return volume_filtered;
+            }, {});
+        } catch(err) {
+            window.current_project_selection = {};
+        }
+        adjust();
+
+        for (const key in window.settings) {
+            var val = localStorage.getItem(key);
+            var elem = document.getElementById(window.settings[key]);
+            if (elem == null) {
+                elems = document.getElementsByName(window.settings[key]);
+                for (var i = 0; i<elems.length; i++) {
+                    elem = elems[i];
+                    elem.addEventListener("change", save_settings);
+                    if (val === elem.value) {
+                        elem.checked = true
+                    }
+                }
+            } else {
+                elem.addEventListener("change", save_settings);
+                if (val != null) {
+                    if (elem.type == "select-one") {
+                        window.pending_settings[elem.id] = val;   // we need set value when loaded
+                        elem.value = val;
+                    } else {
+                        if (elem.type == "checkbox") {
+                            elem.checked = val === "true";
+                        } else {
+                            elem.value = val;
+                        }
+                    }
+                }
+            }
+        }
+        adjust_camera_list(localStorage.getItem("select.camera"));
+        adjust_capture_delay_value(document.getElementById("serial-capture-delay-rng"));
+        connect();
+        adjust_preview();
+    }
+
+    function do_onkeydown(event) {
+        const elem = document.activeElement;
+        switch (elem.tagName) {
+        case "INPUT":
+            if (elem.type != "checkbox") {
+                break;
+            }
+        case "BUTTON":
+        case "BODY":
+
+            var shift_count = Number(event.altKey) + Number(event.metaKey) + Number(event.shiftKey) + Number(event.ctrlKey);
+            var btn = "";
+            if (shift_count == 0) {
+                switch (event.code) {
+                case "Escape":
+                case "KeyG":
+                    btn = "stop";
+                    break;
+                /*case "Space":
+                    if (elem.tagName != "BUTTON") {
+                        btn = "stop";
+                    }
+                    break; */
+                case "ArrowRight":
+                case "KeyL":
+                    btn = "move-4f";
+                    break;
+                case "KeyK":
+                    btn = "move-3f";
+                    break;
+                case "KeyJ":
+                    btn = "move-2f";
+                    break;
+                case "KeyH":
+                    btn = "move-1f";
+                    break;
+                case "KeyF":
+                    btn = "move-1b";
+                    break;
+                case "KeyD":
+                    btn = "move-2b";
+                    break;
+                case "KeyS":
+                    btn = "move-3b";
+                    break;
+                case "ArrowLeft":
+                case "KeyA":
+                    btn = "move-4b";
+                    break;
+                case "Backspace":
+                case "Insert":
+                case "KeyI":
+                    btn = "insert";
+                    break;
+                case "Home":
+                case "KeyW":
+                    btn = "eject-1f";
+                    break;
+                case "End":
+                case "KeyQ":
+                    btn = "eject-1b";
+                    break;
+                case "Comma":
+                    btn = "frame-1b";
+                    break;
+                case "Period":
+                    btn = "frame-1f";
+                    break;
+                case "Numpad0":
+                case "KeyX":
+                    btn = "capture";
+                    break;
+                case "KeyB":
+                    var cb_elem = document.getElementById("backlight-cb");
+                    if (!cb_elem.disabled) {
+                        cb_elem.checked = !cb_elem.checked;
+                        cb_elem.onchange();
+                    }
+                    break;
+                /*case "Enter":   // enter is too dangerous common key
+                    if (elem.tagName != "BUTTON") {
+                        btn = "capture";
+                    }
+                    break;*/
+                }
+            } else if (shift_count == 1) {
+                switch (event.code) {
+                case "ArrowRight":
+                    if (event.ctrlKey) {
+                        btn = "frame-1f";
+                    } else if (event.shiftKey) {
+                        btn = "move-2f";
+                    }
+                    break;
+                case "ArrowLeft":
+                    if (event.ctrlKey) {
+                        btn = "frame-1b";
+                    } else if (event.shiftKey) {
+                        btn = "move-2b";
+                    }
+                    break;
+                }
+            } else if (shift_count == 2) {
+                switch (event.code) {
+                case "ArrowRight":
+                    if (event.ctrlKey && event.shiftKey) {
+                        btn = "moveby-1f";
+                    }
+                    break;
+                case "ArrowLeft":
+                if (event.ctrlKey && event.shiftKey) {
+                        btn = "moveby-1b";
+                    }
+                    break;
+                }
+            }
+            if (btn != "") {
+                if (event.repeat == false) {
+                    if (document.getElementById("sticky-cb").checked && (btn.indexOf("move-") == 0)) {
+                        window.sticky_key = event.code;
+                        delete window.sticky_mouse;
+                        delete window.sticky_touch;
+                    }
+                    document.getElementById(btn+"-btn").click();
+                }
+                event = event || window.event;
+                consume_event_propagation(event);    // to consume event to avoid page scroll
+            }
+            break;
+        }
+        // console.log("[keydown]: "+JSON.stringify(event));
+        // console.log("[keydown]: "+event.type+ "/"+elem.tagName);
+    }
+
+    function do_onkeyup(event) {
+        console.log("[keyup]: "+JSON.stringify(event));
+        if (window.sticky_key == event.code) {
+            sendCommand2("STOP");
+            delete window.sticky_key;
+        }
+    }
+
+    function reverse(x) {
+        if (document.getElementById("reverse-cb").checked) {
+            return x;
+        } else {
+            return -x;
+        }
+    }
+
+    function do_imgok() {
+        set_visible(document.getElementById("stream-error"), false);
+        set_visible(document.getElementById("stream-container"), true);
+    }
+
+    function do_imgerror() {
+        set_visible(document.getElementById("stream-error"), true);
+        set_visible(document.getElementById("stream-container"), false);
+    }
+
+    function set_visible(elem, value, display_on="block") {
+        if (value) {
+            elem.style.display = display_on;
+        } else {
+            elem.style.display = "none";
+        }
+    }
+
+    function toggle_status(clicked_elem, id) {
+        if (clicked_elem.disabled || clicked_elem.parentNode.disabled || clicked_elem.parentNode.parentNode.disabled) {
+            return;
+        }
+        elem = document.getElementById(id);
+        elem.style.display = elem.style.display == "none" ? "block" : "none";
+        return false;
+    }
+
+    function adjust_preview() {
+        var stream = document.getElementById("stream");
+        var elems = document.getElementsByTagName("input");
+        for (var i = 0; i < elems.length; i++) {
+            elem = elems[i];
+            if (elem.type == "radio") {
+                if (elem.value != "") {
+                    if (elem.checked != stream.classList.contains(elem.value)) {
+                        stream.classList.toggle(elem.value);
+                    }
+                }
+            } else if (elem.type == "checkbox") {
+                if (elem.checked != stream.classList.contains(elem.value)) {
+                    stream.classList.toggle(elem.value);
+                }
+            }
+        }
+        var hc = document.getElementById("clip-horizontal-rng").value;
+        var vc = document.getElementById("clip-vertical-rng").value;
+        stream.style["clip-path"] = "inset("+vc+"px "+hc+"px "+vc+"px "+hc+"px)";
+        var x = ("0"+Number(document.getElementById("background-rng").value).toString(16)).slice(-2);
+        stream.parentNode.style["background-color"] = "#"+x+x+x;
+    }
+
+	function adjust_backlight(adjust_range = false, send_cmd = true) {
+        var color_list = document.getElementById("backlight-color-list");
+        var idx = color_list.selectedIndex;
+        if (idx < 0) {
+            var color = "";
+        } else {
+            var color = color_list.options[idx].value;
+        }
+        var val = 0;
+		var is_on = (color != "") && document.getElementById("backlight-cb").checked;
+        var elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
+        for (var i = 0; i < elems.length; i++) {
+            var elem_color = elems[i].id.split("-")[1];
+            var is_visible = color.includes(elem_color);
+            if (adjust_range) {
+                set_visible(elems[i], is_visible, "");
+            }
+            var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
+            document.getElementById("backlight-"+elem_color+"-value").innerHTML = range_elem.value;
+            if (is_on && is_visible) {
+                val <<= 8;
+                val += Number(range_elem.value);
+            }
+        }
+        if (send_cmd) {
+            if (is_on && val > 0) {
+                sendCommand2("SET_BACKLIGHT", {"color": color, "intensity": val});
+            } else {
+                sendCommand2("SET_BACKLIGHT");
+            }
+        }
+	}
+
+    function adjust_capture_delay_value(range_elem) {
+        var value_elem = document.getElementById(range_elem.id.replace("-rng", "-value"));
+        value_elem.innerHTML = String(Number(range_elem.value) * 0.5)+"s";
+    }
+
+    function update_project_selection(film_update) {
+        var rec = Object.assign({"updated": {}, "film_ids": {}}, window.current_project_selection[window.current_volume],
+            {"project_id": document.getElementById("project-list").value, })
+        rec["updated"][rec["project_id"]] = Date.now();
+        if (film_update) {
+            rec["film_ids"][rec["project_id"]] = document.getElementById("film-list").value;
+        }
+        window.current_project_selection[window.current_volume] = rec;
+        localStorage.setItem("current_project_selection", JSON.stringify(window.current_project_selection));
+    }
+
+    function save_settings(event) {
+        var elem = event.srcElement;
+        for (const key in window.settings) {
+            if (elem.id == window.settings[key]) {
+                var val;
+                if (elem.type == "checkbox") {
+                    val = elem.checked;
+                } else if (elem.type  == "radio") {
+                    if (elem.checked) {
+                        val = elem.checked;
+                    }
+                } else {
+                    val = elem.value;
+                }
+                localStorage.setItem(key, val);
+            } else if (elem.type  == "radio" && elem.name==window.settings[key]) {
+                if (elem.checked) {
+                    localStorage.setItem(key, elem.value);
+                }
+            }
+        }
+    }
+
+</script>
+</html>

@@ -1,0 +1,34 @@
+diff --git a/camlibs/ptp2/library.c b/camlibs/ptp2/library.c
+index 590ff7ace..93a87fe93 100644
+--- a/camlibs/ptp2/library.c
++++ b/camlibs/ptp2/library.c
+@@ -5026,9 +5026,13 @@ camera_sony_capture (Camera *camera, CameraCaptureType type, CameraFilePath *pat
+ 		if (ptp_get_one_event(params, &event)) {
+ 			GP_LOG_D ("during wait for image event.code=%04x Param1=%08x", event.Code, event.Param1);
+ 			if (event.Code == PTP_EC_Sony_ObjectAdded) {
+-				newobject = event.Param1;
+-				GP_LOG_D ("SONY ObjectAdded received, ending wait");
+-				break;
++				if (params->deviceinfo.Model && !strncmp(params->deviceinfo.Model, "ILCE-7", 6)) {
++					GP_LOG_D ("SONY ObjectAdded received, waiting for poll flag");
++				} else {
++					newobject = event.Param1;
++					GP_LOG_D ("SONY ObjectAdded received, ending wait");
++					break;
++				}
+ 			}
+ 		}
+ #endif
+diff --git a/configure.ac b/configure.ac
+index 090b75485..99093c6fb 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -6,7 +6,7 @@ dnl       So lastversion.X.trunk for instance. Bump X if necessary.
+ 
+ dnl ******* THE NEXT RELEASE VERSION MUST BE 2.5.31 at least or higher!
+ AC_INIT([libgphoto2 photo camera library],
+-        [2.5.31.1],
++        [2.5.31.2],
+         [gphoto-devel@lists.sourceforge.net],
+         [libgphoto2])
+ 

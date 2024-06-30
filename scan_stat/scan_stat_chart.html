@@ -1,0 +1,250 @@
+<html>
+  <head>
+    <title>Scan statistics</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/0.71/jquery.csv-0.71.min.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', { 'packages': ['bar'] });
+        google.charts.setOnLoadCallback(drawCharts);
+
+        var csvProcessedDirs =
+// <__CSV_DIRS__>
+`999/05
+999/02
+999/06
+999/01
+999/04
+999/03
+996/18
+996/17
+996/14
+996/12
+996/05
+996/02
+996/06
+996/01
+996/16
+996/04
+996/25
+996/21
+996/22
+996/13
+996/20
+996/10
+996/08
+996/15
+996/24
+996/19
+996/09
+996/23
+996/03
+996/11
+996/07
+998/18
+998/50
+998/30
+998/48
+998/27
+998/42
+998/17
+998/14
+998/28
+998/29
+998/12
+998/05
+998/02
+998/06
+998/01
+998/16
+998/41
+998/40
+998/37
+998/47
+998/04
+998/45
+998/25
+998/36
+998/46
+998/21
+998/43
+998/22
+998/34
+998/26
+998/13
+998/44
+998/20
+998/10
+998/32
+998/08
+998/15
+998/24
+998/35
+998/49
+998/19
+998/39
+998/31
+998/33
+998/09
+998/38
+998/23
+998/03
+998/11
+998/07
+01/01
+116/321
+116/999
+116/312
+116/320
+116/239
+116/313
+116/252
+116/325
+116/244
+116/246
+116/314
+116/324
+116/235
+116/233
+116/317
+116/232
+116/230
+116/319
+116/316
+116/103
+116/241
+116/322
+116/231
+116/242
+116/226
+116/245
+116/238
+116/323
+116/253
+116/229
+116/251
+116/311
+116/250
+116/243
+116/318
+116/240
+116/247
+116/248
+116/315
+116/236
+116/249
+116/237
+116/227
+116/228
+116/234
+150/02
+150/01
+test/01
+997/01
+`
+// </__CSV_DIRS__>
+        ;
+
+       var csvHourly =
+// <__CSV_HOURLY__>
+`2024-01-22 15:00;pi;1
+2024-01-23 21:00;pi;10
+2024-01-23 22:00;pi;202
+2024-01-23 23:00;pi;79
+2024-01-29 19:00;pi;1
+2024-01-31 13:00;pi;199
+2024-01-31 17:00;pi;35
+2024-01-31 18:00;pi;375
+2024-01-31 19:00;pi;27
+`
+// </__CSV_HOURLY__>
+        ;
+
+        var csvDaily =
+// <__CSV_DAILY__>
+`2024-01-22;pi;1
+2024-01-23;pi;291
+2024-01-29;pi;1
+2024-01-31;pi;636
+`
+// </__CSV_DAILY__>
+        ;
+
+        var csvWeekly =
+// <__CSV_WEEKLY__>
+`2023-W45;pi;43
+2023-W46;pi;69
+2023-W47;pi;46
+2023-W48;pi;2275
+2023-W49;pi;433
+2024-W04;pi;292
+2024-W05;pi;637
+`
+// </__CSV_WEEKLY__>
+        ;
+
+        var csvMonthly =
+// <__CSV_MONTHLY__>
+`2023-11;pi;2433
+2023-12;pi;433
+2024-01;pi;929
+`
+// </__CSV_MONTHLY__>
+        ;
+
+        function CsvToDataTable(csvString, cntIdx) {
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'Date');
+            var arrayData = $.csv.toArrays(csvString, { separator: ';' });
+            var columns = [];
+            var rows = [];
+            arrayData.forEach(function (item, index) {
+                var val = Number(item[2 + cntIdx]);
+                if (val != 0) {
+                    if (!(item[0] in rows)) {
+                        rows[item[0]] = data.addRow();
+                        data.setCell(rows[item[0]], 0, item[0]);
+                    }
+                    if (!(item[1] in columns)) {
+                        columns[item[1]] = data.addColumn('number', item[1]);
+                    }
+                    data.setCell(rows[item[0]], columns[item[1]], val);
+                }
+            });
+            return data;
+        };
+
+        function drawCharts() {
+            var options = {
+                chart: {
+                    title: '',
+                    subtitle: 'Number of files',
+                },
+                isStacked: true,
+                height: 300,
+                legend: { position: 'top', maxLines: 3 },
+                vAxis: { minValue: 0 },
+                bar: { groupWidth: '75%' }
+            };
+            var charts = [
+                { name: 'hourly', data: csvHourly, title: 'Hourly' },
+                { name: 'daily', data: csvDaily, title: 'Daily' },
+                { name: 'weekly', data: csvWeekly, title: 'Weekly' },
+                { name: 'monthly', data: csvMonthly, title: 'Monthly' }
+            ];
+            charts.forEach(function (item, index) {
+                var chart = new google.charts.Bar(document.getElementById(item['name'] + '_chart'));
+                options['chart']['title'] = 'App Time: ' + item['title'];
+                var data = CsvToDataTable(item['data'], 0);
+                chart.draw(data, google.charts.Bar.convertOptions(options));
+            });
+        }
+    </script>
+  </head>
+  <body>
+    <div id="monthly_chart" style="width: 800px; height: 500px;"></div>
+    <div id="weekly_chart" style="width: 800px; height: 500px;"></div>
+    <div id="daily_chart" style="width: 800px; height: 500px;"></div>
+    <div id="hourly_chart" style="width: 800px; height: 500px;"></div>
+  </body>
+</html>

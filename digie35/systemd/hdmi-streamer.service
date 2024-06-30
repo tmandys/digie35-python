@@ -1,0 +1,14 @@
+[Unit]
+Description=ustreamer service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ustreamer --exit-on-parent-death --host 0.0.0.0 -p 8409 -r 1280x720 -c HW -f 20
+Restart=on-failure
+RestartSec=5s
+#User=pi
+
+[Install]
+WantedBy=default.target
+

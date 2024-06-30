@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Digie35 Test
+GenericName=Digie35 Test
+Comment=Digie35 Test GUI
+Categories=GTK;WebBrowser;Photography;
+Exec=midori -a http://localhost/digie35_test.html
+Icon=digie35-scanner
+Terminal=false
+StartupNotify=true
+Actions=Private;

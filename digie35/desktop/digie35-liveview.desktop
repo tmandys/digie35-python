@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Camera Live View
+GenericName=Camera Live View
+Comment=View camera live view as HDMI stream
+Categories=GTK;WebBrowser;Photography;Video;
+Exec=midori -a http://localhost:8409/stream
+Icon=digie35-film-roll-color
+Terminal=false
+StartupNotify=true
+Actions=Private;

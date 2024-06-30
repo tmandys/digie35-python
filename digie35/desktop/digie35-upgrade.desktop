@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Digie35 Upgrade
+GenericName=Digie35 Upgrade
+Comment=Digie35 check for upgrade from remote repository
+Categories=GTK;WebBrowser;Photography;
+Exec=bash -c "digie35_upgrade; echo Press Enter to close terminal; read line"
+Icon=digie35-film-roll-color2
+Terminal=true
+StartupNotify=true
+Actions=Private;
