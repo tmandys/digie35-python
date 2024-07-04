@@ -1197,7 +1197,7 @@ def main():
 
     module = importlib.import_module("digie35.digie35board")
     if board == "ALPHA":
-        film_xboard_class = module.AlphalExtensionBoard
+        film_xboard_class = module.AlphaExtensionBoard
     elif board == "NIKI":
         film_xboard_class = module.NikiExtensionBoard
     else:   # GULP
