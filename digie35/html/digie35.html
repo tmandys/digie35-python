@@ -146,6 +146,19 @@
             font-size: 12px;
         }
 
+        .notify-update-animate {
+            animation: tilt-shaking 0.5s infinite;
+            display: inline-block;
+        }
+
+
+        @keyframes tilt-shaking {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(5deg); }
+            50% { transform: rotate(0eg); }
+            75% { transform: rotate(-5deg); }
+            100% { transform: rotate(0deg); }
+        }
 
     </style>
 </head>
@@ -229,7 +242,7 @@
                     <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" title="Auto increment film id when lead-in film">a-Inc</label>
                 </div>
                 <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
-                <div id="capture-count" class="clickable vertical-spacer" onclick="toggle_status(this, 'capture-detail')" title="Click to toggle captured photo details" ></div>
+                <div class="vertical-spacer"><span id="capture-count" class="clickable" onclick="toggle_status(this, 'capture-detail')" title="Click to toggle captured photo details"></span></div>
                 <div id="capture-detail" class="vertical-spacer detail"><textarea id="capture-list" class="description" readonly></textarea></div>
                 <div class="vertical-spacer">
                     <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
@@ -661,7 +674,17 @@
 		return res;
     }
 
-	function create_next_film_id() {
+    function notify_update(elem) {
+        var css_name = "notify-update-animate";
+        if (!elem.classList.contains(css_name)) {
+            elem.classList.toggle(css_name);
+        }
+        setTimeout(function() {
+            elem.classList.remove(css_name);
+        }, 300 );
+    }
+
+    function create_next_film_id() {
         var list = document.getElementById("film-list");
         if (list.selectedIndex > 0) {
             var it = parse_id_as_int(list.options[list.selectedIndex].text);
@@ -692,19 +715,21 @@
                     adjust();
                     return;
                 }
-			    it.num++;
+                it.num++;
             }
         }
         var s = it.num.toString();
-		while (s.length < it.len) {
+        while (s.length < it.len) {
             s = "0"+s;
-		}
-		s = it.prefix + s + it.suffix;
-		list.selectedIndex = 0;
-		document.getElementById("film_id").value = s;
-		document.getElementById("film_descr").value = "";
+        }
+        s = it.prefix + s + it.suffix;
+        list.selectedIndex = 0;
+        var elem = document.getElementById("film_id");
+        elem.value = s;
+        notify_update(elem);
+        document.getElementById("film_descr").value = "";
         document.getElementById("create-film-btn").onclick();
-	}
+    }
 
     function check_multicapture() {
         if (typeof window.automove_in_progress != "undefined") {
@@ -951,6 +976,9 @@
                             document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
                         }
                         adjust();
+                        if (data.cmd == "DOWNLOAD") {
+                            notify_update(document.getElementById("capture-count"));
+                        }
                     }
                     console.log(data);
                 } else {
