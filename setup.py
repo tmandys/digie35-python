@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-with open('README.rst') as f:
+with open('README.md') as f:
     readme = f.read()
 
 with open('LICENSE') as f:
@@ -11,12 +11,12 @@ with open('LICENSE') as f:
 url = "http://www.2p.cz/repos/python"
 setup(
     name='digie35_ctrl',
-    version='0.5',
+    version='0.6',
     description='Digie35 Control package',
     long_description=readme,
     author='Tomas Mandys',
     author_email='tma@2p.cz',
-    url='https://bitbucket.org:tmandys/filmscanner.git',
+    url='https://github.com/tmandys/digie35-python.git',
     license=license,
     packages=find_packages(
         where=".",
@@ -29,12 +29,14 @@ setup(
     #include_package_data=True,
     package_data={
         "digie35": [
-            "*.html",
-            "*.js",
+            "html/*.html",
+            "html/*.js",
+            "html/images/*",
             "systemd/*.service",
             "cameras/*",
             "desktop/*",
             "images/*",
+            "nginx/*"
         ],
     },
     entry_points={

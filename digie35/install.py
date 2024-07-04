@@ -41,11 +41,14 @@ def main():
         description="Camera Control install/uninstall systemd and http server stuff, v%s" % __version__,
         epilog="",
     )
+    WWW_DIR="/var/www/html"
+    NGINX_CONF_DIR="/etc/nginx"
     boards = ["HEAD", "GULP", "NIKI", "ALPHA"]
     argParser.add_argument("-i", "--install", action="store_true", help="Install stuff")
     argParser.add_argument("-u", "--uninstall", action="store_true", help="Uninstall stuff")
 
     argParser.add_argument("-b", "--board", choices=boards, type=str.upper, default=boards[0], help=f"Board name, default: %(default)s")
+    argParser.add_argument("-w", "--httpd", choices=["none", WWW_DIR, NGINX_CONF_DIR], type=str.lower, default=NGINX_CONF_DIR, help=f"How configure http server related stuff "+WWW_DIR+"..make links in /var/www/html, "+NGINX_CONF_DIR+"..make config), default: %(default)s")
     argParser.add_argument("-r", "--restart_services", action="store_true", help="Just restart running services")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("--version", action="version", version=f"%s" % __version__)
@@ -68,7 +71,6 @@ def main():
     # SYSTEMD_DIR=/lib/systemd/system
     # user service
     SYSTEMD_DIR=os.path.expanduser("~/.config/systemd/user")
-    WWW_DIR="/var/www/html"
     CONFIG_DIR=os.path.expanduser("~/.config/digie35")
 
     log("Project dir: %s" % PROJ_DIR)
@@ -160,24 +162,32 @@ def main():
                     log("Enabling service '%s'" % (svc2))
                     run(["systemctl", "--user", "enable", svc2+".service"])
                     run(["systemctl", "--user", "start", svc2+".service"])
+        if args.httpd == WWW_DIR:
+            for f in list(www_pages):
+                tgt = www_pages[f]
+                tgt.append(f)
+                f = PROJ_DIR + "/html" + f
+                for f2 in tgt:
+                    f2 = WWW_DIR + "/" + f2
+                    log("Linking WWW page '%s' to '%s'" % (f, f2))
+                    run(["sudo", "rm", "-f", f2])
+                    run(["sudo", "ln", "-s", f, f2])
 
-        for f in list(www_pages):
-            tgt = www_pages[f]
-            tgt.append(f)
-            f = PROJ_DIR + "/" + f
-            for f2 in tgt:
-                f2 = WWW_DIR + "/" + f2
-                log("Linking WWW page '%s' to '%s'" % (f, f2))
+            run(["sudo", "mkdir", "-p", WWW_DIR+"/images"])
+            for f in www_images:
+                f2 = WWW_DIR + "/images/" + f
+                f = PROJ_DIR + "/images/" + f
+                log("Linking image '%s' to '%s'" % (f, f2))
                 run(["sudo", "rm", "-f", f2])
                 run(["sudo", "ln", "-s", f, f2])
-
-        run(["sudo", "mkdir", "-p", WWW_DIR+"/images"])
-        for f in www_images:
-            f2 = WWW_DIR + "/images/" + f
-            f = PROJ_DIR + "/images/" + f
-            log("Linking image '%s' to '%s'" % (f, f2))
-            run(["sudo", "rm", "-f", f2])
-            run(["sudo", "ln", "-s", f, f2])
+        elif args.httpd == NGINX_CONF_DIR:
+            log("Installing nginx stuff")
+            run(["sudo", "cp", PROJ_DIR + "/nginx/digie35.conf", NGINX_CONF_DIR + "/conf.d/"])
+            sed_cmd = ["sudo", "sed", "-i", "s#\\$DIGIE35_DIRECTORY#" + PROJ_DIR + "#g", NGINX_CONF_DIR + "/conf.d/digie35.conf"]
+            log(" ".join(sed_cmd))
+            run(sed_cmd)
+            run(["sudo", "rm", NGINX_CONF_DIR+"/sites-enabled/default"])
+            run(["sudo", "nginx", "-s", "reload"])
 
         for f in desktop_icons:
             for res in desktop_icons_res:
@@ -208,18 +218,24 @@ def main():
             log("Removing unit file '%s'" % f2)
             run(["rm", f2])
 
-        for f in list(www_pages):
-            tgt = www_pages[f]
-            tgt.append(f)
-            for f2 in tgt:
-                f2 = WWW_DIR + "/" + f2
-                log("Removing WWW link '%s'" % f2 )
-                run(["sudo", "rm", f2])
+        if args.httpd == WWW_DIR:
+            for f in list(www_pages):
+                tgt = www_pages[f]
+                tgt.append(f)
+                for f2 in tgt:
+                    f2 = WWW_DIR + "/" + f2
+                    log("Removing WWW link '%s'" % f2 )
+                    run(["sudo", "rm", f2])
 
-        for f in www_images:
-            f = WWW_DIR + "/images/" + f
-            log("Removing WWW link '%s'" % f )
-            run(["sudo", "rm", f])
+            for f in www_images:
+                f = WWW_DIR + "/images/" + f
+                log("Removing WWW link '%s'" % f )
+                run(["sudo", "rm", f])
+        elif args.httpd == NGINX_CONF_DIR:
+            log("Removing nginx stuff")
+            run(["sudo", "rm", NGINX_CONF_DIR+"/conf.d/digie35.conf"])
+            run(["sudo", "ln", "-s", NGINX_CONF_DIR+"/sites-available/default", NGINX_CONF_DIR+"/sites-enabled/default"])
+            run(["sudo", "nginx", "-s", "reload"])
 
         for f in desktop_apps:
             f = desktop_prefix + f + ".desktop"

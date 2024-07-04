@@ -1,0 +1,1 @@
+../../contrib/qrcodejs/qrcode.js
