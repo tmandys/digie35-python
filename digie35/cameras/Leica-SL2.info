@@ -1,0 +1,632 @@
+Thu Jul  4 13:50:36 CEST 2024
+
+################################################################################
+### gphoto2 --summary ###
+################################################################################
+
+Camera summary:
+Manufacturer: LEICA
+Model: LEICA SL2
+  Version: 5.1
+  Serial Number: 0000000000000000000000005567015
+Vendor Extension ID: 0x1c (1.0)
+Vendor Extension Description: 
+
+Capture Formats: 
+Display Formats: Association/Directory, DPOF, Apple Quicktime, Defined Type, TIFF EP, JPEG
+
+Streams:00020001
+	Video: dss: 131073d, timeres: 0d, fhsize: 36, fmxsize: 0, phsize: 33333333, pmsize: 8, palign: 1048558
+	17: dss: 17d, timeres: 0d, fhsize: 36, fmxsize: 0, phsize: 33333333, pmsize: 8, palign: 1048558
+
+Device Capabilities:
+	File Download, File Deletion, No File Upload
+	No Image Capture, No Open Capture, No vendor specific capture
+
+Storage Devices Summary:
+
+Device Property Summary:
+Battery Level(0x5001):(read only) (type=0x2) Range [0 - 100, step 1] value: 20% (20)
+White Balance(0x5005):(readwrite) (type=0x4) Enumeration [0,1,2,3,4,5,6,7,8,9,10,11] value: 8
+Focus Mode(0x500a):(readwrite) (type=0x4) Enumeration [0,1,2,5] value: 0
+Exposure Metering Mode(0x500b):(readwrite) (type=0x4) Enumeration [0,1,32769,2] value: Center Weighted Average (2)
+Exposure Program Mode(0x500e):(readwrite) (type=0x4) Enumeration [1,2,3,4,512,513] value: M (1)
+Exposure Index (film speed ISO)(0x500f):(readwrite) (type=0x6) Enumeration [0,50,64,70,80,100,125,140,160,200,250,280,320,400,500,560,640,800,1000,1100,1250,1600,2000,2200,2500,3200,4000,4500,5000,6400,8000,9000,10000,12500,16000,18000,20000,25000,32000,36000,40000,50000] value: ISO 100 (100)
+Exposure Bias Compensation(0x5010):(readwrite) (type=0x3) Enumeration [-3000,-2667,-2333,-2000,-1667,-1333,-1000,-667,-333,0,333,667,1000,1333,1667,2000,2333,2667,3000] value: 0.0 stops (0)
+Still Capture Mode(0x5013):(readwrite) (type=0x4) Enumeration [0,5,6,7,9,3,4,2,8] value: 0
+Contrast(0x5014):(readwrite) (type=0x2) Enumeration [0,3,1,4,2] value: 1
+Sharpness(0x5015):(readwrite) (type=0x2) Enumeration [0,3,1,4,2] value: 1
+Supported Streams(0x5020):(read only) (type=0x6) Range [0 - 983041, step 1] value: 0xd106 (131073)
+Enabled Streams(0x5021):(readwrite) (type=0x6) Range [0 - 983041, step 1] value: 0xd106 (0)
+Video Format(0x5022):(read only) (type=0x6) Enumeration [1196444237] value: MJPG (1196444237)
+Video Resolution(0x5023): error 200a on query.
+Video Framerate(0x5025):(read only) (type=0x6) Enumeration [25000,30000] value: 0.0 s/f (30000)
+Session Initiator Info(0xd406):(readwrite) (type=0xffff) ''
+
+
+################################################################################
+### gphoto2 --abilities ###
+################################################################################
+
+Abilities for camera             : USB PTP Class Camera
+Serial port support              : no
+USB support                      : yes
+Capture choices                  :
+                                 : Image
+                                 : Preview
+Configuration support            : yes
+Delete selected files on camera  : yes
+Delete all files on camera       : no
+File preview (thumbnail) support : yes
+File upload support              : yes
+
+################################################################################
+### gphoto2 --list-config ###
+################################################################################
+
+/main/actions/viewfinder
+/main/actions/opcode
+/main/settings/capturetarget
+/main/status/serialnumber
+/main/status/manufacturer
+/main/status/cameramodel
+/main/status/deviceversion
+/main/status/vendorextension
+/main/status/batterylevel
+/main/imgsettings/iso
+/main/imgsettings/whitebalance
+/main/imgsettings/videoformat
+/main/imgsettings/videoframerate
+/main/capturesettings/exposurecompensation
+/main/capturesettings/focusmode
+/main/capturesettings/expprogram
+/main/capturesettings/capturemode
+/main/capturesettings/exposuremetermode
+/main/capturesettings/sharpness
+/main/other/5001
+/main/other/5005
+/main/other/500a
+/main/other/500b
+/main/other/500e
+/main/other/500f
+/main/other/5010
+/main/other/5013
+/main/other/5014
+/main/other/5015
+/main/other/5020
+/main/other/5021
+/main/other/5022
+/main/other/5025
+/main/other/d406
+
+################################################################################
+### gphoto2 --list-all-config ###
+################################################################################
+
+/main/actions/viewfinder
+Label: Panasonic Viewfinder
+Readonly: 0
+Type: TOGGLE
+Current: 2
+END
+/main/actions/opcode
+Label: PTP Opcode
+Readonly: 0
+Type: TEXT
+Current: 0x1001,0xparam1,0xparam2
+END
+/main/settings/capturetarget
+Label: Capture Target
+Readonly: 0
+Type: RADIO
+Current: Internal RAM
+Choice: 0 Internal RAM
+Choice: 1 Memory card
+END
+/main/status/serialnumber
+Label: Serial Number
+Readonly: 0
+Type: TEXT
+Current: 0000000000000000000000005567015
+END
+/main/status/manufacturer
+Label: Camera Manufacturer
+Readonly: 0
+Type: TEXT
+Current: LEICA
+END
+/main/status/cameramodel
+Label: Camera Model
+Readonly: 0
+Type: TEXT
+Current: LEICA SL2
+END
+/main/status/deviceversion
+Label: Device Version
+Readonly: 0
+Type: TEXT
+Current: 5.1
+END
+/main/status/vendorextension
+Label: Vendor Extension
+Readonly: 0
+Type: TEXT
+Current: 
+END
+/main/status/batterylevel
+Label: Battery Level
+Readonly: 1
+Type: TEXT
+Current: 20%
+END
+/main/imgsettings/iso
+Label: ISO Speed
+Readonly: 0
+Type: RADIO
+Current: 100
+Choice: 0 0
+Choice: 1 50
+Choice: 2 64
+Choice: 3 70
+Choice: 4 80
+Choice: 5 100
+Choice: 6 125
+Choice: 7 140
+Choice: 8 160
+Choice: 9 200
+Choice: 10 250
+Choice: 11 280
+Choice: 12 320
+Choice: 13 400
+Choice: 14 500
+Choice: 15 560
+Choice: 16 640
+Choice: 17 800
+Choice: 18 1000
+Choice: 19 1100
+Choice: 20 1250
+Choice: 21 1600
+Choice: 22 2000
+Choice: 23 2200
+Choice: 24 2500
+Choice: 25 3200
+Choice: 26 4000
+Choice: 27 4500
+Choice: 28 5000
+Choice: 29 6400
+Choice: 30 8000
+Choice: 31 9000
+Choice: 32 10000
+Choice: 33 12500
+Choice: 34 16000
+Choice: 35 18000
+Choice: 36 20000
+Choice: 37 25000
+Choice: 38 32000
+Choice: 39 36000
+Choice: 40 40000
+Choice: 41 50000
+END
+/main/imgsettings/whitebalance
+Label: WhiteBalance
+Readonly: 0
+Type: RADIO
+Current: Unknown value 0008
+Choice: 0 Unknown value 0000
+Choice: 1 Manual
+Choice: 2 Automatic
+Choice: 3 One-push Automatic
+Choice: 4 Daylight
+Choice: 5 Fluorescent
+Choice: 6 Tungsten
+Choice: 7 Flash
+Choice: 8 Unknown value 0008
+Choice: 9 Unknown value 0009
+Choice: 10 Unknown value 000a
+Choice: 11 Unknown value 000b
+END
+/main/imgsettings/videoformat
+Label: Video Format
+Readonly: 1
+Type: RADIO
+Current: MJPG
+Choice: 0 MJPG
+END
+/main/imgsettings/videoframerate
+Label: Video Framerate
+Readonly: 1
+Type: RADIO
+Current: 0.0300
+Choice: 0 0.0250
+Choice: 1 0.0300
+END
+/main/capturesettings/exposurecompensation
+Label: Exposure Compensation
+Readonly: 0
+Type: RADIO
+Current: 0
+Choice: 0 -3
+Choice: 1 -2.667
+Choice: 2 -2.333
+Choice: 3 -2
+Choice: 4 -1.667
+Choice: 5 -1.333
+Choice: 6 -1
+Choice: 7 -0.667
+Choice: 8 -0.333
+Choice: 9 0
+Choice: 10 0.333
+Choice: 11 0.667
+Choice: 12 1
+Choice: 13 1.333
+Choice: 14 1.667
+Choice: 15 2
+Choice: 16 2.333
+Choice: 17 2.667
+Choice: 18 3
+END
+/main/capturesettings/focusmode
+Label: Focus Mode
+Readonly: 0
+Type: RADIO
+Current: Undefined
+Choice: 0 Undefined
+Choice: 1 Manual
+Choice: 2 Automatic
+Choice: 3 Unknown value 0005
+END
+/main/capturesettings/expprogram
+Label: Exposure Program
+Readonly: 0
+Type: RADIO
+Current: M
+Choice: 0 M
+Choice: 1 P
+Choice: 2 A
+Choice: 3 S
+Choice: 4 Unknown value 0200
+Choice: 5 Unknown value 0201
+END
+/main/capturesettings/capturemode
+Label: Still Capture Mode
+Readonly: 0
+Type: RADIO
+Current: Unknown value 0000
+Choice: 0 Unknown value 0000
+Choice: 1 Unknown value 0005
+Choice: 2 Unknown value 0006
+Choice: 3 Unknown value 0007
+Choice: 4 Unknown value 0009
+Choice: 5 Timelapse
+Choice: 6 Unknown value 0004
+Choice: 7 Burst
+Choice: 8 Unknown value 0008
+END
+/main/capturesettings/exposuremetermode
+Label: Exposure Metering Mode
+Readonly: 0
+Type: RADIO
+Current: Center Weighted
+Choice: 0 Unknown value 0000
+Choice: 1 Average
+Choice: 2 Unknown value 8001
+Choice: 3 Center Weighted
+END
+/main/capturesettings/sharpness
+Label: Sharpness
+Readonly: 0
+Type: RADIO
+Current: 25%
+Choice: 0 0%
+Choice: 1 75%
+Choice: 2 25%
+Choice: 3 100%
+Choice: 4 50%
+END
+/main/other/5001
+Label: Battery Level
+Readonly: 1
+Type: MENU
+Current: 20
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 3
+Choice: 4 4
+Choice: 5 5
+Choice: 6 6
+Choice: 7 7
+Choice: 8 8
+Choice: 9 9
+Choice: 10 10
+Choice: 11 11
+Choice: 12 12
+Choice: 13 13
+Choice: 14 14
+Choice: 15 15
+Choice: 16 16
+Choice: 17 17
+Choice: 18 18
+Choice: 19 19
+Choice: 20 20
+Choice: 21 21
+Choice: 22 22
+Choice: 23 23
+Choice: 24 24
+Choice: 25 25
+Choice: 26 26
+Choice: 27 27
+Choice: 28 28
+Choice: 29 29
+Choice: 30 30
+Choice: 31 31
+Choice: 32 32
+Choice: 33 33
+Choice: 34 34
+Choice: 35 35
+Choice: 36 36
+Choice: 37 37
+Choice: 38 38
+Choice: 39 39
+Choice: 40 40
+Choice: 41 41
+Choice: 42 42
+Choice: 43 43
+Choice: 44 44
+Choice: 45 45
+Choice: 46 46
+Choice: 47 47
+Choice: 48 48
+Choice: 49 49
+Choice: 50 50
+Choice: 51 51
+Choice: 52 52
+Choice: 53 53
+Choice: 54 54
+Choice: 55 55
+Choice: 56 56
+Choice: 57 57
+Choice: 58 58
+Choice: 59 59
+Choice: 60 60
+Choice: 61 61
+Choice: 62 62
+Choice: 63 63
+Choice: 64 64
+Choice: 65 65
+Choice: 66 66
+Choice: 67 67
+Choice: 68 68
+Choice: 69 69
+Choice: 70 70
+Choice: 71 71
+Choice: 72 72
+Choice: 73 73
+Choice: 74 74
+Choice: 75 75
+Choice: 76 76
+Choice: 77 77
+Choice: 78 78
+Choice: 79 79
+Choice: 80 80
+Choice: 81 81
+Choice: 82 82
+Choice: 83 83
+Choice: 84 84
+Choice: 85 85
+Choice: 86 86
+Choice: 87 87
+Choice: 88 88
+Choice: 89 89
+Choice: 90 90
+Choice: 91 91
+Choice: 92 92
+Choice: 93 93
+Choice: 94 94
+Choice: 95 95
+Choice: 96 96
+Choice: 97 97
+Choice: 98 98
+Choice: 99 99
+Choice: 100 100
+END
+/main/other/5005
+Label: White Balance
+Readonly: 0
+Type: MENU
+Current: 8
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 3
+Choice: 4 4
+Choice: 5 5
+Choice: 6 6
+Choice: 7 7
+Choice: 8 8
+Choice: 9 9
+Choice: 10 10
+Choice: 11 11
+END
+/main/other/500a
+Label: Focus Mode
+Readonly: 0
+Type: MENU
+Current: 0
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 5
+END
+/main/other/500b
+Label: Exposure Metering Mode
+Readonly: 0
+Type: MENU
+Current: 2
+Choice: 0 0
+Choice: 1 1
+Choice: 2 32769
+Choice: 3 2
+END
+/main/other/500e
+Label: Exposure Program Mode
+Readonly: 0
+Type: MENU
+Current: 1
+Choice: 0 1
+Choice: 1 2
+Choice: 2 3
+Choice: 3 4
+Choice: 4 512
+Choice: 5 513
+END
+/main/other/500f
+Label: Exposure Index (film speed ISO)
+Readonly: 0
+Type: MENU
+Current: 100
+Choice: 0 0
+Choice: 1 50
+Choice: 2 64
+Choice: 3 70
+Choice: 4 80
+Choice: 5 100
+Choice: 6 125
+Choice: 7 140
+Choice: 8 160
+Choice: 9 200
+Choice: 10 250
+Choice: 11 280
+Choice: 12 320
+Choice: 13 400
+Choice: 14 500
+Choice: 15 560
+Choice: 16 640
+Choice: 17 800
+Choice: 18 1000
+Choice: 19 1100
+Choice: 20 1250
+Choice: 21 1600
+Choice: 22 2000
+Choice: 23 2200
+Choice: 24 2500
+Choice: 25 3200
+Choice: 26 4000
+Choice: 27 4500
+Choice: 28 5000
+Choice: 29 6400
+Choice: 30 8000
+Choice: 31 9000
+Choice: 32 10000
+Choice: 33 12500
+Choice: 34 16000
+Choice: 35 18000
+Choice: 36 20000
+Choice: 37 25000
+Choice: 38 32000
+Choice: 39 36000
+Choice: 40 40000
+Choice: 41 50000
+END
+/main/other/5010
+Label: Exposure Bias Compensation
+Readonly: 0
+Type: MENU
+Current: 0
+Choice: 0 -3000
+Choice: 1 -2667
+Choice: 2 -2333
+Choice: 3 -2000
+Choice: 4 -1667
+Choice: 5 -1333
+Choice: 6 -1000
+Choice: 7 -667
+Choice: 8 -333
+Choice: 9 0
+Choice: 10 333
+Choice: 11 667
+Choice: 12 1000
+Choice: 13 1333
+Choice: 14 1667
+Choice: 15 2000
+Choice: 16 2333
+Choice: 17 2667
+Choice: 18 3000
+END
+/main/other/5013
+Label: Still Capture Mode
+Readonly: 0
+Type: MENU
+Current: 0
+Choice: 0 0
+Choice: 1 5
+Choice: 2 6
+Choice: 3 7
+Choice: 4 9
+Choice: 5 3
+Choice: 6 4
+Choice: 7 2
+Choice: 8 8
+END
+/main/other/5014
+Label: Contrast
+Readonly: 0
+Type: MENU
+Current: 1
+Choice: 0 0
+Choice: 1 3
+Choice: 2 1
+Choice: 3 4
+Choice: 4 2
+END
+/main/other/5015
+Label: Sharpness
+Readonly: 0
+Type: MENU
+Current: 1
+Choice: 0 0
+Choice: 1 3
+Choice: 2 1
+Choice: 3 4
+Choice: 4 2
+END
+/main/other/5020
+Label: Supported Streams
+Readonly: 1
+Type: RANGE
+Current: 131073
+Bottom: 0
+Top: 983041
+Step: 1
+END
+/main/other/5021
+Label: Enabled Streams
+Readonly: 0
+Type: RANGE
+Current: 0
+Bottom: 0
+Top: 983041
+Step: 1
+END
+/main/other/5022
+Label: Video Format
+Readonly: 1
+Type: MENU
+Current: 1196444237
+Choice: 0 1196444237
+END
+/main/other/5025
+Label: Video Framerate
+Readonly: 1
+Type: MENU
+Current: 30000
+Choice: 0 25000
+Choice: 1 30000
+END
+/main/other/d406
+Label: Session Initiator Info
+Readonly: 0
+Type: TEXT
+Current: 
+END
+
