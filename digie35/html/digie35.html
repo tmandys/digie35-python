@@ -288,12 +288,12 @@
                         <option value="external">Manual</option>
                     </select>
                     <span id="backlight-color-ranges">
-                        <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
-                        <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
-                        <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
-                        <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
-                        <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
-                        <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" onchange="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                        <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
+                        <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
+                        <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
+                        <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
+                        <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
+                        <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
                     </span>
                 </div>
                  <div class="centered-btn vertical-spacer">
@@ -305,7 +305,7 @@
 
                     <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
                     <span id="serial-capture-delay" class="hidden">
-                        <input type="range" id="serial-capture-delay-rng" value="1" min="0" max="10" onchange="adjust_capture_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
+                        <input type="range" id="serial-capture-delay-rng" value="1" min="0" max="10" oninput="adjust_capture_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
                         <span id="serial-capture-delay-value" class="range-value" />
                     </span>
 				</div>
@@ -327,9 +327,9 @@
                         <input type="radio" name="rotate" id="rotate90-rb" value="rotate90" onchange="adjust_preview()" /><label for="rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
                         <input type="radio" name="rotate" id="flip-horizontal-rb"value="flip-horizontal" onchange="adjust_preview()" /><label for="flip-horizontal-rb" accesskey="h" title="Flip horizontal">Flip <u>h</u>orizontal</label>
                         <input type="radio" name="rotate" id="flip-vertical-rb" value="flip-vertical" onchange="adjust_preview()" /><label for="flip-vertical-rb" accesskey="v" title="Flip vertical">Flip <u>v</u>ertical</label>
-                        <input type="range" id="clip-horizontal-rng" value="95" min="0" max="500" onchange="adjust_preview()" class="clipping" title="Horizontal clipping" />
-                        <input type="range" id="clip-vertical-rng" value="0" min="0" max="300" onchange="adjust_preview()" class="clipping" title="Vertical clipping" />
-                        <input type="range" id="background-rng" value="200" min="0" max="255" onchange="adjust_preview()" class="clipping" title="Background color" />
+                        <input type="range" id="clip-horizontal-rng" value="95" min="0" max="500" oninput="adjust_preview()" class="clipping" title="Horizontal clipping" />
+                        <input type="range" id="clip-vertical-rng" value="0" min="0" max="300" oninput="adjust_preview()" class="clipping" title="Vertical clipping" />
+                        <input type="range" id="background-rng" value="200" min="0" max="255" oninput="adjust_preview()" class="clipping" title="Background color" />
                     </div>
                     <div id="stream-border" class="grey-border">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
