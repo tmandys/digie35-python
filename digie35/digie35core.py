@@ -1120,10 +1120,10 @@ class StepperMotorAdapter(Adapter):
                 if not self._film_sensing["state"]["window"] or not self._film_sensing["state"]["controlled"]:
                     self._film_sensing["state"]["shot_ready"] = False
                 elif self._sensor_distance["front"] > 0 and not self._film_sensing["state"]["front"] and self._film_sensing["pos"]["front"] != None and \
-                    (self._motor_position > self._film_sensing["pos"]["front"] + (self._sensor_distance["front"] - self._FRAME_WIDTH/2) * self.get_steps_per_mm()):
+                    (self._motor_position > self._film_sensing["pos"]["front"] + (self._sensor_distance["front"]) * self.get_steps_per_mm()):
                     self._film_sensing["state"]["shot_ready"] = False
                 elif self._sensor_distance["rear"] > 0 and not self._film_sensing["state"]["rear"] and self._film_sensing["pos"]["rear"] != None and \
-                    (self._motor_position < self._film_sensing["pos"]["rear"] - (self._sensor_distance["rear"] - self._FRAME_WIDTH/2) * self.get_steps_per_mm()):
+                    (self._motor_position < self._film_sensing["pos"]["rear"] - (self._sensor_distance["rear"]) * self.get_steps_per_mm()):
                     self._film_sensing["state"]["shot_ready"] = False
 
             # for testing
