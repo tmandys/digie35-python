@@ -511,6 +511,8 @@
 
         elem = document.getElementById("backlight-color-list");
         items = elem.options;
+        var change_value = false;
+        var enabled_value = "";
         for (var i = 0; i < items.length; i++) {
             var opt = items[i];
             if (opt.value == "white") {
@@ -522,6 +524,15 @@
             } else {
                 opt.disabled = !window.capabilities.rgb_backlight;
             }
+            if (enabled_value == "" && !opt.disabled) {
+                enabled_value = opt.value;
+            }
+            if (opt.value == elem.value && opt.disabled) {
+                change_value = true;
+            }
+        }
+        if (change_value) {
+            elem.value = enabled_value;
         }
         adjust_backlight(true);
 

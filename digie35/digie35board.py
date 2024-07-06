@@ -120,6 +120,7 @@ class NikonStepperMotorAdapter(StepperMotorAdapter):
         result["sensor_r"] = {}
         result["sensor_f"] = {}
         result["sensor_m"] = {}
+        result["detect_aot"] = {}
         return result
 
 ## Development board for Nikon SA-21 adapter with I2C i/o non integrated to any hw box. 10-pin extension connector

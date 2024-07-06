@@ -1,7 +1,7 @@
 Digie35 Control
 ===============
 
-digie35 uses RPi harware which must be enabled via editing `/boot/config.txt` and reboot.
+digie35 uses RPi harware which must be enabled via editing `/boot/firmware/config.txt` and reboot.
 
 DEVEL board
 -----------
@@ -45,7 +45,7 @@ and check if clock is running
 
     rtc_read.py
 
-Add module to `/boot/config.txt`
+Add module to `/boot/firmware/config.txt`
 
     dtoverlay=i2c-rtc,mcp7940x
 
@@ -127,7 +127,7 @@ Issues
 
 - nginx cannot display page and returns "403 Forbidden"
 
-nging requires X right to whole tree of parent directories of particular file on linked location. Check it with
+nginx requires X right to whole tree of parent directories of particular file on linked location. Check it with
 
     namei -l /var/www/html/index.html
     f: /var/www/html/index.html
@@ -164,6 +164,10 @@ Seems USB 3.0 issue caused by a low quality cable. Replace cable
 Check power consumption of USB devices, e.g. when powering camera from USB. Check dmesg where "overcurrent" log entry may appear.
 Use powered hub for high current USB devices.
 
+- digie35_server complains that GPIO is busy
+
+Check if `/boot/firmware/config.txt` corresponds to board. E.g. GPIO26 is busy when using NIKI board with config.txt from HEAD board where GPIO26 is used for RPI LED status indication. Also `pintest -p <pin#>` or `gpioinfo` may help to prove suspicion.
+
 Usage
 -----
 
@@ -171,12 +175,12 @@ There are running services providing API via websockets.
 For cameras supporting HDMI live view plug in HDMI Video Capture USB stick. Frint-end user interface is implemented in
 digie35.html which is to be opened in web browser at `http://localhost/` address (when nginx http server is running)
 or alternatively as local file `file://<path>/digie35.html`. Javascript support is mandatory.
-_Midori_ lightweight browser not stressing RPI as much e.g. _Chromium_. But it does not show video stream correctly and is not currently
-available in _Bookworm_ repository to download.
-Captured photos are saved on (RPI) filesystem and intended location is SSD disk (or USB stick) plugged in USB. Alternatively
-a network disk is also reasonable option. Internal SD card is bad choice for storage.
+_Midori_ lightweight browser not stressing RPI as much e.g. _Chromium_. But it does not show video stream correctly 
+and is not currently available in _Bookworm_ repository to download.
+Captured photos are saved on (RPI) filesystem and intended location is SSD disk (or USB stick) plugged in USB. 
+Alternatively a network disk is also reasonable option. Internal SD card is bad choice for storage.
 
-Captured files can be accessed over network Samba prototol. Samba user is added using
+Captured files can be accessed over network Samba prototol from Windows or Mac OS. Samba user is added using
 
     smbpasswd -a pi
     
