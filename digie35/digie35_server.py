@@ -65,6 +65,11 @@ class CameraWrapper:
     _DESCRIPTION_FILENAME = ".description.txt"
     _INTERTHREAD_CAPTURE_TIMEOUT = 0.050  # probably not needed, issou with Sony USB preview does not solve
     _MIN_PICTURE_FILE_SIZE = 100000
+    _LINK_EXTENSION = ".lnk"
+    _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
+
+    _WIRE_FOCUS_TIMEOUT = 0.500
+    _WIRE_SHUTTER_TIMEOUT = 0.300
 
     def __init__(self, frame_buffer, **kwargs):
         #logging.getLogger().debug("CameraWrapper(%s)" % (kwargs))
@@ -247,10 +252,12 @@ class CameraWrapper:
                     camera_config = self._camera.get_config()
                     # get the camera model (or from abilities.model)
                     logging.getLogger().debug("gp.gp_widget_get_child_by_name(camera_config, 'cameramodel')")
+                    xx = gp.gp_widget_get_child_by_name(camera_config, 'cameramodel')
+                    yy = type(xx)
+                    logging.getLogger().debug("type: %s, %s, %s" % (yy, xx[0], xx[1]))
                     OK, camera_model = gp.gp_widget_get_child_by_name(camera_config, 'cameramodel')
                     if OK < gp.GP_OK:
-                        logging.getLogger().debug("camera_config.get_child_by_name('model')")
-                        OK, camera_model = camera_config.get_child_by_name('model')
+                        OK, camera_model = gp.gp_widget_get_child_by_name(camera_config, 'model')
                     if OK >= gp.GP_OK:
                         logging.getLogger().debug("camera_model.get_value()")
                         self._camera_model = camera_model.get_value()
@@ -336,6 +343,8 @@ class CameraWrapper:
         logging.getLogger().debug("gp.Camera.autodetect()")
         #callback_obj = gp.check_result(gp.use_python_logging())
         cameras = gp.Camera.autodetect()
+        for n, h in enumerate(cameras):
+            logging.getLogger().debug("Camera:%s:%s", n, h)
         result = []
         for n, (name, value) in enumerate(cameras):
             item = {"name": name, "id": "|".join([value, name])}
@@ -362,7 +371,7 @@ class CameraWrapper:
         self._open_camera(camera_id)
         try:
             result = {"model": self._camera_model, "id": self._camera_id, "battery": self._camera_battery}
-            result["device_type"] = self._camera_abilities.device_type
+            result["device_type"] = self._camera_abilities.device_type            
             result["device_status"] = self._camera_abilities.status
             result["library"] = self._camera_abilities.library
 
@@ -372,6 +381,7 @@ class CameraWrapper:
             result["capture_audio"] = (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_AUDIO) != 0
             result["config_support"] = (self._camera_abilities.operations & gp.GP_OPERATION_CONFIG) != 0
             result["trigger_capture"] = (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0
+            result["sdcard_capture"] = not re.match(".*ILCE.*", self._camera_model);
 
             result["file_delete"] = (self._camera_abilities.file_operations & gp.GP_FILE_OPERATION_DELETE) != 0
             result["file_preview"] = (self._camera_abilities.file_operations & gp.GP_FILE_OPERATION_PREVIEW) != 0
@@ -387,25 +397,38 @@ class CameraWrapper:
             self._close_camera()
         return result
 
-    def _do_download(self, project_id, film_id, file_path, websocket, client_data):
+    def _do_download(self, wire_trigger, download, delete, project_id, film_id, file_path, websocket, client_data, **kwargs):
         try:
             error = None
             try:
                 try:
-                    logging.getLogger().debug(f"Download thread started: %s" % (file_path))
+                    logging.getLogger().debug(f"Download thread started: %s, download: %s, delete: %s" % (file_path, download, delete))
                     fname, fext = os.path.splitext(file_path.name)
+                    if not download and not wire_trigger:
+                        # heuristic to detect the file is in camera memory, capt0000 is likely in ram
+                        x = re.search("[0-9]+$", fname)
+                        if (x != None and int(x.group(0)) == 0) or re.match("capt[0-9]+", fname):
+                            logging.getLogger().debug("Forcing download as image is in RAM (%s)" % (fname))
+                            download = True
                     now = datetime.datetime.now()
-                    fname += now.strftime("_%Y%m%d%H%M%S") + fext
+                    now_s = now.strftime("%Y%m%d%H%M%S")
+                    fname += "_" + now_s + fext
                     target = os.path.join(self._get_path(project_id, film_id), fname)
-                    logging.getLogger().info(f"Copying image to '%s'", target)
-                    logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
-                    camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
-                    gp.check_result(gp.gp_file_save(camera_file, target))
-                    logging.getLogger().debug(f"Delete image '%s'", file_path.name)
-                    gp.check_result(gp.gp_camera_file_delete(self._camera, file_path.folder, file_path.name))
-                        
+                    if download:
+                        logging.getLogger().info(f"Downloading image to '%s'", target)
+                        logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
+                        camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
+                        gp.check_result(gp.gp_file_save(camera_file, target))
+                        if delete:
+                            logging.getLogger().debug(f"Delete image '%s'", file_path.name)
+                            gp.check_result(gp.gp_camera_file_delete(self._camera, file_path.folder, file_path.name))
+                    else:
+                        logging.getLogger().info(f"Image link for '%s'", target)
+                        with open(target + self._LINK_EXTENSION, "w") as file:
+                            file.write("%s\n%s\n%s\n%s" % (self._camera_id, file_path.folder, file_path.name, now_s))
                 finally:
-                    self._close_camera()
+                    if not wire_trigger:
+                        self._close_camera()
             except Exception as e:
                 logging.getLogger().error(e, exc_info=True)
                 error = repr(e)
@@ -433,7 +456,7 @@ class CameraWrapper:
             self._broadcast_capture_status_from_event()
             self._release_capture_lock()
 
-    def capture(self, websocket, camera_id, project_id, film_id, client_data = None):
+    def capture(self, websocket, wire_trigger, camera_id, project_id, film_id, client_data = None, **kwargs):
         if self._capture_in_progress:  # but not preview capture
             raise CameraControlError("Capture in progress")
         color = digitizer.get_current_backlight_color()
@@ -443,36 +466,78 @@ class CameraWrapper:
         self._capture_in_progress = True
         self._broadcast_capture_status_from_event()
         try:
-            logging.getLogger().debug("CameraId: %s" % camera_id)
-            self._open_camera(camera_id)
-            try:
-                if self._camera_preview:
-                    # self._switch_to_capture_mode()  # XXX
-                    # time.sleep(3.0)
-                    pass
+            logging.getLogger().debug("CameraId: %s, wire_trigger: %s" % (camera_id, wire_trigger))
+            if wire_trigger:
+                digitizer.set_io_states({"focus": 0, "shutter": 0})
+                digitizer.set_io_states({"focus": 1})
+                time.sleep(self._WIRE_FOCUS_TIMEOUT)
+                if not kwargs["focus+shutter"]:
+                    digitizer.set_io_states({"focus": 0, })
+                digitizer.set_io_states({"shutter": 1})
+                time.sleep(self._WIRE_SHUTTER_TIMEOUT)
+                digitizer.set_io_states({"focus": 0, "shutter": 0})
+
+                class FilePath(object):
+                    name = "captbywire.lnk"                    
+                    folder = ""
+
+                file_path = FilePath()
+                time.sleep(kwargs["delay"]/1000)
+                download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "file_path": file_path, "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
+                download_thread.name = "download"
+                download_thread.start()
+
+            else:
+                self._open_camera(camera_id)
                 try:
                     count = 0
+                    capturetarget = None
                     while True:
-                        if False:  # XXX
-                            camera_config = self._camera.get_config()
-                            if 'capturetarget' in self._camera_config_list:
-                                logging.getLogger().debug("gp_widget_get_child_by_name('capturetarget')")
-                                capturetarget_cfg = gp.check_result(gp.gp_widget_get_child_by_name(camera_config, 'capturetarget'))
-                                #OK, capturetarget_cfg = camera_config.get_child_by_name("capturetarget")
-                                #logging.getLogger().debug("target: %s/%s" % (OK, self._dump(capturetarget_cfg)))
-                                capturetarget = gp.check_result(gp.gp_widget_get_value(capturetarget_cfg))
-                                #capturetarget = capturetarget_cfg.get_value()
-                                logging.getLogger().debug("savetarget: %s" % capturetarget)
-                                logging.getLogger().debug("setvalue: %s" % "Internal RAM")
-                                capturetarget_cfg.set_value("Internal RAM")
+                        camera_config = self._camera.get_config()
+                        if 'capturetarget' in self._camera_config_list:
+                            # not supported on Sony, which always captures to memory
+                            # capturetarget options 
+                            # Choice: 0 Internal RAM
+                            # Choice: 1 Memory card
+                            logging.getLogger().debug("gp_widget_get_child_by_name('capturetarget')")
+                            capturetarget_cfg = gp.check_result(gp.gp_widget_get_child_by_name(camera_config, 'capturetarget'))
+                            #OK, capturetarget_cfg = camera_config.get_child_by_name("capturetarget")
+                            #logging.getLogger().debug("target: %s/%s" % (OK, self._dump(capturetarget_cfg)))
+                            save_capturetarget = gp.check_result(gp.gp_widget_get_value(capturetarget_cfg))
+                            #save_capturetarget = capturetarget_cfg.get_value()
+                            logging.getLogger().debug("savetarget: %s" % save_capturetarget)
+                            if kwargs["delete"]:
+                                val = 0  # RAM
+                            else:
+                                val = 1  # SD card
+                            logging.getLogger().debug("get choice: %s" % val)
+                            val_s = gp.check_result(gp.gp_widget_get_choice(capturetarget_cfg, val))
+                            if val_s != save_capturetarget:
+                                logging.getLogger().debug("setvalue: %s" % val_s)
+                                capturetarget_cfg.set_value(val_s)
                                 self._camera.set_config(camera_config)
+                            else:
+                                save_capturetarget = None
                         else:
-                            capturetarget = None
+                            save_capturetarget = None
                         # self._get_battery(camera_config)
 
-                        logging.getLogger().debug("camera.capture()")
                         try:
-                            file_path = self._camera.capture(gp.GP_CAPTURE_IMAGE)
+                            if (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_IMAGE) != 0:
+                                # first try capture (= trigger+wait_for_event)
+                                logging.getLogger().debug("camera.capture()")
+                                file_path = self._camera.capture(gp.GP_CAPTURE_IMAGE)
+
+                            elif (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0:
+                                logging.getLogger().debug("camera.trigger()")
+                                self._camera.trigger_capture()
+                                ts = time.monotonic()
+                                while True:
+                                    event_type, file_path = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
+                                    if event_type == gp.GP_EVENT_FILE_ADDED:
+                                        break
+                                    if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT:
+                                        raise CameraControlError("No response from camera")
                             break
                         except Exception as e:
                             count += 1
@@ -483,21 +548,18 @@ class CameraWrapper:
 
                     logging.getLogger().debug('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
 
-                    if capturetarget != None:
-                        logging.getLogger().debug("setvalue: %s" % capturetarget)
-                        capturetarget_cfg.set_value(capturetarget)
+                    if save_capturetarget != None:
+                        logging.getLogger().debug("restore target: %s" % save_capturetarget)
+                        capturetarget_cfg.set_value(save_capturetarget)
                         self._camera.set_config(camera_config)
-                finally:
-                    if self._camera_preview and False: # XXX
-                        self._switch_to_preview_mode()
-                # leave asap to allow move commands
-                download_thread = Thread(target=self._do_download, kwargs={"project_id": project_id, "film_id": film_id, "file_path": file_path, "websocket": websocket, "client_data": client_data})
-                download_thread.name = "download"
-                download_thread.start()
-            except Exception as e:
-                logging.getLogger().error(e, exc_info=True)
-                self._close_camera()
-                raise e
+                    # leave asap to allow move commands
+                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "file_path": file_path, "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
+                    download_thread.name = "download"
+                    download_thread.start()
+                except Exception as e:
+                    logging.getLogger().error(e, exc_info=True)
+                    self._close_camera()
+                    raise e
         except Exception as e:
             self._capture_in_progress = False
             self._broadcast_capture_status_from_event()
@@ -576,7 +638,7 @@ class CameraWrapper:
 
 
                     data = memoryview(file_data)
-                    #logging.getLogger().debug(f"write fifo: %d" % data.nbytes)
+                    # logging.getLogger().debug(f"write fifo: %d" % data.nbytes)
                     if fifo != None:
                         try:
                             os.write(fifo, data)
@@ -677,24 +739,30 @@ class CameraWrapper:
         os.mkdir(path)
         return self.update_project(project_id, project_descr)
 
-    def get_project(self, project_id):
+    def get_project(self, project_id, film_id = None):
         self._check_project_exists(project_id)
         with open(self._get_descr(project_id), "r") as f:
             result = {
                 "id": project_id,
                 "descr": f.read()
             }
-        filenames = os.listdir(self._get_path(project_id))
-        filenames.sort()
-        films = []
-        for filename in filenames:
-            if filename[0] == ".":
-                continue
-            path = self._get_path(project_id, filename)
+        if film_id != None:
+            path = self._get_path(project_id, film_id)
             if os.path.isdir(path):
                 if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
-                    films.append(self.get_film(project_id, filename))
-        result["film_list"] = films
+                    result["film"] = self.get_film(project_id, film_id)
+        else:
+            filenames = os.listdir(self._get_path(project_id))
+            filenames.sort()
+            films = []
+            for filename in filenames:
+                if filename[0] == ".":
+                    continue
+                path = self._get_path(project_id, filename)
+                if os.path.isdir(path):
+                    if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
+                        films.append(self.get_film(project_id, filename))
+            result["film_list"] = films
         return result
 
     def update_project(self, project_id, project_descr):
@@ -755,14 +823,28 @@ class CameraWrapper:
             }
         path = self._get_path(project_id, film_id)
         filenames = os.listdir(path)
-        pictures = []
+        picture_files = {}
         for filename in filenames:
             if filename[0] == ".":
                 continue
             filepath = os.path.join(path, filename);
             if os.path.isfile(filepath):
-                if len(filename) > 4 and filename[len(filename)-4] == "." and os.path.getsize(filepath) > self._MIN_PICTURE_FILE_SIZE:   # expected 3 char extension and minimal size to filter out potential metadata or so
-                    pictures.append({"name": filename, "size": os.path.getsize(filepath)})
+                fname, fext = os.path.splitext(filename)
+                is_link = fext == self._LINK_EXTENSION
+                if is_link:
+                    # just placehorder to file in camera
+                    if fname in list(picture_files):
+                        # real picture also exists
+                        continue
+                else:
+                    fname = filename
+                if len(fname) > 4 and fname[len(fname)-4] == "." and (is_link or os.path.getsize(filepath) > self._MIN_PICTURE_FILE_SIZE):   # expected 3 char extension and minimal size to filter out potential metadata or so
+                    picture_files[fname] = {"name": fname}
+                    if not is_link:
+                        picture_files[fname] |= {"size": os.path.getsize(filepath)}
+        pictures = []
+        for key in list(picture_files):
+            pictures.append(picture_files[key])
         pictures.sort(key=lambda x: x.get("name"))
         result["captured"] = pictures
         return result

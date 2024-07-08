@@ -89,10 +89,9 @@
             display: none;
         }
 
-        /*
         .hidden {
-            xdisplay: none;
-        } */
+            display: none;
+        }
 
         .invert {
             filter: invert(100%);
@@ -246,7 +245,7 @@
                 <div id="capture-detail" class="vertical-spacer detail"><textarea id="capture-list" class="description" readonly></textarea></div>
                 <div class="vertical-spacer">
                     <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
-                    <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id'])">Update</button>
+                    <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
                     <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
                 </div>
             </fieldset>
@@ -317,13 +316,27 @@
                     </select>
 
                     <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
-                    <span id="serial-capture-delay" class="hidden">
-                        <input type="range" id="serial-capture-delay-rng" value="1" min="0" max="10" oninput="adjust_capture_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
-                        <span id="serial-capture-delay-value" class="range-value" />
+                    <span id="serial-shoot-delay" class="hidden">
+                        <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
+                        <span id="serial-shoot-delay-value" class="range-value" />
                     </span>
 				</div>
                 <div class="vertical-spacer centered-btn">
-                    <button id="capture-btn" title="Numpad0,X">Capture image</button>
+                    <select id="shoot-mode-list" style="width:20ch" onchange="adjust()" title="Download or leave image on camera SD card, wire remote control (focus-shutter or focus-focus+shutter)">
+                        <option value="capture|download" selected>Download</option>
+                        <option value="capture|download+sdcard">Download+SD card</option>
+                        <option value="capture|sdcard">SD card</option>
+                        <option value="trigger|f-s">Wire trigger (F-S)</option>
+                        <option value="trigger|f-fs">Wire trigger (F-F+S)</option>
+                    </select>
+
+                    <span id="trigger-delay" class="hidden">
+                        <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
+                        <span id="trigger-delay-value" class="range-value" />
+                    </span>
+                </div>
+                <div class="vertical-spacer centered-btn">
+                    <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
                 </div>
             </fieldset>
         </div>
@@ -431,8 +444,8 @@
             cnt = custom["captured"].length;
             var f = [];
             for (const i in custom["captured"]) {
-
-                f.push(custom["captured"][i]["name"] +" ("+ shorten_bytes(custom["captured"][i]["size"]) + ")");
+                var sz = custom["captured"][i]["size"] ? shorten_bytes(custom["captured"][i]["size"]) : "link";
+                f.push(custom["captured"][i]["name"] +" ("+ sz + ")");
             }
             capture_list.value = f.join("\n");
         } else {
@@ -447,11 +460,14 @@
 
         document.getElementById("motion-fieldset").disabled = !connected;
         document.getElementById("capture-fieldset").disabled = !connected;
-        document.getElementById("capture-btn").disabled = (camera_list.value == "") || (project_id.value == "") || (film_id.value == "") || !volume || !abilities || !window.current_camera.capture_image;
+        var elem = document.getElementById("shoot-mode-list");
+        document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_id.value == "") || (film_id.value == "") || !volume || !abilities ||
+            elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
+        set_visible(document.getElementById("trigger-delay"), elem.selectedIndex >= 3, "")
 
         var elem = document.getElementById("capture-mode-list");
         set_visible(document.getElementById("capture-multi"), elem.value == "multi", "");
-        set_visible(document.getElementById("serial-capture-delay"), elem.value != "single", "");
+        set_visible(document.getElementById("serial-shoot-delay"), elem.value != "single", "");
     }
 
     function adjust_adapter(data) {
@@ -492,9 +508,9 @@
                 adjust_class("eject", arr[i], (data.action=="EJECT") && ((data.movement > 0) == (reverse(arr[i]) > 0)));
             }
             if (typeof data.capturing != "undefined") {
-                adjust_class("capture", "", data.capturing);
+                adjust_class("shoot", "", data.capturing);
             }
-            adjust_class("capture", "", data.frame_ready, "pre-action");
+            adjust_class("shoot", "", data.frame_ready, "pre-action");
         }
     }
 
@@ -547,6 +563,15 @@
                 }
             }
         }
+
+        items = document.getElementById("shoot-mode-list").options;
+        var abilities = (document.getElementById("camera-list").selectedIndex > 0) && (typeof window.current_camera != "undefined");
+        // do not adjust value as almost always is required capture which requires camera connection
+        items[0].disabled = !abilities || (!window.current_camera.capture_image && !window.current_camera.trigger_capture);
+        items[1].disabled = items[0].disabled || !window.current_camera.sdcard_capture;
+        items[2].disabled = items[1].disabled;
+        items[3].disabled = !window.capabilities.camera_remote_control;
+        items[4].disabled = items[3].disabled;
     }
 
     function adjust_camera_preview() {
@@ -617,7 +642,7 @@
     function update_battery(level) {
         var elem = document.getElementById("battery-level");
         var low_battery = false;
-        if (typeof level == "undefined") {
+        if (typeof level == "undefined" || level == null) {
             elem.innerHTML = "N/A";
         } else {
             elem.innerHTML = level;
@@ -757,13 +782,13 @@
                     }
                     if (cnt > 1) {
                         // delay range is 0..500ms
-                        var val = Number(document.getElementById("serial-capture-delay-rng").value) * 500;
+                        var val = Number(document.getElementById("serial-shoot-delay-rng").value) * 500;
                         setTimeout(function() {
                             if (!window.stop_multicapture) {
                                 if (capture_mode == "multi") {
                                     cnt_elem.value = (cnt - 1).toString();
                                 }
-                                window.adapter_buttons.capture.action(undefined);
+                                window.adapter_buttons.shoot.action(undefined);
                                 delete window.automove_in_progress;
                             }
                         }, val);
@@ -774,6 +799,39 @@
             } else {
                 delete window.automove_in_progress;
             }
+        }
+    }
+
+    function picture_taken(payload) {
+        if (window.capabilities.motorized) {
+            if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
+                var x = Math.abs(window.last_capture_position - payload.film_position);
+                x -= window.frame_width_in_mm;
+                x = x.toFixed(2);
+                if (Math.abs(x) < 10) {
+                    document.getElementById("frame-correction").value = x.toString();
+                }
+            }
+            window.last_capture_position = payload.film_position;
+            if (!window.stop_multicapture) {
+                if (document.getElementById("automove-cb").checked || document.getElementById("capture-mode-list").value == "serial") {
+                    window.automove_in_progress = true;
+                    window.adapter_buttons.frame.action(1);
+                } else {
+                    window.automove_in_progress = false;
+                }
+            }
+        }
+    }
+
+    function file_transfer_finished(payload) {
+        sendCommand('GET_PROJECT', ['project_id', 'film_id']);
+        if (typeof payload.error != "undefined") {
+            window.stop_multicapture = true;
+            update_status_info(data.payload.error);
+        }
+        if (!window.capabilities.motorized) {
+            window.automove_in_progress = false;
         }
     }
 
@@ -890,46 +948,32 @@
                             window.current_camera = data.payload;
                             document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
                             update_battery(data.payload.battery);
+                            adjust_capabilities();
                         } else if (data.cmd == "GET_PROJECT") {
                             var project_list = document.getElementById("project-list");
                             var film_list = document.getElementById("film-list");
                             if ((project_list.value == data.payload.id) && (project_list.selectedIndex > 0)) {
-                                project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
+                                if (data.payload.film) {
+                                    for (var i = 0; i < project_list.options[project_list.selectedIndex]._custom_data.film_list.length; i++) {
+                                        if (project_list.options[project_list.selectedIndex]._custom_data.film_list[i].id == data.payload.film.id) {
+                                            project_list.options[project_list.selectedIndex]._custom_data.film_list[i] = data.payload.film;
+                                            break;
+                                        }
+                                    }
+                                } else if (data.payload.film_list) {
+                                    project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
+                                }
                             }
                         } else if (data.cmd == "CAPTURE") {
-                            if (window.capabilities.motorized) {
-                                if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
-                                    var x = Math.abs(window.last_capture_position - data.payload.film_position);
-                                    x -= window.frame_width_in_mm;
-                                    x = x.toFixed(2);
-                                    if (Math.abs(x) < 10) {
-                                        document.getElementById("frame-correction").value = x.toString();
-                                    }
-                                }
-                                window.last_capture_position = data.payload.film_position;
-                                if (!window.stop_multicapture) {
-                                    if (document.getElementById("automove-cb").checked || document.getElementById("capture-mode-list").value == "serial") {
-                                        window.automove_in_progress = true;
-                                        window.adapter_buttons.frame.action(1);
-                                    } else {
-                                        window.automove_in_progress = false;
-                                    }
-                                }
-                                window.download_in_progress = true;
-                            }
+                            picture_taken(data.payload);
+                            window.download_in_progress = true;
                             update_battery(data.payload.battery);
 
                         } else if (data.cmd == "DOWNLOAD") {
-                            sendCommand('GET_PROJECT', ['project_id']);
-                            if (typeof data.payload.error != "undefined") {
-                                window.stop_multicapture = true;
-                                update_status_info(data.payload.error);
-                            }
-                            if (!window.capabilities.motorized) {
-                                window.automove_in_progress = false;
-                            }
+                            file_transfer_finished(data.payload);
 							window.download_in_progress = false;
 							check_multicapture();
+
                         } else if (data.cmd == "CREATE_FILM") {
                             // add new film into select box as placeholder
                             var elem = document.getElementById("film-list");
@@ -1169,7 +1213,8 @@
 			"control.backlight.ir": "backlight-ir-rng",
 			"control.backlight.external": "backlight-external-rng",
             //"control.capture.mode": "capture-mode-list",
-            "control.capture.serial_delay": "serial-capture-delay-rng",
+            "control.shoot.serial_delay": "serial-shoot-delay-rng",
+            "control.shoot.trigger_delay": "trigger-delay-rng",
             "select.camera": "camera-list",
             "select.volume": "volume-list",
             "select.project": "project-list",
@@ -1224,13 +1269,19 @@
                 },
             },
 
-            "capture": {
+            "shoot": {
                 "action": function(dir) {
                     if (window.capabilities.motorized) {
 						sendCommand2("STOP");
 					}
                     window.stop_multicapture = false;
-                    sendCommand('CAPTURE', ['camera-list', 'project_id', 'film_id']);
+                    var shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
+                    if (shoot_mode[0] == "capture") {
+                        sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], {"wire_trigger": false, "download": shoot_mode[1].includes("download"), "delete": !shoot_mode[1].includes("sdcard")});
+                    } else {
+                        var delay = Number(document.getElementById("trigger-delay-rng").value) * 500;
+                        sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"});
+                    }
                 },
             },
         };
@@ -1387,7 +1438,8 @@
             }
         }
         adjust_camera_list(localStorage.getItem("select.camera"));
-        adjust_capture_delay_value(document.getElementById("serial-capture-delay-rng"));
+        adjust_delay_value(document.getElementById("serial-shoot-delay-rng"));
+        adjust_delay_value(document.getElementById("trigger-delay-rng"));
         connect();
         adjust_preview();
     }
@@ -1462,7 +1514,7 @@
                     break;
                 case "Numpad0":
                 case "KeyX":
-                    btn = "capture";
+                    btn = "shoot";
                     break;
                 case "KeyB":
                     var cb_elem = document.getElementById("backlight-cb");
@@ -1473,7 +1525,7 @@
                     break;
                 /*case "Enter":   // enter is too dangerous common key
                     if (elem.tagName != "BUTTON") {
-                        btn = "capture";
+                        btn = "shoot";
                     }
                     break;*/
                 }
@@ -1554,6 +1606,7 @@
 
     function set_visible(elem, value, display_on="block") {
         if (value) {
+            elem.classList.remove("hidden");  // unvisible when starting
             elem.style.display = display_on;
         } else {
             elem.style.display = "none";
@@ -1565,6 +1618,7 @@
             return;
         }
         elem = document.getElementById(id);
+        elem.classList.remove("hidden");  // unvisible when starting
         elem.style.display = elem.style.display == "none" ? "block" : "none";
         return false;
     }
@@ -1626,7 +1680,7 @@
         }
 	}
 
-    function adjust_capture_delay_value(range_elem) {
+    function adjust_delay_value(range_elem) {
         var value_elem = document.getElementById(range_elem.id.replace("-rng", "-value"));
         value_elem.innerHTML = String(Number(range_elem.value) * 0.5)+"s";
     }

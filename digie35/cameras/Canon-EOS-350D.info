@@ -1,0 +1,311 @@
+Sun Jul  7 11:23:00 CEST 2024
+
+################################################################################
+### gphoto2 --summary ###
+################################################################################
+
+Camera summary:
+Manufacturer: Canon Inc.
+Model: Canon EOS DIGITAL REBEL XT
+  Version: 3-0.0.0.1
+  Serial Number: 
+Vendor Extension ID: 0xb (1.0)
+Vendor Extension Description: 
+PTP Standard Version: 0.1
+
+Capture Formats: JPEG
+Display Formats: Script, DPOF, MS AVI, MS Wave, JPEG, CRW, Unknown(b103)
+
+Device Capabilities:
+	File Download, File Deletion, File Upload
+	No Image Capture, No Open Capture, No vendor specific capture
+
+Storage Devices Summary:
+store_00000001:
+	StorageDescription: 
+	VolumeLabel: A
+	Storage Type: Removable RAM (memory card)
+	Filesystemtype: Digital Camera Layout (DCIM)
+	Access Capability: Read-Write
+	Maximum Capability: 2047541248 (1952 MB)
+	Free Space (Bytes): 416514048 (397 MB)
+	Free Space (Images): -1
+
+Device Property Summary:
+Event Emulate Mode(0xd045):(readwrite) (type=0x4) Enumeration [1,2,3,4,5,6,7] value: 2
+Battery Type(0xd002):(read only) (type=0x4) Enumeration [0,1,2,5] value: Unknown (0)
+Battery Mode(0xd003):(read only) (type=0x6) Enumeration [0,1,2,3] value: Normal (1)
+Size Quality Mode(0xd02c):(read only) (type=0x4006) Enumeration [
+	a[6] 2304,3456,6,0,0,0,
+	a[6] 2304,3456,11,0,0,0,
+	a[6] 1664,2496,9,0,0,0,
+	a[6] 1664,2496,14,0,0,0,
+	a[6] 1152,1728,10,0,0,0,
+	a[6] 1152,1728,15,0,0,0
+	] value: a[6] 0,0,0,0,0,0
+Supported Thumb Size(0xd02d):(read only) (type=0x4006) a[4] 119,0,159,0
+Model ID(0xd049):(read only) (type=0x6) 2147484041
+Camera Model(0xd032):(read only) (type=0xffff) 'Canon EOS DIGITAL REBEL XT'
+Firmware Version(0xd031):(read only) (type=0x6) 16777984
+UNIX Time(0xd034):(readwrite) (type=0x6) 1720354117
+Camera Owner(0xd033):(readwrite) (type=0x4002) a[8] 117,110,107,110,111,119,110,0
+Size of Output Data from Camera(0xd02e):(read only) (type=0x6) 1048576
+Size of Input Data to Camera(0xd02f):(read only) (type=0x6) 64768
+DPOF Version(0xd046):(read only) (type=0x4) 257
+Type of Slideshow(0xd047):(read only) (type=0x4) 0
+Remote API Version(0xd030):(read only) (type=0x6) 256
+Property 0xd04a:(readwrite) (type=0x2) Enumeration [0,1,2,3] value: 0
+
+
+################################################################################
+### gphoto2 --abilities ###
+################################################################################
+
+Abilities for camera             : Canon EOS 350D
+Serial port support              : no
+USB support                      : yes
+Capture choices                  :
+                                 : Capture not supported by the driver
+Configuration support            : no
+Delete selected files on camera  : yes
+Delete all files on camera       : no
+File preview (thumbnail) support : yes
+File upload support              : yes
+
+################################################################################
+### gphoto2 --list-config ###
+################################################################################
+
+/main/actions/eosmoviemode
+/main/actions/opcode
+/main/settings/datetime
+/main/settings/ownername
+/main/settings/capturetarget
+/main/settings/capture
+/main/status/serialnumber
+/main/status/manufacturer
+/main/status/cameramodel
+/main/status/deviceversion
+/main/status/vendorextension
+/main/status/model
+/main/status/firmwareversion
+/main/other/d045
+/main/other/d002
+/main/other/d003
+/main/other/d02c
+/main/other/d02d
+/main/other/d049
+/main/other/d032
+/main/other/d031
+/main/other/d034
+/main/other/d033
+/main/other/d02e
+/main/other/d02f
+/main/other/d046
+/main/other/d047
+/main/other/d030
+/main/other/d04a
+
+################################################################################
+### gphoto2 --list-all-config ###
+################################################################################
+
+/main/actions/eosmoviemode
+Label: Movie Mode
+Readonly: 0
+Type: TOGGLE
+Current: 2
+END
+/main/actions/opcode
+Label: PTP Opcode
+Readonly: 0
+Type: TEXT
+Current: 0x1001,0xparam1,0xparam2
+END
+/main/settings/datetime
+Label: Camera Date and Time
+Readonly: 0
+Type: DATE
+Current: 1720346919
+Printable: Sun Jul  7 12:08:39 2024
+Help: Use 'now' as the current time when setting.
+
+END
+/main/settings/ownername
+Label: Owner Name
+Readonly: 0
+Type: TEXT
+Current: unknown
+END
+/main/settings/capturetarget
+Label: Capture Target
+Readonly: 0
+Type: RADIO
+Current: Internal RAM
+Choice: 0 Internal RAM
+Choice: 1 Memory card
+END
+/main/settings/capture
+Label: Capture
+Readonly: 0
+Type: TOGGLE
+Current: 0
+END
+/main/status/serialnumber
+Label: Serial Number
+Readonly: 1
+Type: TEXT
+Current: 
+END
+/main/status/manufacturer
+Label: Camera Manufacturer
+Readonly: 1
+Type: TEXT
+Current: Canon Inc.
+END
+/main/status/cameramodel
+Label: Camera Model
+Readonly: 1
+Type: TEXT
+Current: Canon EOS DIGITAL REBEL XT
+END
+/main/status/deviceversion
+Label: Device Version
+Readonly: 1
+Type: TEXT
+Current: 3-0.0.0.1
+END
+/main/status/vendorextension
+Label: Vendor Extension
+Readonly: 1
+Type: TEXT
+Current: 
+END
+/main/status/model
+Label: Camera Model
+Readonly: 1
+Type: TEXT
+Current: Canon EOS DIGITAL REBEL XT
+END
+/main/status/firmwareversion
+Label: Firmware Version
+Readonly: 1
+Type: TEXT
+Current: 1.0.3.0
+END
+/main/other/d045
+Label: Event Emulate Mode
+Readonly: 0
+Type: MENU
+Current: 2
+Choice: 0 1
+Choice: 1 2
+Choice: 2 3
+Choice: 3 4
+Choice: 4 5
+Choice: 5 6
+Choice: 6 7
+END
+/main/other/d002
+Label: Battery Type
+Readonly: 1
+Type: MENU
+Current: 0
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 5
+END
+/main/other/d003
+Label: Battery Mode
+Readonly: 1
+Type: MENU
+Current: 1
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 3
+END
+/main/other/d02c
+Label: Size Quality Mode
+Readonly: 1
+Type: MENU
+Current: (null)
+END
+/main/other/d02d
+Label: Supported Thumb Size
+Readonly: 1
+Type: TEXT
+Current: (null)
+END
+/main/other/d049
+Label: Model ID
+Readonly: 1
+Type: TEXT
+Current: -2147483255
+END
+/main/other/d032
+Label: Camera Model
+Readonly: 1
+Type: TEXT
+Current: Canon EOS DIGITAL REBEL XT
+END
+/main/other/d031
+Label: Firmware Version
+Readonly: 1
+Type: TEXT
+Current: 16777984
+END
+/main/other/d034
+Label: UNIX Time
+Readonly: 0
+Type: TEXT
+Current: 1720354119
+END
+/main/other/d033
+Label: Camera Owner
+Readonly: 0
+Type: TEXT
+Current: (null)
+END
+/main/other/d02e
+Label: Size of Output Data from Camera
+Readonly: 1
+Type: TEXT
+Current: 1048576
+END
+/main/other/d02f
+Label: Size of Input Data to Camera
+Readonly: 1
+Type: TEXT
+Current: 64768
+END
+/main/other/d046
+Label: DPOF Version
+Readonly: 1
+Type: TEXT
+Current: 257
+END
+/main/other/d047
+Label: Type of Slideshow
+Readonly: 1
+Type: TEXT
+Current: 0
+END
+/main/other/d030
+Label: Remote API Version
+Readonly: 1
+Type: TEXT
+Current: 256
+END
+/main/other/d04a
+Label: PTP Property 0xd04a
+Readonly: 0
+Type: MENU
+Current: 0
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 3
+END
+

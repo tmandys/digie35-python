@@ -363,7 +363,7 @@ class ExtensionBoard:
             # enumerate all supported capabilities
             "motorized": False,
             # "motorized": isinstance(self.get_adapter(), StepperMotorAdapter),
-            "camera_remote_control": True,
+            "camera_remote_control": True,  # RC via jack
 
             "white_backlight": False,
             "ir_backlight": False,
