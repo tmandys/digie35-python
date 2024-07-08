@@ -797,6 +797,7 @@ class StepperMotorAdapter(Adapter):
             "state": {
                 "shot_ready": False,
                 "light_ready": False,
+                "insert_ready": False,
                 "controlled": False,
             },
             "pos": {
@@ -858,6 +859,7 @@ class StepperMotorAdapter(Adapter):
             "frame_ready": self._film_sensing["state"]["shot_ready"],
             "film_detected": self._film_sensing["state"]["front"] or self._film_sensing["state"]["rear"],
             "film_position": round(self._film_position, 3),
+            "insert_ready":  self._film_sensing["state"]["insert_ready"],
             #"counters": counters,
         }
         if (self._motor_current_action != None):
@@ -1101,7 +1103,9 @@ class StepperMotorAdapter(Adapter):
                 self._film_sensing["state"]["light_ready"] = True
                 if self._save_backlight_color != None:
                     self._xboard.set_backlight(self._save_backlight_color, -1)
-            if self._film_sensing["state"]["controlled"] and not (self._film_sensing["state"]["rear"] or self._film_sensing["state"]["front"]):
+            if self._film_sensing["state"]["controlled"] and \
+                ((not self._film_sensing["state"]["rear"] and not self._film_sensing["state"]["front"]) or \
+                (self._film_sensing["state"]["rear"] and self._film_sensing["state"]["front"] and not self._film_sensing["state"]["window"])):  # pushed next film, i.e. 2 strips in adapter
                 self._film_sensing["state"]["controlled"] = False
                 for key in list(self._counters):
                     self._film_sensing["pos"][key] = None
@@ -1125,7 +1129,10 @@ class StepperMotorAdapter(Adapter):
                 elif self._sensor_distance["rear"] > 0 and not self._film_sensing["state"]["rear"] and self._film_sensing["pos"]["rear"] != None and \
                     (self._motor_position < self._film_sensing["pos"]["rear"] - (self._sensor_distance["rear"]) * self.get_steps_per_mm()):
                     self._film_sensing["state"]["shot_ready"] = False
-
+            if not self._film_sensing["state"]["insert_ready"]:
+                self._film_sensing["state"]["insert_ready"] = (not self._film_sensing["state"]["front"] or self._film_sensing["pos"]["front"] == self._frame_counters["front"]["motor_position"]) and not self._film_sensing["state"]["window"]
+            else:
+                self._film_sensing["state"]["insert_ready"] = (not self._film_sensing["state"]["front"] or self._motor_current_dir <= 0) and not self._film_sensing["state"]["window"]
             # for testing
             # self._film_sensing["state"]["light_ready"] = self._film_sensing["state"]["shot_ready"]
             s2 = "%s" % (self._film_sensing, )
@@ -1167,7 +1174,7 @@ class StepperMotorAdapter(Adapter):
             Run transport to get film till front detected by sensors
         """
         self._check_adapter_ready()
-        if self._film_sensing["state"]["controlled"]:
-            raise DigitizerError("Film is already detected in adapter")
+        if not self._film_sensing["state"]["insert_ready"]:
+            raise DigitizerError("Adapter is not in insert ready state")
         self._film_position = 0
         self.set_motor(999, {"cmd": "LEAD_IN", "phase": 0, })

@@ -1150,8 +1150,9 @@ def broadcast(message):
             insert_detected = (message["movement"] == 0 and \
                 # not message["film_detected"] and \
                 not last_adapter["io"]["sensor_f"] and message["io"]["sensor_f"] and \
-                not last_adapter["io"]["sensor_r"] and not message["io"]["sensor_r"] and \
-                not last_adapter["io"]["sensor_m"] and not message["io"]["sensor_m"])
+                message["insert_ready"])
+                #not last_adapter["io"]["sensor_r"] and not message["io"]["sensor_r"] and \
+                #not last_adapter["io"]["sensor_m"] and not message["io"]["sensor_m"])
             send_flag |= insert_detected
 
         message2 |= {
