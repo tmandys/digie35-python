@@ -1,0 +1,433 @@
+Tue Jul  9 17:57:56 CEST 2024
+
+################################################################################
+### gphoto2 --summary ###
+################################################################################
+
+Camera summary:
+Manufacturer: Panasonic
+Model: DC-S5
+  Version: 2.6
+  Serial Number: 000000000000000000XJR2010190092
+Vendor Extension ID: 0x1c (1.0)
+Vendor Extension Description: 
+
+Capture Formats: 
+Display Formats: Association/Directory, DPOF, Apple Quicktime, Defined Type, JPEG, Unknown(b003)
+
+Device Capabilities:
+	File Download, File Deletion, No File Upload
+	No Image Capture, No Open Capture, No vendor specific capture
+
+Storage Devices Summary:
+
+Device Property Summary:
+Battery Level(0x5001):(read only) (type=0x2) Range [0 - 100, step 1] value: 100% (100)
+
+
+################################################################################
+### gphoto2 --abilities ###
+################################################################################
+
+Abilities for camera             : Panasonic DC-GH5
+Serial port support              : no
+USB support                      : yes
+Capture choices                  :
+                                 : Image
+                                 : Preview
+Configuration support            : yes
+Delete selected files on camera  : yes
+Delete all files on camera       : no
+File preview (thumbnail) support : yes
+File upload support              : yes
+
+################################################################################
+### gphoto2 --list-config ###
+################################################################################
+
+/main/actions/viewfinder
+/main/actions/movie
+/main/actions/opcode
+/main/settings/capturetarget
+/main/status/serialnumber
+/main/status/manufacturer
+/main/status/cameramodel
+/main/status/deviceversion
+/main/status/vendorextension
+/main/status/batterylevel
+/main/imgsettings/imageformat
+/main/imgsettings/iso
+/main/capturesettings/exposurecompensation
+/main/capturesettings/whitebalance
+/main/capturesettings/colortemperature
+/main/capturesettings/whitebalanceadjustab
+/main/capturesettings/whitebalanceadjustgm
+/main/capturesettings/afmode
+/main/capturesettings/mfadjust
+/main/capturesettings/expmode
+/main/capturesettings/recording
+/main/capturesettings/f-number
+/main/capturesettings/liveviewsize
+/main/capturesettings/shutterspeed
+/main/other/5001
+
+################################################################################
+### gphoto2 --list-all-config ###
+################################################################################
+
+/main/actions/viewfinder
+Label: Panasonic Viewfinder
+Readonly: 0
+Type: TOGGLE
+Current: 2
+END
+/main/actions/movie
+Label: Movie Capture
+Readonly: 0
+Type: TOGGLE
+Current: 2
+END
+/main/actions/opcode
+Label: PTP Opcode
+Readonly: 0
+Type: TEXT
+Current: 0x1001,0xparam1,0xparam2
+END
+/main/settings/capturetarget
+Label: Capture Target
+Readonly: 0
+Type: RADIO
+Current: Internal RAM
+Choice: 0 Internal RAM
+Choice: 1 Memory card
+END
+/main/status/serialnumber
+Label: Serial Number
+Readonly: 1
+Type: TEXT
+Current: 000000000000000000XJR2010190092
+END
+/main/status/manufacturer
+Label: Camera Manufacturer
+Readonly: 1
+Type: TEXT
+Current: Panasonic
+END
+/main/status/cameramodel
+Label: Camera Model
+Readonly: 1
+Type: TEXT
+Current: DC-S5
+END
+/main/status/deviceversion
+Label: Device Version
+Readonly: 1
+Type: TEXT
+Current: 2.6
+END
+/main/status/vendorextension
+Label: Vendor Extension
+Readonly: 1
+Type: TEXT
+Current: 
+END
+/main/status/batterylevel
+Label: Battery Level
+Readonly: 1
+Type: TEXT
+Current: 100%
+END
+/main/imgsettings/imageformat
+Label: Image Format
+Readonly: 0
+Type: RADIO
+Current: 4
+Choice: 0 0
+Choice: 1 1
+Choice: 2 3
+Choice: 3 4
+Choice: 4 5
+END
+/main/imgsettings/iso
+Label: ISO Speed
+Readonly: 0
+Type: RADIO
+Current: 400
+Choice: 0 -1
+Choice: 1 100
+Choice: 2 125
+Choice: 3 160
+Choice: 4 200
+Choice: 5 250
+Choice: 6 320
+Choice: 7 400
+Choice: 8 500
+Choice: 9 640
+Choice: 10 800
+Choice: 11 1000
+Choice: 12 1250
+Choice: 13 1600
+Choice: 14 2000
+Choice: 15 2500
+Choice: 16 3200
+Choice: 17 4000
+Choice: 18 5000
+Choice: 19 6400
+Choice: 20 8000
+Choice: 21 10000
+Choice: 22 12800
+Choice: 23 16000
+Choice: 24 20000
+Choice: 25 25600
+Choice: 26 32000
+Choice: 27 40000
+Choice: 28 51200
+END
+/main/capturesettings/exposurecompensation
+Label: Exposure Compensation
+Readonly: 0
+Type: RADIO
+Current: -0.666667
+Choice: 0 -5.000000
+Choice: 1 -4.666667
+Choice: 2 -4.333333
+Choice: 3 -4.000000
+Choice: 4 -3.666667
+Choice: 5 -3.333333
+Choice: 6 -3.000000
+Choice: 7 -2.666667
+Choice: 8 -2.333333
+Choice: 9 -2.000000
+Choice: 10 -1.666667
+Choice: 11 -1.333333
+Choice: 12 -1.000000
+Choice: 13 -0.666667
+Choice: 14 -0.333333
+Choice: 15 0.000000
+Choice: 16 0.333333
+Choice: 17 0.666667
+Choice: 18 1.000000
+Choice: 19 1.333333
+Choice: 20 1.666667
+Choice: 21 2.000000
+Choice: 22 2.333333
+Choice: 23 2.666667
+Choice: 24 3.000000
+Choice: 25 3.333333
+Choice: 26 3.666667
+Choice: 27 4.000000
+Choice: 28 4.333333
+Choice: 29 4.666667
+Choice: 30 5.000000
+END
+/main/capturesettings/whitebalance
+Label: White Balance
+Readonly: 0
+Type: RADIO
+Current: Automatic Warm
+Choice: 0 Automatic
+Choice: 1 Daylight
+Choice: 2 Cloudy
+Choice: 3 Tungsten
+Choice: 4 Flash
+Choice: 5 Preset 1
+Choice: 6 Preset 2
+Choice: 7 Preset 3
+Choice: 8 Preset 4
+Choice: 9 Shadow
+Choice: 10 Temperature 1
+Choice: 11 Temperature 2
+Choice: 12 Temperature 3
+Choice: 13 Temperature 4
+Choice: 14 Automatic Cool
+Choice: 15 Automatic Warm
+END
+/main/capturesettings/colortemperature
+Label: Color temperature
+Readonly: 0
+Type: RADIO
+Current: Unknown 0x09c4
+END
+/main/capturesettings/whitebalanceadjustab
+Label: Adjust A/B
+Readonly: 0
+Type: RADIO
+Current: 0
+
+END
+/main/capturesettings/whitebalanceadjustgm
+Label: Adjust G/M
+Readonly: 0
+Type: RADIO
+Current: 0
+
+END
+/main/capturesettings/afmode
+Label: AF Mode
+Readonly: 0
+Type: RADIO
+Current: Unknown 0x0003
+Choice: 0 AF
+Choice: 1 AF macro
+Choice: 2 AF macro (D)
+Choice: 3 MF
+Choice: 4 AF_S
+Choice: 5 AF_C
+Choice: 6 AF_F
+END
+/main/capturesettings/mfadjust
+Label: MF Adjust
+Readonly: 0
+Type: RADIO
+Current: None
+Choice: 0 Stop
+Choice: 1 Far fast
+Choice: 2 Far slow
+Choice: 3 Near slow
+Choice: 4 Near fast
+END
+/main/capturesettings/expmode
+Label: Exp mode
+Readonly: 0
+Type: RADIO
+Current: Unknown 0x0003
+Choice: 0 P
+Choice: 1 A
+Choice: 2 S
+Choice: 3 M
+END
+/main/capturesettings/recording
+Label: Start/Stop recording
+Readonly: 0
+Type: RADIO
+Current: Standby
+END
+/main/capturesettings/f-number
+Label: F-Number
+Readonly: 0
+Type: RADIO
+Current: 6553.4
+END
+/main/capturesettings/liveviewsize
+Label: Live View Size
+Readonly: 0
+Type: RADIO
+Current: 320x240 0 30HZ
+Choice: 0 640x480 32 30HZ
+Choice: 1 832x624 190 30HZ
+Choice: 2 1024x768 290 30HZ
+END
+/main/capturesettings/shutterspeed
+Label: Shutter Speed
+Readonly: 0
+Type: RADIO
+Current: 1/2.5
+END
+/main/other/5001
+Label: Battery Level
+Readonly: 1
+Type: MENU
+Current: 100
+Choice: 0 0
+Choice: 1 1
+Choice: 2 2
+Choice: 3 3
+Choice: 4 4
+Choice: 5 5
+Choice: 6 6
+Choice: 7 7
+Choice: 8 8
+Choice: 9 9
+Choice: 10 10
+Choice: 11 11
+Choice: 12 12
+Choice: 13 13
+Choice: 14 14
+Choice: 15 15
+Choice: 16 16
+Choice: 17 17
+Choice: 18 18
+Choice: 19 19
+Choice: 20 20
+Choice: 21 21
+Choice: 22 22
+Choice: 23 23
+Choice: 24 24
+Choice: 25 25
+Choice: 26 26
+Choice: 27 27
+Choice: 28 28
+Choice: 29 29
+Choice: 30 30
+Choice: 31 31
+Choice: 32 32
+Choice: 33 33
+Choice: 34 34
+Choice: 35 35
+Choice: 36 36
+Choice: 37 37
+Choice: 38 38
+Choice: 39 39
+Choice: 40 40
+Choice: 41 41
+Choice: 42 42
+Choice: 43 43
+Choice: 44 44
+Choice: 45 45
+Choice: 46 46
+Choice: 47 47
+Choice: 48 48
+Choice: 49 49
+Choice: 50 50
+Choice: 51 51
+Choice: 52 52
+Choice: 53 53
+Choice: 54 54
+Choice: 55 55
+Choice: 56 56
+Choice: 57 57
+Choice: 58 58
+Choice: 59 59
+Choice: 60 60
+Choice: 61 61
+Choice: 62 62
+Choice: 63 63
+Choice: 64 64
+Choice: 65 65
+Choice: 66 66
+Choice: 67 67
+Choice: 68 68
+Choice: 69 69
+Choice: 70 70
+Choice: 71 71
+Choice: 72 72
+Choice: 73 73
+Choice: 74 74
+Choice: 75 75
+Choice: 76 76
+Choice: 77 77
+Choice: 78 78
+Choice: 79 79
+Choice: 80 80
+Choice: 81 81
+Choice: 82 82
+Choice: 83 83
+Choice: 84 84
+Choice: 85 85
+Choice: 86 86
+Choice: 87 87
+Choice: 88 88
+Choice: 89 89
+Choice: 90 90
+Choice: 91 91
+Choice: 92 92
+Choice: 93 93
+Choice: 94 94
+Choice: 95 95
+Choice: 96 96
+Choice: 97 97
+Choice: 98 98
+Choice: 99 99
+Choice: 100 100
+END
+
