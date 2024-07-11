@@ -108,9 +108,8 @@ class NikonStepperMotorAdapter(StepperMotorAdapter):
         """
             Check if adapter is ready and closed
         """
-        if not self._xboard.get_io_state("detect_aot"):
-            #raise DigitizerError("Adapter is not detected")   TODO not precise on ver < 1.03
-            pass
+        # testing via detect_aot is unreliaoble on pre 1.03 boards
+        pass
 
     def _get_io_configuration(self):
         result = super()._get_io_configuration()
@@ -120,7 +119,6 @@ class NikonStepperMotorAdapter(StepperMotorAdapter):
         result["sensor_r"] = {}
         result["sensor_f"] = {}
         result["sensor_m"] = {}
-        result["detect_aot"] = {}
         return result
 
 ## Development board for Nikon SA-21 adapter with I2C i/o non integrated to any hw box. 10-pin extension connector

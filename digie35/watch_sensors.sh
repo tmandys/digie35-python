@@ -1,8 +1,11 @@
 #!/bin/sh
 
+#CMD=raspi-gpio
+CMD=pinctrl
+
 watch -d -n 0.1 "\
-  echo -n 'Front:   '; raspi-gpio get 5;\
-  echo -n 'Rear:    '; raspi-gpio get 6;\
-  echo -n 'Middle:  '; raspi-gpio get 7;\
-  echo -n 'Adapter: '; raspi-gpio get 8;\
+  echo -n 'Front:   '; $CMD get 5;\
+  echo -n 'Rear:    '; $CMD get 6;\
+  echo -n 'Middle:  '; $CMD get 7;\
+  echo -n 'Adapter: '; $CMD get 8;\
   "
