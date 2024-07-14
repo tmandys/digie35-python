@@ -289,8 +289,10 @@ class CameraWrapper:
             self._camera_counter -= 1
             if self._camera_counter == 0:
                 logging.getLogger().debug("camera exit")
-                gp.check_result(gp.gp_camera_exit(self._camera))
-                del self._camera
+                try:
+                    gp.check_result(gp.gp_camera_exit(self._camera))
+                finally:
+                    del self._camera
         finally:
             #logging.getLogger().debug("close_camera:camera.release")
             self._camera_lock.release()
@@ -668,7 +670,10 @@ class CameraWrapper:
                 self._release_capture_lock("2")
 
         finally:
-            self._close_camera()
+            try:
+                self._close_camera()
+            except Exception as e:
+                logging.getLogger().error(e, exc_info=True)
             self._camera_preview = False
             self._broadcast_camera_status()
             logging.getLogger().debug(f"Preview thread terminated")
