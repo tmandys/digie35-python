@@ -489,7 +489,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
         ("wheel_diameter", "number", 2, "Wheel diameter in mm/100", 1280),
         ("speed1", "number", 2, "Speed1 in mm/100/sec", 100),
         ("speed2", "number", 2, "Speed2 in mm/100/sec", 600),
-        ("speed3", "number", 2, "Speed3 in mm/100/sec", 4000),
+        ("speed3", "number", 2, "Speed3 in mm/100/sec", 1500),
         ("speed4", "number", 2, "Speed4 in mm/100/sec", 3000),
         ("acceleration", "int", 2, "Max.acceleration mm/100/sec^2", 5000),
         ("front_sensor_distance", "int", 2, "Front sensor distance", 4500),
