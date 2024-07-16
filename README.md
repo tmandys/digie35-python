@@ -24,8 +24,8 @@ plus
     sudo pip3 install rpi-hardware-pwm
 
 
-NIKON board
------------
+NIKON board + GULP v 1.00
+-------------------------
 
 to enable activity led
 

@@ -483,7 +483,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
     CUSTOM_MAP = [
         ("driver", "number", 1, "Driver 0..A4988, 1..DRV8825, 2..TMC2208 (compatible mode), 3..TMC2208 (UART mode TBD)", DRIVER_TMC2208_COMP),
         ("gear1", "number", 1, "Wheel 1 teeth number (12, 16, 20)", 12),
-        ("gear2", "number", 1, "Wheel 2 teeth number (12, 16, 20)", 16),
+        ("gear2", "number", 1, "Wheel 2 teeth number (12, 16, 20)", 20),
         ("steps_per_revolution", "number", 2, "Steeper number of steps per revolution", 200),
         ("microstepping", "number", 1, "Microstepping 0..full, 1..half, 2../4, 3../8, 4../16", 2),  # for hight speed frequency is to high so think about reasonable MS
         ("wheel_diameter", "number", 2, "Wheel diameter in mm/100", 1280),
