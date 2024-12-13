@@ -73,7 +73,22 @@ def main():
     argParser = argparse.ArgumentParser(
         #prog=,
         description="Digie35 Adapter Config Tool for Gulp boards, v%s" % __version__,
-        epilog="EEPROM I2C addresses: xboard: 0x54, AOT adapter: 0x55, light adapter: 0x56",
+        epilog='''\
+EEPROM I2C addresses: xboard: 0x54, AOT adapter: 0x55, light adapter: 0x56
+
+Examples or args:
+  main board init
+    -b MAIN -w --default --h_version 103 --h_serial_number 123456789
+  Stepper adapter init
+    -b AOT -w --default --h_adapter_id STEPPER --h_version 103 --h_serial_number 123456789
+  Nikon adapter init
+    -b AOT -w --default --h_adapter_id NIKON --h_version 103 --h_serial_number 123456789
+  Manual adapter init
+    -b AOT -w --default --h_adapter_id MANUAL --h_version 103 --h_serial_number 123456789
+  Light internal adapter init (white LED only)
+    -b LIGHT -w --default --h_adapter_id LGHT8PWM --h_version 103 --h_serial_number 123456789 --la_led1 1
+''',
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     argParser.add_argument("-b", "--board", choices=["MAIN", "M", "AOT", "A", "LIGHT", "L"], type=str.upper, default="MAIN", help=f"Board type, default: %(default)s")
     argParser.add_argument("-w", "--write", action="store_true", help=f"Write values")
@@ -133,7 +148,7 @@ def main():
         print("id: %s, ver: %s" % id_ver)
         adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
         if adapter_class == None:
-            print("Cannot find adapter '%s'" % (id_ver))
+            print("Cannot find adapter '%s'" % (id_ver, ))
             exit()
         eeprom = eeprom.create_adapter_memory(adapter_class)
     else:
