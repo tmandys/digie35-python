@@ -680,6 +680,12 @@ class GulpStepperMotorAdapter_0101(GulpStepperMotorAdapter):
         }
         return result
 
+class GulpStepperMotorAdapter_0103(GulpStepperMotorAdapter_0101):
+    def _get_io_configuration(self):
+        result = super()._get_io_configuration()
+        result["in_out_1"]["negative"] = False  # there is transistor which negates
+        return result
+
 ## Manual sledge adapter with own light box
 
 class GulpManualAdapterMemory(GulpAdapterMemory):
@@ -936,7 +942,9 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
             else:
                 res = GulpNikonStepperMotorAdapter
         elif id == "STEPPER":
-            if ver >= 101:
+            if ver >= 103:
+                res = GulpStepperMotorAdapter_0103
+            elif ver >= 101:
                 res = GulpStepperMotorAdapter_0101
             else:
                 res = GulpStepperMotorAdapter
