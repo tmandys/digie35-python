@@ -168,6 +168,10 @@ Use powered hub for high current USB devices.
 
 Check if `/boot/firmware/config.txt` corresponds to board. E.g. GPIO26 is busy when using NIKI board with config.txt from HEAD board where GPIO26 is used for RPI LED status indication. Also `pintest -p <pin#>` or `gpioinfo` may help to prove suspicion.
 
+- Unable install local Python local package bacause of "error: externally-managed-environment"
+
+  sudo rm  /usr/lib/python3.11/EXTERNALLY-MANAGED
+
 Usage
 -----
 
@@ -175,12 +179,12 @@ There are running services providing API via websockets.
 For cameras supporting HDMI live view plug in HDMI Video Capture USB stick. Frint-end user interface is implemented in
 digie35.html which is to be opened in web browser at `http://localhost/` address (when nginx http server is running)
 or alternatively as local file `file://<path>/digie35.html`. Javascript support is mandatory.
-_Midori_ lightweight browser not stressing RPI as much e.g. _Chromium_. But it does not show video stream correctly 
+_Midori_ lightweight browser not stressing RPI as much e.g. _Chromium_. But it does not show video stream correctly
 and is not currently available in _Bookworm_ repository to download.
-Captured photos are saved on (RPI) filesystem and intended location is SSD disk (or USB stick) plugged in USB. 
+Captured photos are saved on (RPI) filesystem and intended location is SSD disk (or USB stick) plugged in USB.
 Alternatively a network disk is also reasonable option. Internal SD card is bad choice for storage.
 
 Captured files can be accessed over network Samba prototol from Windows or Mac OS. Samba user is added using
 
     smbpasswd -a pi
-    
+

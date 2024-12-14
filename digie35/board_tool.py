@@ -32,8 +32,8 @@ import argparse
 import logging
 import locale
 import datetime
-import digie35rpi
-import digie35board
+import digie35.digie35rpi as digie35rpi
+import digie35.digie35board as digie35board
 import re
 
 def add_arg_opts(argParser, prefix, map):

@@ -8,6 +8,7 @@ Features
 Fixes
 -----
   - select camera by usbid or name as usbid increases value
+  - fix stepper board v 1.03 enable signal
 
 v0.5 (2024-06-19)
 =================
