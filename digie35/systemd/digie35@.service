@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=<<FILEPATH>> -b %I -s --addr 0.0.0.0
+ExecStart=<<FILEPATH>> -b %I -s HELPER --addr 0.0.0.0
 #ExecStartPre=killall gvfsd-gphoto2
 Environment=PYTHONUNBUFFERED=1
 Restart=always

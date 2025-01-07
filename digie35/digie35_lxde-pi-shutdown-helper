@@ -1,0 +1,3 @@
+#!/bin/sh
+# do nothing but block pwrkey command to display shutdown window when pressed RPI5 power button
+while :; do sleep 86400; done

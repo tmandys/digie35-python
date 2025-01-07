@@ -25,7 +25,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.3"
+__version__ = "0.4"
 
 import argparse
 #import yaml
@@ -46,6 +46,9 @@ import stat
 import errno
 import digie35.mjpgserver as mjpgserver
 import netifaces
+import shutil
+import signal
+import sys
 from threading import Lock, Thread, get_native_id
 
 
@@ -1191,11 +1194,15 @@ def broadcast(message):
 
 SLEEP_INTERVAL = [0.2, 1.0, 3.0]
 last_button_state = None
+SHUTDOWN_HELPER = "lxde-pi-shutdown-helper"
+SHUTDOWN_OPTION = None
 
 def on_sleep_button():
     global digitizer
     global camera
     global last_button_state
+    global SHUTDOWN_OPTION
+    global SHUTDOWN_HELPER
     result = False
     state = digitizer.get_io_state("sleep_button")
     logging.getLogger().debug("Sleep button: %d", state)
@@ -1213,14 +1220,24 @@ def on_sleep_button():
                         digitizer.get_adapter().set_motor(0)
                     digitizer.set_backlight()
                     if interval >= SLEEP_INTERVAL[1]:
-                        logging.getLogger().debug("Going to shutdown")
-                        subprocess.call(['shutdown', '-h', 'now'], shell=False)
+                        if SHUTDOWN_OPTION == "ON":
+                            logging.getLogger().debug("Going to shutdown")
+                            subprocess.call(['shutdown', '-h', 'now'], shell=False)
+                        elif SHUTDOWN_OPTION == "HELPER":
+                            if subprocess.call(['pgrep', '-f', SHUTDOWN_HELPER, '-x']) != 0:
+                                logging.getLogger().debug("Call shutdown helper")
+                                subprocess.Popen([SHUTDOWN_HELPER])
                     result = True
     last_button_state = {
         "time": ts,
         "state": state,
     }
     return result
+
+def on_terminate(signal_no, frame):    
+    logging.getLogger().debug(f"Terminate shutdown helper, signal: %d" % (signal_no))
+    # force KeyboardInterrupt
+    os.kill(os.getpid(), signal.SIGINT)
 
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
@@ -1229,6 +1246,7 @@ def main():
         description="Camera Control via gphoto2, v%s" % __version__,
         epilog="",
     )
+    global SHUTDOWN_HELPER
     #argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="RPi+HAT configuration file in YAML")
     argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects , default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
@@ -1238,7 +1256,8 @@ def main():
     argParser.add_argument("-e", "--preview-delay", dest="preview_delay", metavar="msec", type=int, default=100, help=f"Delay in ms when capturing preview from camera, default: %(default)s")
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="Logging file, default: stderr")
     argParser.add_argument("-b", "--board", choices=["HEAD", "GULP", "NIKI", "ALPHA"], type=str.upper, default="HEAD", help=f"Board name, default: %(default)s")
-    argParser.add_argument("-s", "--shutdown", action="store_true", help="Shutdown when side button is pressed between %s-%s secs" % (SLEEP_INTERVAL[1], SLEEP_INTERVAL[2]))
+    argParser.add_argument("-s", "--shutdown", choices=["OFF", "ON", "HELPER"], type=str.upper, default="OFF", help=f"Shutdown when side button is pressed between {SLEEP_INTERVAL[1]}-{SLEEP_INTERVAL[2]} secs, ON..quietly via 'shutdown', HELPER..via GUI '{SHUTDOWN_HELPER}', default: %(default)s")
+    argParser.add_argument("--system-power-button", dest="system_power_button", action="store_true", help="Do not block system RPI 5 power button handler")
     argParser.add_argument("-m", "--mainboard", choices=["GPIOZERO", "RPIGPIO", "SIMULATOR",], type=str.upper, default="GPIOZERO", help=f"Mainboard library name, default: %(default)s")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("-g", "--gphoto2-logging", dest="gp_log", action="store_true", help="gphoto2 library logging")
@@ -1273,15 +1292,18 @@ def main():
     board = args.board.upper()
     extra_io_map = {}
 
+    is_rpi5 = False
     if args.mainboard == "SIMULATOR":
         module2 = importlib.import_module("digie35.digie35simulator")
         mainboard = module2.SimulatorMainboard()
     elif args.mainboard == "GPIOZERO":
         module2 = importlib.import_module("digie35.digie35gpiozero")
         mainboard = module2.GpioZeroMainboard(board != "NIKI")
+        is_rpi5 = mainboard.is_rpi5()
     else:
         module2 = importlib.import_module("digie35.digie35rpigpio")
         mainboard = module2.RpiGpioMainboard(board != "NIKI")
+        is_rpi5 = mainboard.is_rpi5()
 
     module = importlib.import_module("digie35.digie35board")
     if board == "ALPHA":
@@ -1291,8 +1313,23 @@ def main():
     else:   # GULP
         film_xboard_class = module.GulpExtensionBoard.get_xboard_class(mainboard)
 
-    if not args.shutdown:
-        SLEEP_INTERVAL[1] = SLEEP_INTERVAL[2] + 1  # condition which will never meet to shutdown
+    shutdown_helper_process = None
+    if is_rpi5 and not args.system_power_button:
+        # rpi5 power button is handled by more services (wayfire, lxde, ..) and result is calling /bin/pwrkey
+        # which has test to run just once so we call fake dummy script to pretend pwrkey
+        if shutil.which(SHUTDOWN_HELPER):
+            fake_process_name = "digie35_" + SHUTDOWN_HELPER
+            logging.getLogger().debug(f"Starting shutdown helper: %s" % (fake_process_name))
+            shutdown_helper_process = subprocess.Popen([fake_process_name])
+            logging.getLogger().debug(f"subprocess pid: %d" % (shutdown_helper_process.pid))
+            signal.signal(signal.SIGTERM, on_terminate)
+
+    global SHUTDOWN_OPTION
+    SHUTDOWN_OPTION = args.shutdown
+    if args.shutdown == "HELPER" and not shutil.which(SHUTDOWN_HELPER):
+        SHUTDOWN_OPTION = "OFF"
+        logging.getLogger().error(f"Helper executable '%s' not found. Shutdown set to OFF" % (SHUTDOWN_HELPER, ))
+
 
     #if args.configFile:
     #    log.debug("Loading config file: %s", args.configFile)
@@ -1316,6 +1353,9 @@ def main():
         if frame_buffer != None:
             frame_buffer.stop()
             httpd.shutdown()
+        if shutdown_helper_process != None:
+            logging.getLogger().debug(f"Terminate shutdown helper, pid: %d" % (shutdown_helper_process.pid))
+            shutdown_helper_process.terminate()
 
 
 if __name__ == "__main__":

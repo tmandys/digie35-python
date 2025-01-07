@@ -172,6 +172,12 @@ Check if `/boot/firmware/config.txt` corresponds to board. E.g. GPIO26 is busy w
 
   sudo rm  /usr/lib/python3.11/EXTERNALLY-MANAGED
 
+- RPI5 power button is handled by system
+
+KEY_POWER event can be monitored by `evtest`. It is handled by lxde and firewire which executes `/bin/pwrkey`
+and opens GUI window to select Shutdown or Restart. This function must be disabled because it is handled
+by `digie35_server`. So it executes fake script to prevent `pwrkey` execution.
+
 Usage
 -----
 

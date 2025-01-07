@@ -24,7 +24,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.2"
+__version__ = "0.3"
 
 from digie35.digie35core import *
 import logging
@@ -869,6 +869,7 @@ class GulpExtensionBoardMemory(GulpBoardMemory):
     CUSTOM_MAP = [
         ("led1", "number", 1, "LED connected to slot 1, 0..none, 1..white, 2..IR", LED_WHITE),
         ("led2", "number", 1, "LED connected to slot 2, 0..none, 2..IR, 3..RGB", 0),
+        ("pwr_button", "number", 1, "Power button on RPI 5 board driven by Sleep button", 0),
     ]
 
 class GulpExtensionBoard(ExtensionBoardWithI2C):
@@ -1268,6 +1269,17 @@ class GulpExtensionBoard_0103(GulpExtensionBoard_0102):
         }
         result["detect_aot"]["negative"] = False
         result["detect_aot"]["unused"] = False
+        if self._custom_data["pwr_button"]:
+            result |= {
+                "sleep_button": {
+                    "dir": "i",
+                    "type": "input_device",
+                    "id_name": "pwr_button",  # input device id in OS, see /proc/bus/input/devices
+                    "num": "KEY_POWER",   # 116
+                    "trigger": "both",
+                    "hidden": False,
+                },
+            }
         return result
 
     def on_gpio_change(self, source):

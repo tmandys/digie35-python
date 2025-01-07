@@ -4,6 +4,7 @@ v0.6 (2024-xx-xx)
 Features
 --------
   - bookworm support at RPI5
+  - support for RPI5 power button and lxde shutdown helper
 
 Fixes
 -----

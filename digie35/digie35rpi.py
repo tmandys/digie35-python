@@ -24,7 +24,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.2"
+__version__ = "0.3"
 
 from digie35.digie35core import *
 import subprocess
@@ -33,6 +33,7 @@ from smbus2 import SMBus as SMBus2, i2c_msg
 from rpi_hardware_pwm import HardwarePWM
 import time
 import re
+from evdev import InputDevice, categorize, ecodes, list_devices
 #import datetime
 
 ## @package digie35rpi
@@ -49,6 +50,7 @@ class RpiMainboard(Mainboard):
             self._i2c_bus = SMBus2(self._I2C_BUS)
 
         self._pwm = {}
+        self._input_devices = {}
         self._i2c_lock = Lock()
         self._is_rpi5 = False
         proc = subprocess.run(['cat', '/sys/firmware/devicetree/base/model'], capture_output=True)
@@ -63,6 +65,9 @@ class RpiMainboard(Mainboard):
 
     def __del__(self):
         super().__del__()
+
+    def is_rpi5(self):
+        return self._is_rpi5
 
     def set_gpio_function(self, num, func):
         super().set_gpio_function(num, func)
@@ -80,7 +85,7 @@ class RpiMainboard(Mainboard):
             else:
                 params.append("a0")
             #params.append("du")
-        elif func  == "pwm":
+        elif func == "pwm":
             params.append("a0")
         elif func == "gpio":
             return
@@ -134,3 +139,67 @@ class RpiMainboard(Mainboard):
         finally:
             self._i2c_lock.release()
         return result
+
+    def set_input_device(self, id_name):
+        if id_name in self._input_devices:
+            return
+        devices = [InputDevice(path) for path in list_devices()]
+        for device in devices:
+            if id_name in device.name:
+                logging.getLogger().debug(f"Input device '%s' found '%s'" % (device.name, device.path))
+                self._input_devices[id_name] = {
+                    "device": device,
+                    "keys": {},
+                    "thread": None,
+                }
+                return
+        DigitizerError(f"Input device '%s' not found" % (id_name))
+
+    def get_input_device_state(self, id_name, num):
+        if not id_name in self._input_devices:
+            DigitizerError(f"Input device '%s' is not registered" % (id_name))
+        logging.getLogger().debug(f"get_input_device_state(%s, %s): device: %s, keys: %s" % (id_name, num, self._input_devices[id_name]["device"], self._input_devices[id_name]["device"].active_keys()))
+        return ecodes.ecodes[num] in self._input_devices[id_name]["device"].active_keys()
+
+    def set_input_device_handler(self, id_name, num, edge, name = None, handler = None):
+        if not id_name in self._input_devices:
+            DigitizerError(f"Input device '%s' is not registered" % (id_name))
+        if edge == "none":
+            if num in self._input_devices[id_name]["keys"]:
+                del self._input_devices[id_name]["keys"][num]
+            if not self._input_devices[id_name]["keys"]:
+                self._input_devices[id_name]["thread"].join()
+                self._input_devices[id_name]["thread"] = None
+        else:
+            self._input_devices[id_name]["keys"][num] = {
+                "name": name,
+                "edge": edge,
+                "handler": handler,
+            }
+            if self._input_devices[id_name]["thread"] == None:
+                self._input_devices[id_name]["thread"] = Thread(target=self._input_device_handler, kwargs={"id_name": id_name})
+                self._input_devices[id_name]["thread"].name = "input_device:" + id_name
+                self._input_devices[id_name]["thread"].start()
+
+    def _input_device_handler(self, id_name):
+        logging.getLogger().debug(f"_input_device_handler(%s): started" % (id_name))
+        device = self._input_devices[id_name]["device"]
+        for event in device.read_loop():
+            if not self._input_devices[id_name]["keys"]:
+                break
+            if not self._xboard._initialized:
+                continue
+            logging.getLogger().debug(f"_input_device_handler(%s): event: %s" % (id_name, event))
+            if event.type == ecodes.EV_KEY:
+                key_event = categorize(event)
+                logging.getLogger().debug(f"EventId: %s, Key_event: code: %s, state: %s" % (id_name, key_event.keycode, key_event.keystate))
+                if key_event.keycode in list(self._input_devices[id_name]["keys"]):
+                    item = self._input_devices[id_name]["keys"][key_event.keycode]
+                    if (key_event.keystate == 1 and item["edge"] in ["raising", "both"]) or \
+                        (key_event.keystate == 0 and item["edge"] in ["falling", "both"]):
+                        if item["handler"] != None:
+                            item["handler"](item["name"])
+                        else:
+                            self._xboard.on_gpio_change(item["name"])
+        logging.getLogger().debug(f"_input_device_handler(%s): terminating" % (id_name))
+

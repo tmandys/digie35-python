@@ -60,7 +60,11 @@ setup(
         "websockets",
         "gphoto2",
         "gpiozero",
+        "evdev",
         #"configparser",
+    ],
+    scripts = [
+        "digie35/digie35_lxde-pi-shutdown-helper",
     ],
 )
 

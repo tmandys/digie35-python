@@ -24,7 +24,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.2"
+__version__ = "0.3"
 from threading import Thread, Event, Timer, Lock
 from datetime import timedelta, datetime
 from timeit import default_timer
@@ -94,6 +94,15 @@ class Mainboard:
         return 0
 
     def set_pwm(self, channel, duty_cycle, freq=None):
+        pass
+
+    def set_input_device(self, id_name):
+        pass
+
+    def get_input_device_state(self, id_name, num):
+        pass
+
+    def set_input_device_handler(self, id_name, num, edge, name = None, handler = None):
         pass
 
     def debug(self, name, **kwargs):
@@ -283,6 +292,13 @@ class ExtensionBoard:
                 self._pwm_state[name] = 0
             elif item["type"] == "i2c":
                 self._mainboard.set_gpio_function(item["gpio"], item["type"])
+            elif item["type"] == "input_device":
+                self._mainboard.set_input_device(item["id_name"])
+                if "trigger" in item:
+                    if "handler" in item:
+                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name, item["handler"])
+                    else:
+                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name)
 
         if is_xio:
             self._is_xio = True
@@ -305,6 +321,12 @@ class ExtensionBoard:
                             self._mainboard.set_gpio_event_handler(item["num"], "none", name, item["handler"])
                         else:
                             self._mainboard.set_gpio_event_handler(item["num"], "none", name)
+            elif item["type"] == "input_device":
+                if "trigger" in item:
+                    if "handler" in item:
+                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name, item["handler"])
+                    else:
+                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name)
 
 
 
@@ -438,8 +460,10 @@ class ExtensionBoard:
                 names.append(key)
         result = {}
         for name in names:
-            if (name in list(self._io_map)) and ("num" in list(self._io_map[name])) and (not "hidden" in list(self._io_map[name]) or not self._io_map[name]["hidden"]):
-                result[name] = self.get_io_state(name)
+            if (name in list(self._io_map)) and (not "hidden" in list(self._io_map[name]) or not self._io_map[name]["hidden"]):
+                state = self.get_io_state(name)
+                if state != None:
+                    result[name] = state
         return result
 
     def get_io_state(self, name):
@@ -447,14 +471,18 @@ class ExtensionBoard:
             Get particular io state
         """
         type = self._io_map[name]["type"]
-        num = self._io_map[name]["num"]
-        if (type == "xio"):
+        if type == "xio":
             xio_state = self._get_xio()
-            return xio_state & (1 << num) != 0
-        elif (type == "gpio"):
-            return self._get_gpio(num)
-        elif (type == "pwm"):
+            if "num" in list(self._io_map[name]):
+                return xio_state & (1 << self._io_map[name]["num"]) != 0
+        elif type == "gpio":
+            if "num" in list(self._io_map[name]):
+                return self._get_gpio(self._io_map[name]["num"])
+        elif type == "pwm":
             return self._pwm_state[name]
+        elif type == "input_device":
+            return self._mainboard.get_input_device_state(self._io_map[name]["id_name"], self._io_map[name]["num"])
+        return None
 
     def set_io_states(self, vals):
         """
@@ -464,7 +492,7 @@ class ExtensionBoard:
         for name in list(vals):
             if not name in list(self._io_map):
                 continue
-            if (self._io_map[name]["type"] == "xio"):
+            if self._io_map[name]["type"] == "xio":
                 num = self._io_map[name]["num"]
                 if (vals[name] != 0):
                     xio_state = xio_state | (1<<num)
@@ -472,21 +500,21 @@ class ExtensionBoard:
                     xio_state = xio_state & ~(1<<num)
             else:
                 self.set_io_state(name, vals[name])
-        if (xio_state != self._get_xio()):
+        if xio_state != self._get_xio():
             self._set_xio(xio_state)
 
     def set_io_state(self, name, val):
         type = self._io_map[name]["type"]
-        num = self._io_map[name]["num"]
-        if (type == "xio"):
+        if type == "xio":
             val = int(val != 0)
+            num = self._io_map[name]["num"]
             xio_state = self._get_xio()
             if (((xio_state >> num) & 1) != val):
                 xio_state = xio_state ^ (1 << num)
                 self._set_xio(xio_state)
-        elif (type == "gpio"):
-            self._set_gpio(num, val)
-        elif (type == "pwm"):
+        elif type == "gpio":
+            self._set_gpio(self._io_map[name]["num"], val)
+        elif type == "pwm":
             max_pwm = 255
             if val > max_pwm:
                 val = max_pwm
@@ -503,7 +531,7 @@ class ExtensionBoard:
             freq = None
             if "freq" in self._io_map[name]:
                 freq = self._io_map[name]["freq"]
-            self._mainboard.set_pwm(num, val2, freq)
+            self._mainboard.set_pwm(self._io_map[name]["num"], val2, freq)
             self._pwm_state[name] = val
 
     def pulse_output(self, name, off_secs, on_secs):
@@ -511,7 +539,7 @@ class ExtensionBoard:
             Make async pulse off->on->off
         """
         self._cancel_timer(name)
-        if (off_secs > 0):
+        if off_secs > 0:
             self.set_io_state(name, 0)
             self._timers[name] = Timer(off_secs, self._pulse_off_handler, kwargs={"name":name, "on_secs":on_secs})
         else:
