@@ -8,7 +8,7 @@ with open('README.md') as f:
 with open('LICENSE') as f:
     license = f.read()
 
-url = "http://www.2p.cz/repos/python"
+url = "https://repos.digie35.com/python"
 setup(
     name='digie35_ctrl',
     version='0.6',

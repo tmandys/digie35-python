@@ -38,7 +38,7 @@ import shutil
 
 
 package_name = "digie35_ctrl"
-python_repository_url = "http://www.2p.cz/repos/python/"
+python_repository_url = "https://repos.digie35.com/python/"
 
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
