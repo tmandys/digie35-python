@@ -109,12 +109,20 @@
             transform: rotate(-90deg) scale(0.55, 0.55);
         }
 
-        .flip-horizontal {
-            transform: rotateY(180deg);
+        .flip-rotate0 {
+            transform: rotateY(180deg)
         }
 
-        .flip-vertical {
-            transform: rotateX(180deg);
+        .flip-rotate180 {
+            transform: rotateX(180deg)
+        }
+
+        .flip-rotate90 {
+            transform: rotateY(180deg) rotate(90deg) scale(0.55, 0.55);
+        }
+
+        .flip-rotate270 {
+            transform: rotateY(180deg) rotate(-90deg) scale(0.55, 0.55);
         }
 
         .grey-border {
@@ -332,8 +340,9 @@
 
                     <span id="trigger-delay" class="hidden">
                         <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
-                        <span id="trigger-delay-value" class="range-value" />
+                        <span id="trigger-delay-value" class="range-value"></span>
                     </span>
+                    <input type="checkbox" id="xmp-cb" value="1" /><label for="xmp-cb" title="Create XMP file related to image, e.g. preview orientation is referenced">XMP file</label>
                 </div>
                 <div class="vertical-spacer centered-btn">
                     <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
@@ -347,12 +356,11 @@
                 <div id="stream-container">
                     <div id="stream-control">
                         <input type="checkbox" id="invert-cb" value="invert" onchange="adjust_preview()" /><label for="invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
-                        <input type="radio" name="rotate" id="rotate0-rb" value="" onchange="adjust_preview()" checked /><label for="rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                        <input type="radio" name="rotate" id="rotate0-rb" value="rotate0" onchange="adjust_preview()" checked /><label for="rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
                         <input type="radio" name="rotate" id="rotate270-rb" value="rotate270" onchange="adjust_preview()" /><label for="rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
                         <input type="radio" name="rotate" id="rotate180-rb" value="rotate180" onchange="adjust_preview()" /><label for="rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
                         <input type="radio" name="rotate" id="rotate90-rb" value="rotate90" onchange="adjust_preview()" /><label for="rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
-                        <input type="radio" name="rotate" id="flip-horizontal-rb"value="flip-horizontal" onchange="adjust_preview()" /><label for="flip-horizontal-rb" accesskey="h" title="Flip horizontal">Flip <u>h</u>orizontal</label>
-                        <input type="radio" name="rotate" id="flip-vertical-rb" value="flip-vertical" onchange="adjust_preview()" /><label for="flip-vertical-rb" accesskey="v" title="Flip vertical">Flip <u>v</u>ertical</label>
+                        <input type="checkbox" id="flip-cb" value="flip" onchange="adjust_preview()" /><label for="flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
                         <input type="range" id="clip-horizontal-rng" value="95" min="0" max="500" oninput="adjust_preview()" class="clipping" title="Horizontal clipping" />
                         <input type="range" id="clip-vertical-rng" value="0" min="0" max="300" oninput="adjust_preview()" class="clipping" title="Vertical clipping" />
                         <input type="range" id="background-rng" value="200" min="0" max="255" oninput="adjust_preview()" class="clipping" title="Background color" />
@@ -1193,6 +1201,7 @@
             "control.capture.mode": "capture-mode-list",
             "preview.rotate": "rotate",
             "preview.invert": "invert-cb",
+            "preview.flip": "flip-cb",
             "preview.clip.x": "clip-horizontal-rng",
             "preview.clip.y": "clip-vertical-rng",
             "praview.background_color": "background-rng",
@@ -1202,6 +1211,7 @@
             "control.autolead": "autolead-cb",
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
+            "control.xmp": "xmp-cb",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
 			"control.backlight": "backlight-cb",
@@ -1277,11 +1287,24 @@
                     window.stop_multicapture = false;
                     var shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
                     if (shoot_mode[0] == "capture") {
-                        sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], {"wire_trigger": false, "download": shoot_mode[1].includes("download"), "delete": !shoot_mode[1].includes("sdcard")});
+                        var params = {"wire_trigger": false, "download": shoot_mode[1].includes("download"), "delete": !shoot_mode[1].includes("sdcard")};
                     } else {
                         var delay = Number(document.getElementById("trigger-delay-rng").value) * 500;
-                        sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"});
+                        var params = {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"};                        
                     }
+                    params.xmp = document.getElementById("xmp-cb").checked;
+                    if (params.xmp) {
+                        params.negative = document.getElementById("invert-cb").checked;
+                        params.flipped = document.getElementById("flip-cb").checked;
+                        var rotate = document.getElementsByName("rotate");
+                        for (var i = 0; i < rotate.length; i++) {
+                            if (rotate[i].checked) {
+                                params.rotation = Number(rotate[i].value.replace(/^rotate/, ""));
+                                break;
+                            }
+                        }
+                    }
+                    sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], params);
                 },
             },
         };
@@ -1625,13 +1648,24 @@
 
     function adjust_preview() {
         var stream = document.getElementById("stream");
-        var elems = document.getElementsByTagName("input");
+        var stream_control = document.getElementById("stream-control");
+        var elems = stream_control.getElementsByTagName("input");
+        var flip = document.getElementById("flip-cb").checked;
         for (var i = 0; i < elems.length; i++) {
             elem = elems[i];
             if (elem.type == "radio") {
                 if (elem.value != "") {
-                    if (elem.checked != stream.classList.contains(elem.value)) {
-                        stream.classList.toggle(elem.value);
+                    var flip_class = "flip-" + elem.value;
+                    if (!elem.checked) {
+                        stream.classList.remove(elem.value, flip_class);
+                    } else {
+                        if (flip) {
+                            stream.classList.add(flip_class);
+                            stream.classList.remove(elem.value);
+                        } else {
+                            stream.classList.remove(flip_class);
+                            stream.classList.add(elem.value);
+                        }
                     }
                 }
             } else if (elem.type == "checkbox") {

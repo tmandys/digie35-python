@@ -1,10 +1,12 @@
-v0.6 (2024-xx-xx)
+v0.6 (2025-01-11)
 =================
 
 Features
 --------
   - bookworm support at RPI5
   - support for RPI5 power button and lxde shutdown helper
+  - XMP support
+  - repo moved to repos.digie35.com
 
 Fixes
 -----

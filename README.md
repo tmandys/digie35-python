@@ -178,6 +178,24 @@ KEY_POWER event can be monitored by `evtest`. It is handled by lxde and firewire
 and opens GUI window to select Shutdown or Restart. This function must be disabled because it is handled
 by `digie35_server`. So it executes fake script to prevent `pwrkey` execution.
 
+- OS started from SSD connected to NVMe/PCI port on RPI5
+
+Add PCI support to `/boot/firmware/config.txt`
+
+[all]
+dtparam=pciex1=on
+# dtparam=pciex1_gen=3
+
+Check boot order via `rpi-eeprom-config` if PCI is mentioned. Parameter is evaluated right to left.
+1..SD card, 6..PCI, 4..USB, f..stop
+
+So good value is e.g.:
+
+  BOOT_ORDER=0xf461
+
+If not then modify via `sudo rpi-eeprom-config -e`, save and reboot. Note `rpi-eeprom-config` won't report
+updated value till reboot.
+
 Usage
 -----
 

@@ -565,6 +565,13 @@ class ExtensionBoard:
     def get_current_backlight_color(self):
         return self._current_backlight_color
 
+    def get_current_backlight_color_and_intensity(self):
+        color = self._current_backlight_color
+        if color != None:
+            return (color, self._save_backlight_intensity[color])
+        else:
+            return (None, None)
+
     def _get_io_configuration(self):
         return {
             "in_out_1": {

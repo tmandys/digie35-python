@@ -40,6 +40,7 @@ import os
 import datetime
 import re
 import digie35.digie35core as digie35core
+import digie35.digie35board as digie35board
 import importlib
 import subprocess
 import stat
@@ -50,6 +51,8 @@ import shutil
 import signal
 import sys
 from threading import Lock, Thread, get_native_id
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 
 RPI_FLAG = True
@@ -68,6 +71,7 @@ class CameraWrapper:
     _DESCRIPTION_FILENAME = ".description.txt"
     _INTERTHREAD_CAPTURE_TIMEOUT = 0.050  # probably not needed, issou with Sony USB preview does not solve
     _MIN_PICTURE_FILE_SIZE = 100000
+    _XMP_EXTENSION = ".xmp"
     _LINK_EXTENSION = ".lnk"
     _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
 
@@ -417,8 +421,9 @@ class CameraWrapper:
                             download = True
                     now = datetime.datetime.now()
                     now_s = now.strftime("%Y%m%d%H%M%S")
-                    fname += "_" + now_s + fext
-                    target = os.path.join(self._get_path(project_id, film_id), fname)
+                    fname += "_" + now_s
+                    target_no_ext = os.path.join(self._get_path(project_id, film_id), fname)
+                    target = target_no_ext + fext
                     if download:
                         logging.getLogger().info(f"Downloading image to '%s'", target)
                         logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
@@ -431,6 +436,79 @@ class CameraWrapper:
                         logging.getLogger().info(f"Image link for '%s'", target)
                         with open(target + self._LINK_EXTENSION, "w") as file:
                             file.write("%s\n%s\n%s\n%s" % (self._camera_id, file_path.folder, file_path.name, now_s))
+                    if kwargs["xmp"]:
+                        # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
+                        # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
+
+                        xmpmeta = ET.Element("x:xmpmeta", attrib={"xmlns:x": "adobe:ns:meta/"})
+                        rdf = ET.SubElement(xmpmeta, "rdf:RDF", attrib={"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"})
+                        description = ET.SubElement(
+                            rdf,
+                            "rdf:Description",
+                            attrib={
+                                "rdf:about": fname + fext,
+                                "xmlns:xmp": "http://ns.adobe.com/xap/1.0/",
+                                "xmlns:dc": "http://purl.org/dc/elements/1.1/",
+                                "xmlns:tiff": "http://ns.adobe.com/tiff/1.0/",
+                                "xmlns:photoshop": "http://ns.adobe.com/photoshop/1.0/",
+                            }
+                        )
+                        now_s2 = now.strftime("%Y-%m-%dT%H:%M:%S")
+                        ET.SubElement(description, "xmp:CreateDate").text = now_s2
+                        ET.SubElement(description, "xmp:ModifyDate").text = now_s2
+
+                        orientation = None
+                        rotation = kwargs["rotation"]
+                        if kwargs["flipped"]:
+                            if rotation == 0:
+                                orientation = 2
+                            elif rotation == 90:
+                                orientation = 5
+                            elif rotation == 180:
+                                orientation = 4
+                            elif rotation == 270:
+                                orientation = 7
+                        else:
+                            if rotation == 0:
+                                orientation = 1
+                            elif rotation == 90:
+                                orientation = 6
+                            elif rotation == 180:
+                                orientation = 3
+                            elif rotation == 270:
+                                orientation = 8
+                        if orientation != None:
+                            ET.SubElement(description, "tiff:Orientation").text = str(orientation)
+
+                        if "negative" in kwargs:
+                            ET.SubElement(description, "photoshop:Source").text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
+
+                        ET.SubElement(description, "dc:Identifier").text = "%s/%s" % (project_id, film_id)
+
+                        # add info about digie35
+                        dev_info = {}
+                        if digitizer_info != None:
+                            dev_info["device"] = "%s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"])
+                        else:
+                            dev_info["device"] = digitizer.__class__.__name__
+                        dev_info["adapters"] = ",".join(f"{value.ID}" for key, value in digitizer._adapters.items())
+
+                        color = digitizer.get_current_backlight_color_and_intensity()
+                        if color[0] != None:
+                            dev_info["bl_color"] = color[0]
+                            dev_info["bl_intensity"] = color[1]
+                        ET.SubElement(description, "photoshop:Instructions").text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
+
+                        xml_str = ET.tostring(xmpmeta, encoding="utf-8").decode("utf-8")
+                        pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
+                        # strip <?xml
+                        pretty_xml = "\n".join(pretty_xml.split("\n")[1:])
+
+                        target_xmp = target_no_ext + self._XMP_EXTENSION
+                        logging.getLogger().debug(f"XMP file: '%s'", target_xmp)
+                        with open(target_xmp, "w", encoding="utf-8") as f:
+                            f.write(pretty_xml)
+
                 finally:
                     if not wire_trigger:
                         self._close_camera()
@@ -838,6 +916,8 @@ class CameraWrapper:
             filepath = os.path.join(path, filename);
             if os.path.isfile(filepath):
                 fname, fext = os.path.splitext(filename)
+                if fext == self._XMP_EXTENSION:
+                    continue
                 is_link = fext == self._LINK_EXTENSION
                 if is_link:
                     # just placehorder to file in camera
@@ -1036,6 +1116,8 @@ async def ws_handler(websocket, path):
                         reply = VERSION_INFO.copy()
                         reply["mainboard_class"] = digitizer._mainboard.__class__.__name__
                         reply["xboard_class"] = digitizer.__class__.__name__
+                        if digitizer_info != None and "serial_number" in digitizer_info:
+                            reply["serial_number"] = digitizer_info["serial_number"]
                         reply["adapter_class"] = {}
                         for name in list(digitizer._adapters):
                             reply["adapter_class"][name] = digitizer.get_adapter(name).__class__.__name__
@@ -1337,8 +1419,14 @@ def main():
     #log.debug("Configuration: %s", cfg)
 
     global digitizer
+    global digitizer_info
     log.debug("film_xboard_class: %s", film_xboard_class.__name__)
     digitizer = film_xboard_class(mainboard, broadcast)
+    if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
+        digitizer_info = digitizer._xboard_memory.read_header()
+        logging.getLogger().info(f"Device: %s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"]))
+    else:
+        digitizer_info = None
 
     async def ws_run():
         async with websockets.serve(ws_handler, args.wsAddr, args.wsPort):
