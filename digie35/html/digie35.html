@@ -342,7 +342,11 @@
                         <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
                         <span id="trigger-delay-value" class="range-value"></span>
                     </span>
-                    <input type="checkbox" id="xmp-cb" value="1" /><label for="xmp-cb" title="Create XMP file related to image, e.g. preview orientation is referenced">XMP file</label>
+				</div>
+                <div class="vertical-spacer centered-btn">
+                    <select id="preset-list" style="width:20ch" title="Create XMP file related to image, e.g. preview orientation is referenced. Alternatively info can be merged to a preset so e.g. negative can be automatically inverted when browsing gallery">
+                        <option value="" selected>--no XMP file--</option>
+                    </select>
                 </div>
                 <div class="vertical-spacer centered-btn">
                     <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
@@ -951,6 +955,13 @@
                         if (typeof data.payload.volume != "undefined") {
                             update_volume_info(data.payload.volume);
                         }
+                        if (typeof data.payload.preset_list != "undefined") {
+                            var list = []
+                            data.payload.preset_list.forEach((item) => {
+                                list.push({"id": item});
+                            });
+                            update_select_options("preset-list", list, "id", "id");
+                        }
                         if (data.cmd == "SET_CAMERA") {
                             document.getElementById("camera-list").value = data.payload.id;
                             window.current_camera = data.payload;
@@ -1211,7 +1222,7 @@
             "control.autolead": "autolead-cb",
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
-            "control.xmp": "xmp-cb",
+            "control.preset": "preset-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
 			"control.backlight": "backlight-cb",
@@ -1292,8 +1303,8 @@
                         var delay = Number(document.getElementById("trigger-delay-rng").value) * 500;
                         var params = {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"};                        
                     }
-                    params.xmp = document.getElementById("xmp-cb").checked;
-                    if (params.xmp) {
+                    params.preset = document.getElementById("preset-list").value;
+                    if (params.preset) {
                         params.negative = document.getElementById("invert-cb").checked;
                         params.flipped = document.getElementById("flip-cb").checked;
                         var rotate = document.getElementsByName("rotate");

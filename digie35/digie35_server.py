@@ -25,7 +25,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.4"
+__version__ = "0.7"
 
 import argparse
 #import yaml
@@ -51,8 +51,7 @@ import shutil
 import signal
 import sys
 from threading import Lock, Thread, get_native_id
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
+from lxml import etree
 
 
 RPI_FLAG = True
@@ -72,6 +71,7 @@ class CameraWrapper:
     _INTERTHREAD_CAPTURE_TIMEOUT = 0.050  # probably not needed, issou with Sony USB preview does not solve
     _MIN_PICTURE_FILE_SIZE = 100000
     _XMP_EXTENSION = ".xmp"
+    _XMP_NO_PRESET = "--no preset--"
     _LINK_EXTENSION = ".lnk"
     _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
 
@@ -111,6 +111,8 @@ class CameraWrapper:
             self._cur_volume = None
             self._cur_proj_dir = None
             logging.getLogger().debug("Mediadir: %s, volumedir: %s" % (self._media_dir, self._volume_dir))
+
+        self._preset_dir = os.path.abspath(os.path.expandvars(kwargs["preset_dir"]))
 
     def _dump(self, obj, indent = 2, recursion=0):
         logging.getLogger().debug("obj: %s" % (type(obj)))
@@ -436,27 +438,36 @@ class CameraWrapper:
                         logging.getLogger().info(f"Image link for '%s'", target)
                         with open(target + self._LINK_EXTENSION, "w") as file:
                             file.write("%s\n%s\n%s\n%s" % (self._camera_id, file_path.folder, file_path.name, now_s))
-                    if kwargs["xmp"]:
+                    if kwargs["preset"]:
                         # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
                         # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
 
-                        xmpmeta = ET.Element("x:xmpmeta", attrib={"xmlns:x": "adobe:ns:meta/"})
-                        rdf = ET.SubElement(xmpmeta, "rdf:RDF", attrib={"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"})
-                        description = ET.SubElement(
+                        namespaces = {
+                            "x": "adobe:ns:meta/",
+                            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                            "xmp": "http://ns.adobe.com/xap/1.0/",
+                            "dc": "http://purl.org/dc/elements/1.1/",
+                            "tiff": "http://ns.adobe.com/tiff/1.0/",
+                            "photoshop": "http://ns.adobe.com/photoshop/1.0/",
+                        }
+                        custom_tree = etree.Element("{%s}xmpmeta" % (namespaces["x"]), nsmap={"x": namespaces["x"]})
+                        rdf = etree.SubElement(custom_tree, "{%s}RDF" % (namespaces["rdf"]), nsmap={"rdf": namespaces["rdf"]})
+                        now_s2 = now.strftime("%Y-%m-%dT%H:%M:%S")
+                        description = etree.SubElement(
                             rdf,
-                            "rdf:Description",
+                            "{%s}Description" % (namespaces["rdf"]),
                             attrib={
-                                "rdf:about": fname + fext,
-                                "xmlns:xmp": "http://ns.adobe.com/xap/1.0/",
-                                "xmlns:dc": "http://purl.org/dc/elements/1.1/",
-                                "xmlns:tiff": "http://ns.adobe.com/tiff/1.0/",
-                                "xmlns:photoshop": "http://ns.adobe.com/photoshop/1.0/",
+                                "{%s}about" % (namespaces["rdf"]) : fname + fext,
+                                "{%s}CreateDate" % (namespaces["xmp"]): now_s2,
+                                "{%s}ModifyDate" % (namespaces["xmp"]): now_s2,
+                            },
+                            nsmap={
+                                "xmp": namespaces["xmp"],
+                                "dc": namespaces["dc"],
+                                "tiff": namespaces["tiff"],
+                                "photoshop": namespaces["photoshop"],
                             }
                         )
-                        now_s2 = now.strftime("%Y-%m-%dT%H:%M:%S")
-                        ET.SubElement(description, "xmp:CreateDate").text = now_s2
-                        ET.SubElement(description, "xmp:ModifyDate").text = now_s2
-
                         orientation = None
                         rotation = kwargs["rotation"]
                         if kwargs["flipped"]:
@@ -478,12 +489,12 @@ class CameraWrapper:
                             elif rotation == 270:
                                 orientation = 8
                         if orientation != None:
-                            ET.SubElement(description, "tiff:Orientation").text = str(orientation)
+                            description.set("{%s}Orientation" % (namespaces["tiff"]), "%s" % (orientation))
 
                         if "negative" in kwargs:
-                            ET.SubElement(description, "photoshop:Source").text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
+                            etree.SubElement(description, "{%s}Source" % (namespaces["photoshop"])).text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
 
-                        ET.SubElement(description, "dc:Identifier").text = "%s/%s" % (project_id, film_id)
+                        description.set("{%s}Identifier" % (namespaces["dc"]), "%s/%s" % (project_id, film_id))
 
                         # add info about digie35
                         dev_info = {}
@@ -497,17 +508,73 @@ class CameraWrapper:
                         if color[0] != None:
                             dev_info["bl_color"] = color[0]
                             dev_info["bl_intensity"] = color[1]
-                        ET.SubElement(description, "photoshop:Instructions").text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
+                        dev_info["preset"] = kwargs["preset"]
+                        etree.SubElement(description, "{%s}Instructions" % (namespaces["photoshop"])).text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
 
-                        xml_str = ET.tostring(xmpmeta, encoding="utf-8").decode("utf-8")
-                        pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
-                        # strip <?xml
-                        pretty_xml = "\n".join(pretty_xml.split("\n")[1:])
+                        if isinstance(kwargs["preset"], str) and kwargs["preset"] != self._XMP_NO_PRESET:
+                            # data can be optionally in attribute or subelement
+                            preset_filepath = os.path.join(self._preset_dir, kwargs["preset"] + self._XMP_EXTENSION)
+                            #logging.getLogger().debug(f"XMP preset: '%s'", preset_filepath)
+                            preset_tree = etree.parse(preset_filepath).getroot()
+                            preset_descriptions = preset_tree.xpath(".//rdf:Description", namespaces=namespaces)
+                            if (preset_descriptions):
+                                preset_description = preset_descriptions[0]
+                                # logging.getLogger().debug("Preset Description:\n%s" % (etree.tostring(etree.ElementTree(preset_description), pretty_print=True).decode()))
 
+                                # merge namespaces, we need clone subelement as seems nsmap cannot be updated
+                                preset_nsmap = preset_description.nsmap
+                                for prefix, uri in description.nsmap.items():
+                                    if prefix not in preset_nsmap:
+                                        print(f"Add namespace: {prefix}=\"{uri}\"")
+                                        preset_nsmap[prefix] = uri
+
+                                new_description = etree.SubElement(preset_description.getparent(), preset_description.tag, {}, preset_nsmap)
+
+                                # copy attributes
+                                for attr, value in description.attrib.items():
+                                    print("set attr: %s = %s" % (attr, value))
+                                    new_description.set(attr, value)
+
+                                # copy subelements
+                                # merge elements
+                                elems = description.xpath("*")
+                                if elems:
+                                    for elem in elems:
+                                        elem_name = elem.tag
+                                        print("merging elem: %s" % (elem_name))
+                                        new_description.append(elem)
+
+                                # merge preset attributes
+                                for attr, value in preset_description.attrib.items():
+                                    if attr not in new_description.attrib:
+                                        print("merging preset attr: %s" % (attr))
+                                        elems = new_description.findall(f"{attr}")
+                                        if not elems:
+                                            new_description.set(attr, value)
+                                # merge preset elements
+                                elems = preset_description.xpath("*")
+                                if elems:
+                                    for elem in elems:
+                                        elem_name = elem.tag
+                                        print("merging elem: %s" % (elem_name))
+                                        if elem_name not in new_description.attrib and not new_description.findall(f"{elem_name}"):
+                                            new_description.append(elem)
+
+                                #logging.getLogger().debug("New Description:\n%s" % (etree.tostring(etree.ElementTree(new_description), pretty_print=True).decode()))
+                                preset_description.getparent().append(new_description)
+                                preset_description.getparent().remove(preset_description)
+
+                                output_tree = preset_tree
+                            else:
+                                output_tree = custom_tree
+                        else:
+                            output_tree = custom_tree
+
+                        target_xml = etree.tostring(output_tree, pretty_print=True, encoding="utf-8").decode("utf-8")
                         target_xmp = target_no_ext + self._XMP_EXTENSION
                         logging.getLogger().debug(f"XMP file: '%s'", target_xmp)
                         with open(target_xmp, "w", encoding="utf-8") as f:
-                            f.write(pretty_xml)
+                            f.write(target_xml)
 
                 finally:
                     if not wire_trigger:
@@ -937,6 +1004,21 @@ class CameraWrapper:
         result["captured"] = pictures
         return result
 
+    def list_presets(self):
+
+        result = [self._XMP_NO_PRESET]
+        filenames = os.listdir(self._preset_dir)
+        filenames.sort()
+        for filename in filenames:
+            if filename[0] == ".":
+                continue
+            filepath = os.path.join(self._preset_dir, filename);
+            if os.path.isfile(filepath):
+                fname, fext = os.path.splitext(filename)
+                if fext == self._XMP_EXTENSION:
+                    result.append(fname)
+        return result
+
     def _get_path(self, project_id, film_id = ""):
         if self._cur_proj_dir == None:
             raise CameraControlError("Target directory is not specified")
@@ -1133,6 +1215,8 @@ async def ws_handler(websocket, path):
                                 if netifaces.AF_INET in ifc:
                                     reply["lan_ip"] = ifc[netifaces.AF_INET][0]["addr"]
                                     break
+                        if cmd == "HELLO":
+                            reply["preset_list"] = camera.list_presets()
                     elif cmd == "BYE":
                         reply = ""
                         break
@@ -1330,7 +1414,8 @@ def main():
     )
     global SHUTDOWN_HELPER
     #argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="RPi+HAT configuration file in YAML")
-    argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects , default: %(default)s")
+    argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects, default: %(default)s")
+    argParser.add_argument("-P", "--preset_directory", dest="preset_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "preset"), help=f"XMP preset directory, e.g.$HOME/.digie35/preset, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
     argParser.add_argument("-p", "--port", dest="wsPort", metavar="PORT", type=int, default=8400, help=f"Websocket listener port, default: %(default)s")
     argParser.add_argument("-u", "--preview-port", dest="previewPort", metavar="PORT", type=int, default=8408, help=f"HTTP server port for preview stream, default: %(default)s")
