@@ -1,3 +1,10 @@
+v0.8 (2025-xx-xx)
+=================
+
+Fixes
+-----
+  - digie35_server service is frozen during boot and shutdown helper start because of missing PATH
+
 v0.7 (2025-01-21)
 =================
 

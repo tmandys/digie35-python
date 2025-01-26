@@ -1486,10 +1486,16 @@ def main():
         # which has test to run just once so we call fake dummy script to pretend pwrkey
         if shutil.which(SHUTDOWN_HELPER):
             fake_process_name = "digie35_" + SHUTDOWN_HELPER
-            logging.getLogger().debug(f"Starting shutdown helper: %s" % (fake_process_name))
-            shutdown_helper_process = subprocess.Popen([fake_process_name])
-            logging.getLogger().debug(f"subprocess pid: %d" % (shutdown_helper_process.pid))
-            signal.signal(signal.SIGTERM, on_terminate)
+            # add abspath as PATH is not set during boot when systemd services starting
+            fake_process_name = os.path.join(os.path.dirname(os.path.abspath(__file__)), fake_process_name)
+            if shutil.which(fake_process_name):
+                logging.getLogger().debug(f"Starting shutdown helper: %s" % (fake_process_name))
+                shutdown_helper_process = subprocess.Popen([fake_process_name])
+                logging.getLogger().debug(f"subprocess pid: %d" % (shutdown_helper_process.pid))
+                signal.signal(signal.SIGTERM, on_terminate)
+            else:
+                logging.getLogger().error(f"Shutdown helper not found: %s" % (fake_process_name))
+
 
     global SHUTDOWN_OPTION
     SHUTDOWN_OPTION = args.shutdown
