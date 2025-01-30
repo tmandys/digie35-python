@@ -9,7 +9,7 @@
 	url = https://github.com/pixeltris/SonyAlphaUSB.git
 [submodule "contrib/libgphoto2"]
 	path = contrib/libgphoto2
-	url = git@github.com:gphoto/libgphoto2.git
+	url = git@github.com:tmandys/libgphoto2.git
 [submodule "contrib/python-gphoto2"]
 	path = contrib/python-gphoto2
 	url = git@github.com:jim-easterbrook/python-gphoto2.git
