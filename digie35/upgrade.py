@@ -153,9 +153,9 @@ def main():
     proc = run(params, capture_output=False)
 
     if not args.dry_run:
+        params = ["digie35_install", "--install", "--restart_services"]
         if args.verbose > 2:
             params.append("-v")
-        params = ["digie35_install", "--install", "--restart_services"]
         run(params, capture_output=False)
 
 
