@@ -150,12 +150,14 @@ def main():
             if args.restart_services:
                 for board in boards:
                     svc2 = (svc + board) if "@" in svc else svc
-                proc = run(["systemctl", "--user", "is-active", svc2+".service"], capture_output=True)
-                log("Service status '%s': %s" % (svc2, proc.stdout.decode("utf-8")))
-                if proc.returncode == 0:
-                    run(["systemctl", "--user", "daemon-reload"])   # to avoid warning
-                    log("Restarting service '%s'" % (svc2))
-                    run(["systemctl", "--user", "restart", svc2+".service"])
+                    proc = run(["systemctl", "--user", "is-active", svc2+".service"], capture_output=True)
+                    log("Service status '%s': %s" % (svc2, proc.stdout.decode("utf-8")))
+                    if proc.returncode == 0:
+                        run(["systemctl", "--user", "daemon-reload"])   # to avoid warning
+                        log("Restarting service '%s'" % (svc2))
+                        run(["systemctl", "--user", "restart", svc2+".service"])
+                    if not "@" in svc:
+                        break
             else:
                 if fs_services[svc]["enable"]:
                     svc2 = (svc + args.board) if "@" in svc else svc
@@ -186,7 +188,7 @@ def main():
             sed_cmd = ["sudo", "sed", "-i", "s#\\$DIGIE35_DIRECTORY#" + PROJ_DIR + "#g", NGINX_CONF_DIR + "/conf.d/digie35.conf"]
             log(" ".join(sed_cmd))
             run(sed_cmd)
-            run(["sudo", "rm", NGINX_CONF_DIR+"/sites-enabled/default"])
+            run(["sudo", "rm", "-f", NGINX_CONF_DIR+"/sites-enabled/default"])
             run(["sudo", "nginx", "-s", "reload"])
 
         for f in desktop_icons:
