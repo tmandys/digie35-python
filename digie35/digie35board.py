@@ -791,8 +791,14 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
     ID = "LGHT8PWM"
 
     def __init__(self, xboard):
-        self._capabilities = None
         super().__init__(xboard)
+        custom = self._xboard._light_memory.get_adapter_custom(self)
+        self._led = (
+            custom["led1"],
+            custom["led2"],
+            custom["led3"]
+        )
+
         self._i2c_addr = 0x6C
         data = [
             0, # MODE1
@@ -811,16 +817,14 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
         self._xboard._mainboard.i2c_write_read(self._i2c_addr, buf, 0)
 
     def get_capabilities(self):
-        if self._capabilities == None:
-            self._capabilities = super().get_capabilities()
-            custom = self._xboard._light_memory.get_adapter_custom(self)
-            self._capabilities |= {
-                "white_backlight": custom["led1"] == GulpLightAdapterMemory.LED_WHITE,
-                "ir_backlight": custom["led2"] == GulpLightAdapterMemory.LED_IR,
-                "rgb_backlight": custom["led3"] == GulpLightAdapterMemory.LED_RGB,
-                "backlight_control": True,
-            }
-        return self._capabilities
+        result = super().get_capabilities()
+        result |= {
+            "white_backlight": self._led[0] == GulpLightAdapterMemory.LED_WHITE,
+            "ir_backlight": self._led[1] == GulpLightAdapterMemory.LED_IR,
+            "rgb_backlight": self._led[2] in [GulpLightAdapterMemory.LED_RGB, GulpLightAdapterMemory.LED_RGBAW, ],
+            "backlight_control": True,
+        }
+        return result
 
     def set_backlight(self, color, intensity=None):
         if intensity != None:
@@ -839,10 +843,15 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             pass
         if color == "white":
             pwm[1] = intensity
-        elif color == "red+green+blue":
-            pwm[6] = (intensity >> 16) & 0xFF   # TODO: 4    cable switched
+        elif color in ["red+green+blue", "white+red+green+blue"]:
+            pwm[4] = (intensity >> 16) & 0xFF
             pwm[5] = (intensity >> 8) & 0xFF
-            pwm[4] = (intensity >> 0) & 0xFF    # TODO: 6
+            pwm[6] = (intensity >> 0) & 0xFF
+            white = (intensity >> 24) & 0xFF
+            if self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
+                pwm[3] = white
+            elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
+                pwm[1] = white
         else:
             DigitizerError("Unknown color: %s" % (color))
 

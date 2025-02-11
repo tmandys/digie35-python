@@ -304,6 +304,7 @@
                     <select id="backlight-color-list" style="width:8ch" onchange="adjust_backlight(true)">
                         <option value="white" selected>White</option>
                         <option value="red+green+blue">RGB</option>
+                        <option value="white+red+green+blue">RGBW</option>
                         <option value="ir">IR</option>
                         <option value="external">Manual</option>
                     </select>
@@ -549,6 +550,10 @@
                 opt.disabled = !window.capabilities.ir_backlight;
             } else if (opt.value == "external") {
                 opt.disabled = !window.capabilities.preview_backlight;
+            } else if (opt.value == "white+red+green+blue") {
+                opt.disabled = !window.capabilities.rgb_backlight || !window.capabilities.white_backlight;
+            } else if (opt.value == "red+green+blue") {
+                opt.disabled = !window.capabilities.rgb_backlight || window.capabilities.white_backlight;
             } else {
                 opt.disabled = !window.capabilities.rgb_backlight;
             }
@@ -898,8 +903,8 @@
                                 var colors = data.payload.backlight.color.split("+");
                                 var intensity = data.payload.backlight.intensity;
                                 for (var i = colors.length-1; i >= 0; i--) {
-                                    document.getElementById("backlight-"+colors[i]+"-rng").value = intensity & 0xFF;
-                                    intensity = intensity >> 8;
+                                    document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
+                                    intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
                                 }
                                 adjust_backlight(true, false);
                             }
@@ -1712,7 +1717,7 @@
             var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
             document.getElementById("backlight-"+elem_color+"-value").innerHTML = range_elem.value;
             if (is_on && is_visible) {
-                val <<= 8;
+                val *= 256;  // bitwise operators are 32-bit only!
                 val += Number(range_elem.value);
             }
         }

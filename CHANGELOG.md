@@ -1,6 +1,10 @@
 v0.8 (2025-xx-xx)
 =================
 
+Features
+--------
+  - RGB+W intensity control
+
 Fixes
 -----
   - digie35_server service is frozen during boot and shutdown helper start because of missing PATH
