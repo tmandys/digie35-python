@@ -4,6 +4,7 @@ v0.8 (2025-xx-xx)
 Features
 --------
   - RGB+W intensity control
+  - more sensitive logging to avoid floods on DEBUG level
 
 Fixes
 -----

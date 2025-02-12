@@ -39,6 +39,9 @@ import locale
 import os
 import datetime
 import re
+
+import websockets.legacy
+import websockets.legacy.framing
 import digie35.digie35core as digie35core
 import digie35.digie35board as digie35board
 import importlib
@@ -1405,6 +1408,29 @@ def on_terminate(signal_no, frame):
     # force KeyboardInterrupt
     os.kill(os.getpid(), signal.SIGINT)
 
+def _gphoto2_logger_cb(level, domain, msg, data):
+    log_func, mapping = data
+    if level in mapping:
+        log_func(mapping[level], '(%s) %s', domain, msg)
+    else:
+        log_func(logging.ERROR, '%d (%s) %s', level, domain, msg)
+
+class WebsocketLoggerAdapter(logging.LoggerAdapter):
+    """PING/PONG stuff to more verbose level"""
+
+    def log(self, level, msg, *args, **kwargs):
+        """
+        change level of keepalives
+        """
+        if level == logging.DEBUG:
+            if msg[0] == "%":
+                level -= 1
+            elif len(args) > 0 and isinstance(args[0], websockets.legacy.framing.Frame):
+                if msg[0] == ">" and args[0].opcode == websockets.legacy.framing.frames.OP_PING or \
+                   msg[0] == "<" and args[0].opcode == websockets.legacy.framing.frames.OP_PONG:
+                   level -= 1
+        super().log(level, msg, *args, **kwargs)
+
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
     argParser = argparse.ArgumentParser(
@@ -1439,12 +1465,28 @@ def main():
     log = logging.getLogger()
 
     # logging.NOTSET logs everything
-    verbose2level = (logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
+    verbose2level = (logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG, logging.DEBUG-1, logging.DEBUG-2, )
     args.verbose = min(max(args.verbose, 0), len(verbose2level) - 1)
+    logging.addLevelName(logging.DEBUG-1, "DEBUG_1")
+    logging.addLevelName(logging.DEBUG-2, "DEBUG_2")
     log.setLevel(verbose2level[args.verbose])
+    log.debug("Verbosity: %s(%s)" % (args.verbose, log.getEffectiveLevel()))
 
     if args.gp_log:
-        log_callback_obj = gp.check_result(gp.use_python_logging())
+        # gp.use_python_logging() does not log bellow logging.DEBUG levels
+        full_mapping = {
+            gp.GP_LOG_ERROR   : logging.ERROR,
+            gp.GP_LOG_VERBOSE : logging.INFO,
+            gp.GP_LOG_DEBUG   : logging.DEBUG - 1,
+            gp.GP_LOG_DATA    : logging.DEBUG - 2,
+        }
+        gp_level = None
+        log_func = logging.getLogger('gphoto2').log
+        for level in (full_mapping):
+            if full_mapping[level] >= log.getEffectiveLevel():
+                gp_level = level
+        if gp_level != None:
+            log_callback_obj = gp.gp_log_add_func(gp_level, _gphoto2_logger_cb, (log_func, full_mapping))
 
     log.debug("Parsed args: %s", args)
 
@@ -1520,7 +1562,7 @@ def main():
         digitizer_info = None
 
     async def ws_run():
-        async with websockets.serve(ws_handler, args.wsAddr, args.wsPort):
+        async with websockets.serve(ws_handler, args.wsAddr, args.wsPort, logger=WebsocketLoggerAdapter(logging.getLogger("websockets.server"))):
             await asyncio.Future()  # run forever
 
     try:
