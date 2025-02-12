@@ -1067,8 +1067,11 @@
             };
 
             window.socket.onclose = function(event) {
-                if (event.wasClean) {
-                    window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                if (event.wasClean && (window.socket.readyState != window.socket.CLOSED)) {
+                    try {
+                        window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                    } catch(err) {
+                    }
                 } else {
                     // e.g. server process killed or network down
                     // event.code is usually 1006 in this case
