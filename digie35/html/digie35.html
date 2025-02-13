@@ -857,7 +857,7 @@
         sendCommand('GET_PROJECT', ['project_id', 'film_id']);
         if (typeof payload.error != "undefined") {
             window.stop_multicapture = true;
-            update_status_info(data.payload.error);
+            update_status_info(payload.error);
         }
         if (!window.capabilities.motorized) {
             window.automove_in_progress = false;
