@@ -25,7 +25,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.7"
+__version__ = "0.8"
 
 import argparse
 #import yaml
@@ -733,10 +733,9 @@ class CameraWrapper:
         send_thread.join()
 
     def _broadcast_camera_status(self):
-        global ws_clients
         message = {"cmd": "CAMERA", "payload": {"usbpreview": self._camera_preview, "capturing": self._capture_in_progress, }}
         logging.getLogger().debug("broadcast: %s", message)
-        for websocket in ws_clients.copy():
+        for websocket in ws_control_clients.copy():
             asyncio.run(send(websocket, message))
 
     def _switch_to_preview_mode(self):
@@ -1085,13 +1084,14 @@ VERSION_INFO = {
     "python-libphoto2": gp.__version__,
 }
 
-ws_clients = set()
+global ws_control_clients
+ws_control_clients = set()
 
-async def ws_handler(websocket, path):
-    global ws_clients
+async def ws_control_handler(websocket, path):
     global VERSION_INFO
     global camera
-    ws_clients.add(websocket)
+    print("ws_control_handler")
+    ws_control_clients.add(websocket)
     try:
         PARAM_DELIMITER = ":"
         log = logging.getLogger()
@@ -1195,7 +1195,9 @@ async def ws_handler(websocket, path):
                         reply_status = True
                     elif cmd == "GET":
                         reply_status = True
-
+                    elif cmd == "VERBOSE":
+                        logger_helper.setLevel(int(params["level"]))
+                        reply = {"verbosity": logger_helper.getLevel()}
                     elif cmd in ["HELLO", "HOTPLUG"]:
                         digitizer.check_connected_adapter()
                         reply = VERSION_INFO.copy()
@@ -1218,6 +1220,7 @@ async def ws_handler(websocket, path):
                                 if netifaces.AF_INET in ifc:
                                     reply["lan_ip"] = ifc[netifaces.AF_INET][0]["addr"]
                                     break
+                        reply["verbosity"] = logger_helper.getLevel()
                         if cmd == "HELLO":
                             reply["preset_list"] = camera.list_presets()
                     elif cmd == "BYE":
@@ -1253,8 +1256,8 @@ async def ws_handler(websocket, path):
             except websockets.exceptions.ConnectionClosedOK:
                 break;
     finally:
-        ws_clients.remove(websocket)
-        if len(ws_clients) == 0:
+        ws_control_clients.remove(websocket)
+        if len(ws_control_clients) == 0:
             digitizer.set_backlight()  # switch off backlight
 
 
@@ -1275,7 +1278,6 @@ async def send(websocket, message):
 
 def broadcast(message):
     global last_adapter   # should be per ws_client but it is corner case
-    global ws_clients
     logging.getLogger().debug("broadcast: %s", message)
     try:
         last_adapter   # initialization pain
@@ -1347,7 +1349,7 @@ def broadcast(message):
         loop = asyncio.get_running_loop()
     except RuntimeError:  # 'RuntimeError: There is no current event loop...'
         loop = None
-    for websocket in ws_clients.copy():
+    for websocket in ws_control_clients.copy():
         if loop and loop.is_running():
                 logging.getLogger().debug("starting broadcast thread for: %s", message2)
                 send_thread = Thread(target=run_send, kwargs={
@@ -1360,6 +1362,28 @@ def broadcast(message):
         else:
             # asyncio.run(send(websocket, {"cmd": "ADAPTER", "payload": message2}))
             run_send(websocket, {"cmd": "ADAPTER", "payload": message2})
+
+global ws_logger_clients
+ws_logger_clients = set()
+
+async def ws_logger_handler(websocket, path):
+    ws_logger_clients.add(websocket)
+    try:
+        PARAM_DELIMITER = ":"
+        while True:
+            try:
+                data = await websocket.recv()
+                l = data.split(PARAM_DELIMITER, 1)
+                cmd = l[0].upper()
+                if cmd == "VERBOSE":
+                    if len(l) > 1:
+                        logger_helper.setLevel(int(l[1]))
+            except websockets.exceptions.ConnectionClosedError:
+                break;
+            except websockets.exceptions.ConnectionClosedOK:
+                break;
+    finally:
+        ws_logger_clients.remove(websocket)
 
 SLEEP_INTERVAL = [0.2, 1.0, 3.0]
 last_button_state = None
@@ -1415,6 +1439,16 @@ def _gphoto2_logger_cb(level, domain, msg, data):
     else:
         log_func(logging.ERROR, '%d (%s) %s', level, domain, msg)
 
+class NullLoggerAdapter(logging.LoggerAdapter):
+    """Do not log anything"""
+
+    def __init__(self, logger):
+        super().__init__(logger)
+        self.setLevel(logging.CRITICAL)
+
+    def isEnabledFor(self, level):
+        return False
+
 class WebsocketLoggerAdapter(logging.LoggerAdapter):
     """PING/PONG stuff to more verbose level"""
 
@@ -1431,6 +1465,55 @@ class WebsocketLoggerAdapter(logging.LoggerAdapter):
                    level -= 1
         super().log(level, msg, *args, **kwargs)
 
+class LoggerHelper:
+
+    # logging.NOTSET logs everything
+    _level = logging.NOTSET
+    verbose2level = (logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG, logging.DEBUG-1, logging.DEBUG-2, )
+
+    def __init__(self):
+        logging.addLevelName(logging.DEBUG-1, "DEBUG_1")
+        logging.addLevelName(logging.DEBUG-2, "DEBUG_2")
+
+    def setLevel(self, level):
+        level = min(max(level, 0), len(self.verbose2level) - 1)
+        result = self._level != level
+        if result:
+            logging.getLogger().setLevel(self.verbose2level[level])
+            self._level = level
+            logging.getLogger().debug("Verbosity: %s(%s)" % (self._level, logging.getLogger().getEffectiveLevel()))
+        return result
+
+    def getLevel(self):
+        return self._level
+
+class WebsocketLoggerHandler(logging.Handler):
+    def __init__(self, loop):
+        super().__init__()
+        self.loop = loop
+        self.message_queue = asyncio.Queue()
+        asyncio.create_task(self.broadcast())
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            asyncio.run_coroutine_threadsafe(self.put_message(msg), self.loop)
+        except Exception:
+            self.handleError(record)
+
+    async def put_message(self, msg):
+        await self.message_queue.put(msg)
+
+    async def broadcast(self):
+        while True:
+            message = await self.message_queue.get()
+            if ws_logger_clients:
+                for websocket in ws_logger_clients.copy():
+                    try:
+                        await websocket.send(message)
+                    except:
+                        pass
+
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
     argParser = argparse.ArgumentParser(
@@ -1443,7 +1526,7 @@ def main():
     argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects, default: %(default)s")
     argParser.add_argument("-P", "--preset_directory", dest="preset_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "preset"), help=f"XMP preset directory, e.g.$HOME/.digie35/preset, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
-    argParser.add_argument("-p", "--port", dest="wsPort", metavar="PORT", type=int, default=8400, help=f"Websocket listener port, default: %(default)s")
+    argParser.add_argument("-p", "--port", dest="wsControlPort", metavar="PORT", type=int, default=8400, help=f"Websocket control listener port, default: %(default)s")
     argParser.add_argument("-u", "--preview-port", dest="previewPort", metavar="PORT", type=int, default=8408, help=f"HTTP server port for preview stream, default: %(default)s")
     argParser.add_argument("-f", "--pipe", dest="fifopath", metavar="FIFOPATH", default=None, help="FIFO where preview pictures are written, FIFO must exist (mkfifo FIFOPATH) and reader must be running")
     argParser.add_argument("-e", "--preview-delay", dest="preview_delay", metavar="msec", type=int, default=100, help=f"Delay in ms when capturing preview from camera, default: %(default)s")
@@ -1452,7 +1535,8 @@ def main():
     argParser.add_argument("-s", "--shutdown", choices=["OFF", "ON", "HELPER"], type=str.upper, default="OFF", help=f"Shutdown when side button is pressed between {SLEEP_INTERVAL[1]}-{SLEEP_INTERVAL[2]} secs, ON..quietly via 'shutdown', HELPER..via GUI '{SHUTDOWN_HELPER}', default: %(default)s")
     argParser.add_argument("--system-power-button", dest="system_power_button", action="store_true", help="Do not block system RPI 5 power button handler")
     argParser.add_argument("-m", "--mainboard", choices=["GPIOZERO", "RPIGPIO", "SIMULATOR",], type=str.upper, default="GPIOZERO", help=f"Mainboard library name, default: %(default)s")
-    argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
+    argParser.add_argument("-v", "--verbose", action="count", default=2, help="verbose output")
+    argParser.add_argument("--logger-port", dest="wsLoggerPort", metavar="PORT", type=int, default=8401, help=f"Websocket logger listener port, when 0 then disable logger, default: %(default)s")
     argParser.add_argument("-g", "--gphoto2-logging", dest="gp_log", action="store_true", help="gphoto2 library logging")
     argParser.add_argument("--version", action="version", version=f"%s" % VERSION_INFO)
 
@@ -1462,15 +1546,10 @@ def main():
         logging.basicConfig(filename=args.logFile, format=LOGGING_FORMAT)
     else:
         logging.basicConfig(format=LOGGING_FORMAT)
-    log = logging.getLogger()
 
-    # logging.NOTSET logs everything
-    verbose2level = (logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG, logging.DEBUG-1, logging.DEBUG-2, )
-    args.verbose = min(max(args.verbose, 0), len(verbose2level) - 1)
-    logging.addLevelName(logging.DEBUG-1, "DEBUG_1")
-    logging.addLevelName(logging.DEBUG-2, "DEBUG_2")
-    log.setLevel(verbose2level[args.verbose])
-    log.debug("Verbosity: %s(%s)" % (args.verbose, log.getEffectiveLevel()))
+    global logger_helper
+    logger_helper = LoggerHelper()
+    logger_helper.setLevel(args.verbose-1)
 
     if args.gp_log:
         # gp.use_python_logging() does not log bellow logging.DEBUG levels
@@ -1483,12 +1562,12 @@ def main():
         gp_level = None
         log_func = logging.getLogger('gphoto2').log
         for level in (full_mapping):
-            if full_mapping[level] >= log.getEffectiveLevel():
+            if full_mapping[level] >= logging.getLogger().getEffectiveLevel():
                 gp_level = level
         if gp_level != None:
             log_callback_obj = gp.gp_log_add_func(gp_level, _gphoto2_logger_cb, (log_func, full_mapping))
 
-    log.debug("Parsed args: %s", args)
+    logging.getLogger().debug("Parsed args: %s", args)
 
     if args.previewPort != 0:
         http_thread, frame_buffer, httpd = mjpgserver.start_http_server(args.wsAddr, args.previewPort)
@@ -1547,13 +1626,13 @@ def main():
 
 
     #if args.configFile:
-    #    log.debug("Loading config file: %s", args.configFile)
+    #    logging.getLogger().debug("Loading config file: %s", args.configFile)
     #    cfg = yaml.load(args.configFile, Loader=yaml.CLoader)
-    #log.debug("Configuration: %s", cfg)
+    #logging.getLogger().debug("Configuration: %s", cfg)
 
     global digitizer
     global digitizer_info
-    log.debug("film_xboard_class: %s", film_xboard_class.__name__)
+    logging.getLogger().debug("film_xboard_class: %s", film_xboard_class.__name__)
     digitizer = film_xboard_class(mainboard, broadcast)
     if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
         digitizer_info = digitizer._xboard_memory.read_header()
@@ -1562,13 +1641,17 @@ def main():
         digitizer_info = None
 
     async def ws_run():
-        async with websockets.serve(ws_handler, args.wsAddr, args.wsPort, logger=WebsocketLoggerAdapter(logging.getLogger("websockets.server"))):
-            await asyncio.Future()  # run forever
+        if args.wsLoggerPort > 0:
+            logging.getLogger().addHandler(WebsocketLoggerHandler(asyncio.get_running_loop()))
+        control_ws = await websockets.serve(ws_control_handler, args.wsAddr, args.wsControlPort, logger=NullLoggerAdapter(logging.getLogger("websockets.server")))
+        if args.wsLoggerPort > 0:
+            logger_ws = await websockets.serve(ws_logger_handler, args.wsAddr, args.wsLoggerPort, logger=WebsocketLoggerAdapter(logging.getLogger("websockets.server")))
+        await asyncio.Future()  # run forever
 
     try:
         asyncio.run(ws_run())
     except KeyboardInterrupt:
-        log.debug("Keyboard interrupt, shutdown")
+        logging.getLogger().debug("Keyboard interrupt, shutdown")
         digitizer.reset()
         camera.stop_preview("dummy")
         if frame_buffer != None:

@@ -182,7 +182,19 @@
                     <span id="server-name" class="clickable" onclick="toggle_status(this, 'server-detail')" title="Click to toggle server details" ></span>
                     <span id="remote-control" class="clickable" onclick="toggle_status(this, 'remote-control-detail')" title="Click to toggle remote control" >Remote control</span>
                 </div>
-                <div id="server-detail" class="detail"><textarea id="server-info" class="description" readonly placeholder="click connect..."></textarea></div>
+                <div id="server-detail" class="detail">
+                    <textarea id="server-info" class="description" readonly placeholder="click connect..."></textarea>
+                    <select id="verbose-list" name="level" title="Set global log verbosity" onchange="sendCommand('VERBOSE', ['verbose-list'])">
+                        <option value="0">Critical</option>
+                        <option value="1">Error</option>
+                        <option value="2">Warning</option>
+                        <option value="3">Info</option>
+                        <option value="4">Debug</option>
+                        <option value="5">Debug 1</option>
+                        <option value="6">Debug 2</option>
+                    </select>
+                    <input type="checkbox" id="logger-cb" onchange="adjust_logger()" /><label for="logger-cb" title="Set logging to browswer console">Logger<label>
+                    </div>
                 <div id="status-info" class="error"></div>
 				<div id="remote-control-detail" class="detail">
 					<div id="rc-url"></div>
@@ -853,13 +865,13 @@
     }
 
     function connect() {
-        if (typeof window.socket == "undefined") {
-            window.socket = new WebSocket('ws://'+window._hostname+':8400');
-            window.socket.onopen = function(e) {
+        if (typeof window.control_socket == "undefined") {
+            window.control_socket = new WebSocket('ws://'+window._hostname+':8400');
+            window.control_socket.onopen = function(e) {
                 console.log("[open] Connection established");
-                window.socket.send("HELLO");
+                window.control_socket.send("HELLO");
             };
-            window.socket.onmessage = function(event) {
+            window.control_socket.onmessage = function(event) {
                 console.log(`[message] Data received from server: ${event.data}`);
                 if (event.data[0] == "{") {
                     try {
@@ -867,196 +879,201 @@
                     } catch(err) {
                         update_status_info(err);
                     }
-                    if (typeof data.payload != "undefined" && typeof data.payload.film_position != "undefined") {
-                        var x = data.payload.film_position;
-                        x = x.toFixed(2);
-                        document.getElementById("film-position").value = x.toString();
-                    }
-                    if ((data.cmd == "ADAPTER") && (typeof data.payload != "undefined")) {
-                        if (typeof data.payload.capabilities != "undefined") {
-                            // hotplug
-                            window.steps_per_mm = data.payload.steps_per_mm;
-							window.capabilities = data.payload.capabilities;
-                            adjust_capabilities()
+                    if (typeof data.payload != "undefined") {
+                        if (typeof data.payload.film_position != "undefined") {
+                            var x = data.payload.film_position;
+                            x = x.toFixed(2);
+                            document.getElementById("film-position").value = x.toString();
                         }
-                        adjust_adapter(data.payload);
-                        if (window.capabilities.motorized) {
-                            if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
-                                window.adapter_buttons.insert.action(undefined);
+                        if (typeof data.payload.verbosity != "undefined") {
+                            document.getElementById("verbose-list").value = data.payload.verbosity;
+                        }
+                        if (data.cmd == "ADAPTER") {
+                            if (typeof data.payload.capabilities != "undefined") {
+                                // hotplug
+                                window.steps_per_mm = data.payload.steps_per_mm;
+                                window.capabilities = data.payload.capabilities;
+                                adjust_capabilities()
                             }
-                            if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
-                                if (data.payload.frame_ready) {
-                                    window.automove_in_progress = false;
-                                    check_multicapture();
-                                } else {
-                                    delete window.automove_in_progress;
+                            adjust_adapter(data.payload);
+                            if (window.capabilities.motorized) {
+                                if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
+                                    window.adapter_buttons.insert.action(undefined);
+                                }
+                                if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
+                                    if (data.payload.frame_ready) {
+                                        window.automove_in_progress = false;
+                                        check_multicapture();
+                                    } else {
+                                        delete window.automove_in_progress;
+                                    }
                                 }
                             }
-                        }
-                        document.getElementById("backlight-cb").checked = data.payload.backlight.color != "";
-                        if (data.payload.backlight.color != "") {
-                            var color_list = document.getElementById("backlight-color-list");
-                            if (Array.from(color_list.options).filter(
-                                opt => (opt.value == data.payload.backlight.color))
-                            .length > 0) {
-                                color_list.value = data.payload.backlight.color;
-                                var colors = data.payload.backlight.color.split("+");
-                                var intensity = data.payload.backlight.intensity;
-                                for (var i = colors.length-1; i >= 0; i--) {
-                                    document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
-                                    intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
+                            document.getElementById("backlight-cb").checked = data.payload.backlight.color != "";
+                            if (data.payload.backlight.color != "") {
+                                var color_list = document.getElementById("backlight-color-list");
+                                if (Array.from(color_list.options).filter(
+                                    opt => (opt.value == data.payload.backlight.color))
+                                .length > 0) {
+                                    color_list.value = data.payload.backlight.color;
+                                    var colors = data.payload.backlight.color.split("+");
+                                    var intensity = data.payload.backlight.intensity;
+                                    for (var i = colors.length-1; i >= 0; i--) {
+                                        document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
+                                        intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
+                                    }
+                                    adjust_backlight(true, false);
                                 }
-                                adjust_backlight(true, false);
                             }
-                        }
-                    } else if ((data.cmd == "CAMERA") && (typeof data.payload != "undefined")) {
-                        document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
-                        adjust_adapter(data.payload)
-                    } else if (typeof data.payload != "undefined") {
-                        if (typeof data.payload.volume_list != "undefined") {
-                            var vl = [];
-                            var act = false;
-                            var act_id = "";
-                            data.payload.volume_list.forEach((vol)=>{
-                                vl.push({"id": vol.name, "name": format_volume_info(vol)});
-                                if (vol.active) {
-                                    act = vol;
-                                    act_id = vol.name;
+                        } else if (data.cmd == "CAMERA") {
+                            document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
+                            adjust_adapter(data.payload)
+                        } else {
+                            if (typeof data.payload.volume_list != "undefined") {
+                                var vl = [];
+                                var act = false;
+                                var act_id = "";
+                                data.payload.volume_list.forEach((vol)=>{
+                                    vl.push({"id": vol.name, "name": format_volume_info(vol)});
+                                    if (vol.active) {
+                                        act = vol;
+                                        act_id = vol.name;
+                                    }
+                                });
+                                update_select_options("volume-list", vl, "id", "name");
+                                var elem = document.getElementById("volume-list");
+                                if (elem.value != act_id) {
+                                    elem.value = act_id;
                                 }
-                            });
-                            update_select_options("volume-list", vl, "id", "name");
-                            var elem = document.getElementById("volume-list");
-                            if (elem.value != act_id) {
-                                elem.value = act_id;
+                                if (act_id != window.current_volume) {
+                                    update_select_options("project-list", [], "name", "name");
+                                    window.current_volume = act_id;
+                                    update_volume_info(act);
+                                    if (act !== false) {
+                                        sendCommand("LIST_PROJECTS");
+                                    }
+                                }
                             }
-                            if (act_id != window.current_volume) {
-                                update_select_options("project-list", [], "name", "name");
-                                window.current_volume = act_id;
-                                update_volume_info(act);
-                                if (act !== false) {
+
+                            if (typeof data.payload.camera_list != "undefined") {
+                                var elem = document.getElementById("camera-list");
+                                var current_camera_id = elem.value;
+                                update_select_options("camera-list", data.payload.camera_list, "id", "name");
+                                data.payload.camera_list.forEach((item)=> {
+                                    if (item.current) {
+                                        update_battery(item.battery);
+                                    }
+                                })
+                                adjust_camera_list(current_camera_id);
+                                if (elem.selectedIndex > 0 /*typeof pend != typeof window.pending_settings["camera-list"]*/ ) {
+                                    sendCommand("SET_CAMERA", ["camera-list"]);
+                                }
+                            }
+                            if (typeof data.payload.project_list != "undefined") {
+                                update_select_options("project-list", data.payload.project_list, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["project_id"]: "");
+                                update_project_selection(false);
+                            }
+                            if (typeof data.payload.volume != "undefined") {
+                                update_volume_info(data.payload.volume);
+                            }
+                            if (typeof data.payload.preset_list != "undefined") {
+                                var list = []
+                                data.payload.preset_list.forEach((item) => {
+                                    list.push({"id": item});
+                                });
+                                update_select_options("preset-list", list, "id", "id");
+                            }
+                            if (data.cmd == "SET_CAMERA") {
+                                document.getElementById("camera-list").value = data.payload.id;
+                                window.current_camera = data.payload;
+                                document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
+                                update_battery(data.payload.battery);
+                                adjust_capabilities();
+                            } else if (data.cmd == "GET_PROJECT") {
+                                var project_list = document.getElementById("project-list");
+                                var film_list = document.getElementById("film-list");
+                                if ((project_list.value == data.payload.id) && (project_list.selectedIndex > 0)) {
+                                    if (data.payload.film) {
+                                        for (var i = 0; i < project_list.options[project_list.selectedIndex]._custom_data.film_list.length; i++) {
+                                            if (project_list.options[project_list.selectedIndex]._custom_data.film_list[i].id == data.payload.film.id) {
+                                                project_list.options[project_list.selectedIndex]._custom_data.film_list[i] = data.payload.film;
+                                                break;
+                                            }
+                                        }
+                                    } else if (data.payload.film_list) {
+                                        project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
+                                    }
+                                }
+                            } else if (data.cmd == "CAPTURE") {
+                                picture_taken(data.payload);
+                                window.download_in_progress = true;
+                                update_battery(data.payload.battery);
+
+                            } else if (data.cmd == "DOWNLOAD") {
+                                file_transfer_finished(data.payload);
+                                window.download_in_progress = false;
+                                check_multicapture();
+
+                            } else if (data.cmd == "CREATE_FILM") {
+                                // add new film into select box as placeholder
+                                var elem = document.getElementById("film-list");
+                                var opt = new Option(data.payload.id, data.payload.id);
+                                elem.add(opt);
+                                elem.value = data.payload.id;
+                                update_project_selection(true);
+                                var project_list = document.getElementById("project-list");
+                                project_list.options[project_list.selectedIndex]._custom_data.film_list.push(data.payload);
+                                sendCommand('GET_PROJECT', ['project_id']);
+                            } else if (data.cmd == "CREATE_PROJECT") {
+                                // add new project into select box as placeholder
+                                var elem = document.getElementById("project-list");
+                                var opt = new Option(data.payload.id, data.payload.id);
+                                elem.add(opt);
+                                elem.value = data.payload.id;
+                                update_project_selection(false);
+                                sendCommand('LIST_PROJECTS');
+                            } else if (data.cmd == "HELLO" || data.cmd == "HOTPLUG") {
+                                document.getElementById("server-name").innerHTML = data.payload.program;
+                                document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
+                                window.steps_per_mm = data.payload.steps_per_mm;
+                                window.capabilities = data.payload.capabilities;
+                                adjust_capabilities()
+                                if (typeof data.payload.volume_list == "undefined") {
+                                    set_visible(document.getElementById("select-volume"), false);
+                                    window.current_volume = true
+                                }
+                                var is_lan_control = typeof data.payload.lan_ip != "undefined";
+                                var elem = document.getElementById("rc-qrcode");
+                                set_visible(elem, is_lan_control);
+                                var url = location.protocol + "//" + (is_lan_control ? data.payload.lan_ip : "localhost");
+                                if (location.port != "") {
+                                    url += ":" + location.port;
+                                }
+                                document.getElementById("rc-url").innerHTML = url;
+                                var elem = document.getElementById("rc-qrcode");
+                                elem.innerHTML = "";
+                                if (is_lan_control) {
+                                    var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
+                                }
+
+                                adjust_backlight();
+
+                                sendCommand("LIST_CAMERAS");
+                                if (window.current_volume) {
                                     sendCommand("LIST_PROJECTS");
                                 }
+                                document.onkeydown = do_onkeydown;
+                                document.onkeyup = do_onkeyup;
+                                adjust_adapter({"movement": 0, });
+                            } else if (data.cmd == "LIST_CAMERAS") {
+                                adjust_camera_preview();
+                            } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
+                                document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
                             }
-                        }
-
-                        if (typeof data.payload.camera_list != "undefined") {
-                            var elem = document.getElementById("camera-list");
-                            var current_camera_id = elem.value;
-                            update_select_options("camera-list", data.payload.camera_list, "id", "name");
-                            data.payload.camera_list.forEach((item)=> {
-                                if (item.current) {
-                                    update_battery(item.battery);
-                                }
-                            })
-                            adjust_camera_list(current_camera_id);
-                            if (elem.selectedIndex > 0 /*typeof pend != typeof window.pending_settings["camera-list"]*/ ) {
-                                sendCommand("SET_CAMERA", ["camera-list"]);
+                            adjust();
+                            if (data.cmd == "DOWNLOAD") {
+                                notify_update(document.getElementById("capture-count"));
                             }
-                        }
-                        if (typeof data.payload.project_list != "undefined") {
-                            update_select_options("project-list", data.payload.project_list, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["project_id"]: "");
-                            update_project_selection(false);
-                        }
-                        if (typeof data.payload.volume != "undefined") {
-                            update_volume_info(data.payload.volume);
-                        }
-                        if (typeof data.payload.preset_list != "undefined") {
-                            var list = []
-                            data.payload.preset_list.forEach((item) => {
-                                list.push({"id": item});
-                            });
-                            update_select_options("preset-list", list, "id", "id");
-                        }
-                        if (data.cmd == "SET_CAMERA") {
-                            document.getElementById("camera-list").value = data.payload.id;
-                            window.current_camera = data.payload;
-                            document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
-                            update_battery(data.payload.battery);
-                            adjust_capabilities();
-                        } else if (data.cmd == "GET_PROJECT") {
-                            var project_list = document.getElementById("project-list");
-                            var film_list = document.getElementById("film-list");
-                            if ((project_list.value == data.payload.id) && (project_list.selectedIndex > 0)) {
-                                if (data.payload.film) {
-                                    for (var i = 0; i < project_list.options[project_list.selectedIndex]._custom_data.film_list.length; i++) {
-                                        if (project_list.options[project_list.selectedIndex]._custom_data.film_list[i].id == data.payload.film.id) {
-                                            project_list.options[project_list.selectedIndex]._custom_data.film_list[i] = data.payload.film;
-                                            break;
-                                        }
-                                    }
-                                } else if (data.payload.film_list) {
-                                    project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
-                                }
-                            }
-                        } else if (data.cmd == "CAPTURE") {
-                            picture_taken(data.payload);
-                            window.download_in_progress = true;
-                            update_battery(data.payload.battery);
-
-                        } else if (data.cmd == "DOWNLOAD") {
-                            file_transfer_finished(data.payload);
-							window.download_in_progress = false;
-							check_multicapture();
-
-                        } else if (data.cmd == "CREATE_FILM") {
-                            // add new film into select box as placeholder
-                            var elem = document.getElementById("film-list");
-                            var opt = new Option(data.payload.id, data.payload.id);
-                            elem.add(opt);
-                            elem.value = data.payload.id;
-                            update_project_selection(true);
-                            var project_list = document.getElementById("project-list");
-                            project_list.options[project_list.selectedIndex]._custom_data.film_list.push(data.payload);
-                            sendCommand('GET_PROJECT', ['project_id']);
-                        } else if (data.cmd == "CREATE_PROJECT") {
-                            // add new project into select box as placeholder
-                            var elem = document.getElementById("project-list");
-                            var opt = new Option(data.payload.id, data.payload.id);
-                            elem.add(opt);
-                            elem.value = data.payload.id;
-                            update_project_selection(false);
-                            sendCommand('LIST_PROJECTS');
-                        } else if (data.cmd == "HELLO" || data.cmd == "HOTPLUG") {
-                            document.getElementById("server-name").innerHTML = data.payload.program;
-                            document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
-                            window.steps_per_mm = data.payload.steps_per_mm;
-							window.capabilities = data.payload.capabilities;
-                            adjust_capabilities()
-                            if (typeof data.payload.volume_list == "undefined") {
-                                set_visible(document.getElementById("select-volume"), false);
-                                window.current_volume = true
-                            }
-							var is_lan_control = typeof data.payload.lan_ip != "undefined";
-							var elem = document.getElementById("rc-qrcode");
-							set_visible(elem, is_lan_control);
-							var url = location.protocol + "//" + (is_lan_control ? data.payload.lan_ip : "localhost");
-							if (location.port != "") {
-								url += ":" + location.port;
-							}
-							document.getElementById("rc-url").innerHTML = url;
-							var elem = document.getElementById("rc-qrcode");
-							elem.innerHTML = "";
-							if (is_lan_control) {
-								var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
-							}
-
-							adjust_backlight();
-
-                            sendCommand("LIST_CAMERAS");
-                            if (window.current_volume) {
-                                sendCommand("LIST_PROJECTS");
-                            }
-                            document.onkeydown = do_onkeydown;
-                            document.onkeyup = do_onkeyup;
-                            adjust_adapter({"movement": 0, });
-                        } else if (data.cmd == "LIST_CAMERAS") {
-                            adjust_camera_preview();
-                        } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
-                            document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
-                        }
-                        adjust();
-                        if (data.cmd == "DOWNLOAD") {
-                            notify_update(document.getElementById("capture-count"));
                         }
                     }
                     console.log(data);
@@ -1066,10 +1083,10 @@
 
             };
 
-            window.socket.onclose = function(event) {
-                if (event.wasClean && (window.socket.readyState != window.socket.CLOSED)) {
+            window.control_socket.onclose = function(event) {
+                if (event.wasClean && (window.control_socket.readyState != window.control_socket.CLOSED)) {
                     try {
-                        window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                        window.control_socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
                     } catch(err) {
                     }
                 } else {
@@ -1080,35 +1097,35 @@
                 }
             }
 
-            window.socket.onerror = function(error) {
+            window.control_socket.onerror = function(error) {
                 console.log(`[error]`);
             };
         }
     }
 
     function disconnect() {
-        if (typeof window.socket != "undefined") {
-            window.socket.send("BYE");
-            window.socket.onclose = function () {};
-            window.socket.close();
+        if (typeof window.control_socket != "undefined") {
+            window.control_socket.send("BYE");
+            window.control_socket.onclose = function () {};
+            window.control_socket.close();
             do_disconnect();
         }
     }
 
     function hotplug() {
-        if (typeof window.socket != "undefined") {
-            window.socket.send("HOTPLUG");
+        if (typeof window.control_socket != "undefined") {
+            window.control_socket.send("HOTPLUG");
         }
     }
 
     function sendCommand2(cmd, obj) {
-        if (typeof window.socket != "undefined" && window.socket.readyState == window.socket.OPEN) {
+        if (typeof window.control_socket != "undefined" && window.control_socket.readyState == window.control_socket.OPEN) {
             if (typeof obj != "undefined") {
                 cmd = cmd + ":" + JSON.stringify(obj);
             }
             update_status_info("");
             console.log('[send]: ' + cmd);
-            window.socket.send(cmd);
+            window.control_socket.send(cmd);
         }
     }
 
@@ -1131,10 +1148,46 @@
         document.getElementById("server-name").innerHTML = "";
         set_visible(document.getElementById("server-detail"), false);
         document.getElementById("server-info").value = "";
-        delete window.socket;
+        delete window.control_socket;
         adjust();
         adjust_adapter({});
     }
+
+    function adjust_logger() {
+        enable = document.getElementById("logger-cb").checked;
+        if (typeof window.logger_socket == "undefined" && enable) {
+            window.logger_socket = new WebSocket('ws://'+window._hostname+':8401');
+            window.logger_socket.onopen = function(e) {
+                console.log("[open] Logger connection established");
+                document.getElementById("logger-cb").checked = true;
+            };
+            window.logger_socket.onmessage = function(event) {
+                console.log(event.data);
+            };
+
+            window.logger_socket.onclose = function(event) {
+                if (event.wasClean && (window.logger_socket.readyState != window.logger_socket.CLOSED)) {
+                    console.log('[close] Logger connection closed');
+                } else {
+                    // e.g. server process killed or network down
+                    // event.code is usually 1006 in this case
+                    console.log('[close] Logger connection died');
+                    delete window.logger_socket;
+                }
+                document.getElementById("logger-cb").checked = false;
+            }
+
+            window.logger_socket.onerror = function(error) {
+                console.log(`[error]`);
+            };
+        } else if (typeof window.logger_socket != "undefined" && !enable) {
+            window.logger_socket.onclose = function () {};
+            window.logger_socket.close();
+            delete window.logger_socket;
+            document.getElementById("logger-cb").checked = false;
+        }
+    }
+
 
     function get_adapter_button(name, dir) {
         if (dir != "") {

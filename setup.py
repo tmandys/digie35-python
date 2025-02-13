@@ -47,6 +47,7 @@ setup(
             "digie35_install = digie35.install:main",
             "digie35_upgrade = digie35.upgrade:main",
             "digie35_board_tool = digie35.board_tool:main",
+            "digie35_log = digie35.log_term:main",
         ],
     },
     install_requires = [

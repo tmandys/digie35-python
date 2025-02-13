@@ -212,3 +212,5 @@ Captured files can be accessed over network Samba prototol from Windows or Mac O
 
     smbpasswd -a pi
 
+Digie35 server log is available via websocket in browser console or CLI `digie35_log` util.
+
