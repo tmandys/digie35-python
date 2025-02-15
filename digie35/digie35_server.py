@@ -426,6 +426,17 @@ class CameraWrapper:
                             download = True
                     now = datetime.datetime.now()
                     now_s = now.strftime("%Y%m%d%H%M%S")
+                    if kwargs["file_mask"]:
+                        params = {
+                            "fname": fname,
+                            "projid": project_id,
+                            "filmid": film_id,
+                        }
+                        fname2 = kwargs["file_mask"].format(**params)
+                        if fname2 == os.path.basename(fname2):
+                            fname = fname2
+                        else:
+                            logging.getLogger().error("Vulnerable file mask (%s)" % (kwargs["file_mask"]))
                     fname += "_" + now_s
                     target_no_ext = os.path.join(self._get_path(project_id, film_id), fname)
                     target = target_no_ext + fext
