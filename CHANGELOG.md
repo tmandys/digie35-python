@@ -11,6 +11,7 @@ Features
 Fixes
 -----
   - digie35_server service is frozen during boot and shutdown helper start because of missing PATH
+  - USB Preview revert to last state after camera reveals
 
 v0.7 (2025-01-21)
 =================
