@@ -8,6 +8,7 @@ Features
   - more sensitive logging to avoid floods on DEBUG level
   - websocket logging, visible in browser console or CLI client
   - filemask for captured file
+  - GUI accordion
 
 Fixes
 -----

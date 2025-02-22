@@ -13,6 +13,7 @@
         body, textarea {
             font-family: "Arial";
             font-size: 13px;
+            margin: 0px;
         }
 
         button {
@@ -48,22 +49,130 @@
             width: 25ch;
         }
 
-        .menu {
+        .left-sidebar {
             float: left;
-            width: 42ch;
+            /*width: 42ch;*/
+            /*transition: max-width 0.3s ease-in-out; ugly formating during transition*/
+            max-width: 42ch;
+            margin-top: 10px;
+            margin-right: 5px;
+        }
+
+        .vertical-toggle {
+            width: 10px;
+            writing-mode: vertical-rl;
+            height: 100%;
+            display: flex;
+        }
+
+        .inline-container {
+            position: relative;
+        }
+
+        .inline-toggle {
+            position: absolute;
+            display: inline-block;
+            padding: 4px;
+            border: 1px solid black;
+            background: lightgrey;
+        }
+
+        .accordion {
+            border: none;
+            padding: 0;
+            margin: 0;
+            background: none;
+            display: block;
+        }
+
+        .accordion .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px;
+            background: lightgray;
+            border: 1px solid black;
+        }
+
+        .accordion.closed .header .arrow {
+            transform: rotate(-90deg);
+        }
+
+        .accordion.closed .control-set {
+            /*display: none;*/
+            padding: 0px 10px;
+            max-height: 0px;
+            overflow: hidden;
+        }
+
+        .accordion .control-set {
+            display: block;
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+            padding: 10px;
+            max-height: 1000px;
+        }
+
+        .top-right-toggle {
+            top: -2px;
+            right: -4px;
+        }
+
+        .top-left-toggle {
+            top: 2px;
+            left: -2px;
+        }
+
+        .collapse-toggle {
+            background: #FEFEFE;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            user-select: none;
+            /*transition: all 0.3s ease-in-out;*/
+        }
+
+        .toggle-collapsed {
+            transform: rotate(180deg);
+        }
+
+        .left-sidebar.collapsed {
+            /*max-width: 0px;
+            overflow: hidden;*/
+            display: none;
+        }
+
+        #preview-fieldset legend {
+            margin-left: 20px;
+        }
+
+        #stream-control {
+            max-height: 100px;
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+            overflow: hidden;
+        }
+
+        #stream-control.collapsed {
+            max-height: 0px;
         }
 
         .preview {
-            margin-left: 42ch;
+            /*margin-left: 42ch;*/
+            flex-grow: 1;
+            margin-top: 4px;
         }
 
         /*
         .preview img {
         }*/
 
-		.wrapper {
-			transform: scale(1);
-			transform-origin: left top;
+        .wrapper {
+            transform: scale(1);
+            transform-origin: left top;
+            display: flex;
+            height: 100vh;
 		}
 
         .wrapper:after {
@@ -81,8 +190,9 @@
             color: #ff0000;
         }
 
-        .clickable {
+        .detail-toggle {
             text-decoration: underline;
+            cursor: pointer;
         }
 
         .detail {
@@ -172,211 +282,228 @@
 
 <body onload="do_onload()">
     <div class="wrapper">
-        <div class="menu">
-            <fieldset id="connection-fieldset">
-                <legend>Connection</legend>
-                <div class="vertical-spacer">
-                    <button onclick="connect()">Connect</button>
-                    <button onclick="disconnect()">Disconnect</button>&nbsp;
-                    <!-- <button id="hotplug-btn" onclick="hotplug()">Hotplug</button>&nbsp; -->
-                    <span id="server-name" class="clickable" onclick="toggle_status(this, 'server-detail')" title="Click to toggle server details" ></span>
-                    <span id="remote-control" class="clickable" onclick="toggle_status(this, 'remote-control-detail')" title="Click to toggle remote control" >Remote control</span>
-                </div>
-                <div id="server-detail" class="detail">
-                    <textarea id="server-info" class="description" readonly placeholder="click connect..."></textarea>
-                    <select id="verbose-list" name="level" title="Set global log verbosity" onchange="sendCommand('VERBOSE', ['verbose-list'])">
-                        <option value="0">Critical</option>
-                        <option value="1">Error</option>
-                        <option value="2">Warning</option>
-                        <option value="3">Info</option>
-                        <option value="4">Debug</option>
-                        <option value="5">Debug 1</option>
-                        <option value="6">Debug 2</option>
-                    </select>
-                    <input type="checkbox" id="logger-cb" onchange="adjust_logger()" /><label for="logger-cb" title="Set logging to browswer console">Logger<label>
+        <div class="left-sidebar" id="controls">
+            <fieldset id="connection-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Connection</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <div class="vertical-spacer">
+                        <button onclick="connect()">Connect</button>
+                        <button onclick="disconnect()">Disconnect</button>&nbsp;
+                        <!-- <button id="hotplug-btn" onclick="hotplug()">Hotplug</button>&nbsp; -->
+                        <span id="server-name" class="detail-toggle" data-container_id="server-detail" title="Click to toggle server details" ></span>
+                        <span id="remote-control" class="detail-toggle" data-container_id="remote-control-detail" title="Click to toggle remote control" >Remote control</span>
                     </div>
-                <div id="status-info" class="error"></div>
-				<div id="remote-control-detail" class="detail">
-					<div id="rc-url"></div>
-					<div id="rc-qrcode"></div>
-				</div>
+                    <div id="server-detail" class="detail vertical-spacer">
+                        <textarea id="server-info" class="description" readonly placeholder="click connect..."></textarea>
+                        <div>
+                            <select id="verbose-list" name="level" title="Set global log verbosity" style="width: 12ch" onchange="sendCommand('VERBOSE', ['verbose-list'])">
+                                <option value="0">Critical</option>
+                                <option value="1">Error</option>
+                                <option value="2">Warning</option>
+                                <option value="3">Info</option>
+                                <option value="4">Debug</option>
+                                <option value="5">Debug 1</option>
+                                <option value="6">Debug 2</option>
+                            </select>
+                            <input type="checkbox" id="logger-cb" onchange="adjust_logger()" /><label for="logger-cb" title="Set logging to browswer console">Logger<label>
+                        </div>
+                    </div>
+                    <div id="remote-control-detail" class="detail vertical-spacer">
+                        <hr />
+                        <div id="rc-url"></div>
+                        <div id="rc-qrcode"></div>
+                    </div>
+                    <div id="status-info" class="error vertical-spacer"></div>
+                </div>
             </fieldset>
 
-            <fieldset id="camera-fieldset">
-                <legend>Camera</legend>
-                <div>
-                    <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
-                        <option value="" selected disabled>select camera...</option>
+            <fieldset id="camera-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Camera</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <div>
+                        <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
+                            <option value="" selected disabled>select camera...</option>
+                        </select>
+                        &nbsp;
+                        <button onclick="sendCommand('LIST_CAMERAS')">Refresh</button>
+                    </div>
+                    <div id="camera-info" class="vertical-spacer">
+                        <span id="battery-info" class="detail-toggle" data-container_id="camera-detail" title="Click to toggle camera details" >Battery: <span id="battery-level" style="width: 6ch"></span></span>&nbsp;
+                        <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
+                    </div>
+                    <div id="camera-detail" class="vertical-spacer detail"><textarea id="camera-abilities" class="description" readonly></textarea></div>
+                </div>
+            </fieldset>
+
+            <fieldset id="volume-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Volumes</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <div id="select-volume">
+                        <select id="volume-list" onchange="set_volume()">
+                            <option value="" selected>select volume...</option>
+                        </select>
+                        &nbsp;
+                        <button onclick="sendCommand('LIST_VOLUMES')">Refresh</button>
+                    </div>
+                    <div id="volume-info" class="vertical-spacer"></div>
+                </div>
+            </fieldset>
+
+            <fieldset id="project-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Project</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <select id="project-list" onchange="update_project_selection(false);adjust()">
+                        <option value="" selected>select project...</option>
                     </select>
                     &nbsp;
-                    <button onclick="sendCommand('LIST_CAMERAS')">Refresh</button>
+                    <button onclick="sendCommand('LIST_PROJECTS')">Refresh</button>
+                    <hr />
+                    <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
+                    <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
+                    <div>
+                        <button id="create-project-btn" onclick="sendCommand('CREATE_PROJECT', ['project_id', 'project_descr']);">Create</button>
+                        <button id="update-project-btn" onclick="sendCommand('UPDATE_PROJECT', ['project_id', 'project_descr']);sendCommand('LIST_PROJECTS')">Update</button>
+                        <button id="delete-project-btn" onclick="sendCommand('DELETE_PROJECT', ['project_id']);sendCommand('LIST_PROJECTS')">Delete</button>
+                    </div>
                 </div>
-                <div id="camera-info" class="vertical-spacer">
-                    <span id="battery-info" class="clickable" onclick="toggle_status(this, 'camera-detail')" title="Click to toggle camera details" >Battery: <span id="battery-level" style="width: 6ch"></span></span>&nbsp;
-                    <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
-                </div>
-                <div id="camera-detail" class="vertical-spacer detail"><textarea id="camera-abilities" class="description" readonly></textarea></div>
             </fieldset>
 
-            <fieldset id="volume-fieldset">
-                <legend>Volumes</legend>
-                <div id="select-volume">
-                    <select id="volume-list" onchange="set_volume()">
-                        <option value="" selected>select volume...</option>
+            <fieldset id="film-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Film</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <select id="film-list" onchange="update_project_selection(true);adjust()">
+                        <option value="" selected>select film...</option>
                     </select>
                     &nbsp;
-                    <button onclick="sendCommand('LIST_VOLUMES')">Refresh</button>
-                </div>
-                <div id="volume-info" class="vertical-spacer"></div>
-            </fieldset>
-
-            <fieldset id="project-fieldset">
-                <legend>Projects</legend>
-                <select id="project-list" onchange="update_project_selection(false);adjust()">
-                    <option value="" selected>select project...</option>
-                </select>
-                &nbsp;
-                <button onclick="sendCommand('LIST_PROJECTS')">Refresh</button>
-                <hr />
-                <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
-                <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
-                <div>
-                    <button id="create-project-btn" onclick="sendCommand('CREATE_PROJECT', ['project_id', 'project_descr']);">Create</button>
-                    <button id="update-project-btn" onclick="sendCommand('UPDATE_PROJECT', ['project_id', 'project_descr']);sendCommand('LIST_PROJECTS')">Update</button>
-                    <button id="delete-project-btn" onclick="sendCommand('DELETE_PROJECT', ['project_id']);sendCommand('LIST_PROJECTS')">Delete</button>
-                </div>
-            </fieldset>
-
-            <fieldset id="film-fieldset">
-                <legend>Film</legend>
-                <select id="film-list" onchange="update_project_selection(true);adjust()">
-                    <option value="" selected>select film...</option>
-                </select>
-                &nbsp;
-                <button onclick="sendCommand('GET_PROJECT', ['project_id'])">Refresh</button>
-                <hr />
-                <div class="vertical-spacer">
-                    <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
-                    <button id="film_id-plus" title="Create new film id" onclick="create_next_film_id()">+</button>
-                    <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" title="Auto increment film id when lead-in film">a-Inc</label>
-                </div>
-                <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
-                <div class="vertical-spacer">
-                    <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="25" title="File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: {fname}, {projid}, {filmid}. E.g. '{projid}_{filmid}_{fname}'" />
-                </div>
-                <div class="vertical-spacer"><span id="capture-count" class="clickable" onclick="toggle_status(this, 'capture-detail')" title="Click to toggle captured photo details"></span></div>
-                <div id="capture-detail" class="vertical-spacer detail"><textarea id="capture-list" class="description" readonly></textarea></div>
-                <div class="vertical-spacer">
-                    <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
-                    <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
-                    <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
+                    <button onclick="sendCommand('GET_PROJECT', ['project_id'])">Refresh</button>
+                    <hr />
+                    <div class="vertical-spacer">
+                        <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
+                        <button id="film_id-plus" title="Create new film id" onclick="create_next_film_id()">+</button>
+                        <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" title="Auto increment film id when lead-in film">a-Inc</label>
+                    </div>
+                    <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
+                    <div class="vertical-spacer">
+                        <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="25" title="File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: {fname}, {projid}, {filmid}. E.g. '{projid}_{filmid}_{fname}'" />
+                    </div>
+                    <div class="vertical-spacer"><span id="capture-count" class="detail-toggle" data-container_id="capture-detail" title="Click to toggle captured photo details"></span></div>
+                    <div id="capture-detail" class="vertical-spacer detail"><textarea id="capture-list" class="description" readonly></textarea></div>
+                    <div class="vertical-spacer">
+                        <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
+                        <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
+                        <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
+                    </div>
                 </div>
             </fieldset>
 
-            <fieldset id="motion-fieldset">
-                <legend>Motion</legend>
-                <div class="centered-btn vertical-spacer">
-                    <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
-                </div>
-                <div class="centered-btn vertical-spacer">
-                    <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
-                    <button id="move-3b-btn" title="KeyS">&lt;&lt;&lt;</button>
-                    <button id="move-3f-btn" title="KeyK">&gt;&gt;&gt;</button>
-                    <button id="move-4f-btn" title="ArrowRight, KeyL">&gt;&gt;&gt;&gt;</button>
-                </div>
-                <div class="centered-btn vertical-spacer">
-                    <button id="move-2b-btn" title="Shift+ArrowLeft, KeyD">&lt;&lt;</button>
-                    <button id="move-1b-btn" title="KeyF">&lt;</button>
-                    <button id="stop-btn"    title="Esc, KeyG">STOP</button>
-                    <button id="move-1f-btn" title="KeyH">&gt;</button>
-                    <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
-                </div>
-                <div class="centered-btn vertical-spacer">
-                    <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
-                    <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
-                    <input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Space correction in mm" />
-                    <input type="checkbox" id="autocorrection-cb" value="0" title="Set correction from consequent capture positions" />
-                    <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
-                    <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
-                </div>
-                <div class="centered-btn vertical-spacer">
-                    <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
-                    <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
-                    <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
-                </div>
-                <div class="centered-btn">
-                    <input type="checkbox" id="reverse-cb" value="1" /><label for="reverse-cb" accesskey="r" title="Reverse sense of movement"><u>R</u>everse</label>
-                    <input type="checkbox" id="autolead-cb" value="1" checked /><label for="autolead-cb" accesskey="l" title="Autolead-in film into adapter">a-<u>L</u>ead</label>
-                    <input type="checkbox" id="sticky-cb" value="1" checked /><label for="sticky-cb" accesskey="s" title="Sticky movement buttons"><u>S</u>ticky</label>
-                    <input type="checkbox" id="automove-cb" value="1" checked /><label for="automove-cb" accesskey="m" title="Move when captured">a-<u>M</u>ove</label>
+            <fieldset id="motion-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Motion</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <div class="centered-btn vertical-spacer">
+                        <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
+                    </div>
+                    <div class="centered-btn vertical-spacer">
+                        <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
+                        <button id="move-3b-btn" title="KeyS">&lt;&lt;&lt;</button>
+                        <button id="move-3f-btn" title="KeyK">&gt;&gt;&gt;</button>
+                        <button id="move-4f-btn" title="ArrowRight, KeyL">&gt;&gt;&gt;&gt;</button>
+                    </div>
+                    <div class="centered-btn vertical-spacer">
+                        <button id="move-2b-btn" title="Shift+ArrowLeft, KeyD">&lt;&lt;</button>
+                        <button id="move-1b-btn" title="KeyF">&lt;</button>
+                        <button id="stop-btn"    title="Esc, KeyG">STOP</button>
+                        <button id="move-1f-btn" title="KeyH">&gt;</button>
+                        <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
+                    </div>
+                    <div class="centered-btn vertical-spacer">
+                        <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
+                        <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
+                        <input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Space correction in mm" />
+                        <input type="checkbox" id="autocorrection-cb" value="0" title="Set correction from consequent capture positions" />
+                        <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
+                        <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
+                    </div>
+                    <div class="centered-btn vertical-spacer">
+                        <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
+                        <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
+                        <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
+                    </div>
+                    <div class="centered-btn">
+                        <input type="checkbox" id="reverse-cb" value="1" /><label for="reverse-cb" accesskey="r" title="Reverse sense of movement"><u>R</u>everse</label>
+                        <input type="checkbox" id="autolead-cb" value="1" checked /><label for="autolead-cb" accesskey="l" title="Autolead-in film into adapter">a-<u>L</u>ead</label>
+                        <input type="checkbox" id="sticky-cb" value="1" checked /><label for="sticky-cb" accesskey="s" title="Sticky movement buttons"><u>S</u>ticky</label>
+                        <input type="checkbox" id="automove-cb" value="1" checked /><label for="automove-cb" accesskey="m" title="Move when captured">a-<u>M</u>ove</label>
+                    </div>
                 </div>
             </fieldset>
 
-            <fieldset id="capture-fieldset">
-                <legend>Capture</legend>
-                <div id="backlight-fieldset" class="centered-btn">
-                    <input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label>
-                    <select id="backlight-color-list" style="width:8ch" onchange="adjust_backlight(true)">
-                        <option value="white" selected>White</option>
-                        <option value="red+green+blue">RGB</option>
-                        <option value="white+red+green+blue">RGBW</option>
-                        <option value="amber+white+red+green+blue">RGBAW</option>
-                        <option value="ir">IR</option>
-                        <option value="external">Manual</option>
-                    </select>
-                    <span id="backlight-color-ranges">
-                        <!-- order a-w-b-g-r is important -->
-                        <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
-                        <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
-                        <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
-                        <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
-                        <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
-                        <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
-                        <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
-                    </span>
-                </div>
-                 <div class="centered-btn vertical-spacer">
-                    <select id="capture-mode-list" style="width:8ch" onchange="adjust()" title="Select capture mode. Serial optional will capture when film frame is ready and is available for motorized adapters only and implies auto move">
-                        <option value="single" selected>Single</option>
-                        <option value="serial">Serial</option>
-                        <option value="multi">Multi</option>
-                    </select>
+            <fieldset id="capture-fieldset" class="accordion">
+                <div class="header"><span class="legend"></span>Capture</span><span class="arrow">&#9660;</span></div>
+                <div class="control-set">
+                    <div id="backlight-fieldset" class="centered-btn">
+                        <input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label>
+                        <select id="backlight-color-list" style="width:8ch" onchange="adjust_backlight(true)">
+                            <option value="white" selected>White</option>
+                            <option value="red+green+blue">RGB</option>
+                            <option value="white+red+green+blue">RGBW</option>
+                            <option value="amber+white+red+green+blue">RGBAW</option>
+                            <option value="ir">IR</option>
+                            <option value="external">Manual</option>
+                        </select>
+                        <span id="backlight-color-ranges">
+                            <!-- order a-w-b-g-r is important -->
+                            <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
+                            <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
+                            <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
+                            <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
+                            <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
+                            <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
+                            <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                        </span>
+                    </div>
+                    <div class="centered-btn vertical-spacer">
+                        <select id="capture-mode-list" style="width:8ch" onchange="adjust()" title="Select capture mode. Serial optional will capture when film frame is ready and is available for motorized adapters only and implies auto move">
+                            <option value="single" selected>Single</option>
+                            <option value="serial">Serial</option>
+                            <option value="multi">Multi</option>
+                        </select>
 
-                    <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
-                    <span id="serial-shoot-delay" class="hidden">
-                        <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
-                        <span id="serial-shoot-delay-value" class="range-value" />
-                    </span>
-				</div>
-                <div class="vertical-spacer centered-btn">
-                    <select id="shoot-mode-list" style="width:20ch" onchange="adjust()" title="Download or leave image on camera SD card, wire remote control (focus-shutter or focus-focus+shutter)">
-                        <option value="capture|download" selected>Download</option>
-                        <option value="capture|download+sdcard">Download+SD card</option>
-                        <option value="capture|sdcard">SD card</option>
-                        <option value="trigger|f-s">Wire trigger (F-S)</option>
-                        <option value="trigger|f-fs">Wire trigger (F-F+S)</option>
-                    </select>
+                        <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
+                        <span id="serial-shoot-delay" class="hidden">
+                            <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
+                            <span id="serial-shoot-delay-value" class="range-value" />
+                        </span>
+                    </div>
+                    <div class="vertical-spacer centered-btn">
+                        <select id="shoot-mode-list" style="width:20ch" onchange="adjust()" title="Download or leave image on camera SD card, wire remote control (focus-shutter or focus-focus+shutter)">
+                            <option value="capture|download" selected>Download</option>
+                            <option value="capture|download+sdcard">Download+SD card</option>
+                            <option value="capture|sdcard">SD card</option>
+                            <option value="trigger|f-s">Wire trigger (F-S)</option>
+                            <option value="trigger|f-fs">Wire trigger (F-F+S)</option>
+                        </select>
 
-                    <span id="trigger-delay" class="hidden">
-                        <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
-                        <span id="trigger-delay-value" class="range-value"></span>
-                    </span>
-				</div>
-                <div class="vertical-spacer centered-btn">
-                    <select id="preset-list" style="width:20ch" title="Create XMP file related to image, e.g. preview orientation is referenced. Alternatively info can be merged to a preset so e.g. negative can be automatically inverted when browsing gallery">
-                        <option value="" selected>--no XMP file--</option>
-                    </select>
-                </div>
-                <div class="vertical-spacer centered-btn">
-                    <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
+                        <span id="trigger-delay" class="hidden">
+                            <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
+                            <span id="trigger-delay-value" class="range-value"></span>
+                        </span>
+                    </div>
+                    <div class="vertical-spacer centered-btn">
+                        <select id="preset-list" style="width:20ch" title="Create XMP file related to image, e.g. preview orientation is referenced. Alternatively info can be merged to a preset so e.g. negative can be automatically inverted when browsing gallery">
+                            <option value="" selected>--no XMP file--</option>
+                        </select>
+                    </div>
+                    <div class="vertical-spacer centered-btn">
+                        <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
+                    </div>
                 </div>
             </fieldset>
         </div>
-        <div id="preview" class="preview">
+        <div id="preview" class="preview inline-container">
             <fieldset id="preview-fieldset">
                 <legend>Preview (<span id="preview-source"></span>)</legend>
                 <div id="stream-error" class="error">Stream is not available</div>
-                <div id="stream-container">
+                <div id="stream-container" class="inline-container">
                     <div id="stream-control">
                         <input type="checkbox" id="invert-cb" value="invert" onchange="adjust_preview()" /><label for="invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
                         <input type="radio" name="rotate" id="rotate0-rb" value="rotate0" onchange="adjust_preview()" checked /><label for="rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
@@ -391,8 +518,18 @@
                     <div id="stream-border" class="grey-border">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
                     </div>
+                    <div class="collapse-toggle inline-toggle top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
+                        <span class="arrow">
+                            &#9650;
+                        </span>
+                    </div>
                 </div>
             </fieldset>
+            <div class="collapse-toggle inline-toggle top-left-toggle" data-container_id="controls" title="Click to collapse/reveal control sidebar">
+                <span class="arrow">
+                    &#9664; <!-- left arrow -->
+                </span>
+            </div>
         </div>
     </div>
 </body>
@@ -1289,6 +1426,28 @@
 		do_onresize(undefined);
         document.addEventListener("focusin", do_onfocusin);
         document.addEventListener("focusout", do_onfocusout);
+        document.querySelectorAll(".collapse-toggle").forEach(element=> {
+            element.addEventListener("click", function() {
+                var elem = document.getElementById(this.getAttribute("data-container_id"));
+                elem.classList.toggle("collapsed");
+                this.classList.toggle("toggle-collapsed");
+            })
+        });
+        document.querySelectorAll(".accordion .header").forEach(element=> {
+            element.addEventListener("click", function() {
+                this.parentNode.classList.toggle("closed");
+            })
+        });
+
+        document.querySelectorAll(".detail-toggle").forEach(element=> {
+            element.addEventListener("click", function() {
+                if (this.disabled || this.parentNode.disabled || this.parentNode.parentNode.disabled || this.parentNode.parentNode.parentNode.disabled) {
+                    return;
+                }
+                var elem = document.getElementById(this.getAttribute("data-container_id"));
+                elem.classList.toggle("detail");
+            })
+        });
 
         window.settings = {
             "control.capture.mode": "capture-mode-list",
@@ -1735,16 +1894,6 @@
         } else {
             elem.style.display = "none";
         }
-    }
-
-    function toggle_status(clicked_elem, id) {
-        if (clicked_elem.disabled || clicked_elem.parentNode.disabled || clicked_elem.parentNode.parentNode.disabled) {
-            return;
-        }
-        elem = document.getElementById(id);
-        elem.classList.remove("hidden");  // unvisible when starting
-        elem.style.display = elem.style.display == "none" ? "block" : "none";
-        return false;
     }
 
     function adjust_preview() {
