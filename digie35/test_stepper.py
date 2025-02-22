@@ -6,16 +6,17 @@
 from gpiozero.output_devices import *
 
 import time
+VERSION=103
 
 DRV_ALLEGRO=1
 DRV_TMC=2
 
-DRIVER=DRV_ALLEGRO
+DRIVER=DRV_TMC
 
 STEP_PIN = 12
 DIR_PIN = 20
 XPWR_PIN = 27
-if False:
+if VERSION==100:
     # v1.0
     MS0_PIN = 26
     MS1_PIN = 19
@@ -33,10 +34,13 @@ else:
     else:
         RESET_PIN = 14
         PDN_UART_PIN = -1
-
+    if VERSION >= 103:
+        enable_active = 1
+    else:
+        enable_active = 0
 
 MICROSTEPPING = 3
-DIR = 0
+DIR = 1
 
 if RESET_PIN > 0:
     reset_pin = OutputDevice(RESET_PIN, initial_value=0, active_high=True)
@@ -48,7 +52,7 @@ if PDN_UART_PIN > 0:
     pdn_uart_pin = OutputDevice(PDN_UART_PIN, initial_value=0, active_high=True)
 
 if ENABLE_PIN > 0:
-    enable_pin = OutputDevice(ENABLE_PIN, initial_value=0, active_high=True)
+    enable_pin = OutputDevice(ENABLE_PIN, initial_value=enable_active, active_high=True)
 
 if DRIVER == DRV_TMC:
     # MS1 MS0 ... 00=1/8, 01=1/2, 10=1/4, 11=1/16
@@ -79,6 +83,6 @@ try:
 except KeyboardInterrupt:
     print("\nCtrl+C aborting");
     if ENABLE_PIN > 0:
-        enable_pin.value = 1
+        enable_pin.value = enable_active ^ 1
     step_pin.value = 0
 
