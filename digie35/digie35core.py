@@ -390,6 +390,7 @@ class ExtensionBoard:
             "white_backlight": False,
             "ir_backlight": False,
             "rgb_backlight": False,
+            "rgbaw_backlight": False,
             "backlight_control": False,
             #"camera_remote_control": False,
             "jack_detection": False,

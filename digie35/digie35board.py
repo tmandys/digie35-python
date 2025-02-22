@@ -822,6 +822,7 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             "white_backlight": self._led[0] == GulpLightAdapterMemory.LED_WHITE,
             "ir_backlight": self._led[1] == GulpLightAdapterMemory.LED_IR,
             "rgb_backlight": self._led[2] in [GulpLightAdapterMemory.LED_RGB, GulpLightAdapterMemory.LED_RGBAW, ],
+            "rgbaw_backlight": self._led[2] == GulpLightAdapterMemory.LED_RGBAW,
             "backlight_control": True,
         }
         return result
@@ -843,11 +844,14 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             pass
         if color == "white":
             pwm[1] = intensity
-        elif color in ["red+green+blue", "white+red+green+blue"]:
+        elif color == "ir":
+            pwm[2] = intensity
+        elif color in ["red+green+blue", "white+red+green+blue", "amber+white+red+green+blue"]:
             pwm[4] = (intensity >> 16) & 0xFF
             pwm[5] = (intensity >> 8) & 0xFF
             pwm[6] = (intensity >> 0) & 0xFF
             white = (intensity >> 24) & 0xFF
+            pwm[7] = (intensity >> 32) & 0xFF
             if self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
                 pwm[3] = white
             elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
@@ -935,12 +939,16 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
     def get_capabilities(self):
         result = super().get_capabilities()
         result |= {
-            "backlight_control": True,
-            "white_backlight": GulpExtensionBoardMemory.LED_WHITE in [self._custom_data["led1"], self._custom_data["led2"]],
-            "ir_backlight": GulpExtensionBoardMemory.LED_IR in [self._custom_data["led1"], self._custom_data["led2"]],
             "sleep": True,
             "hot_plug": True,
         }
+        if not result["backlight_control"]:
+            # do board light only when not managed by light adapter
+            result |= {
+                "backlight_control": True,
+                "white_backlight": GulpExtensionBoardMemory.LED_WHITE in [self._custom_data["led1"], self._custom_data["led2"]],
+                "ir_backlight": GulpExtensionBoardMemory.LED_IR in [self._custom_data["led1"], self._custom_data["led2"]],
+            }
         return result
 
     def get_adapter_class_by_name(id_ver):

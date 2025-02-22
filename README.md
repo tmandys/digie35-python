@@ -125,6 +125,13 @@ Upgrade script `digie35_upgrade` will look in repository and if newer package is
 Issues
 ------
 
+- General Segmentation Fault or similar error
+
+To get more info in terminal use
+
+  export PYTHONFAULTHANDLER=1
+
+
 - nginx cannot display page and returns "403 Forbidden"
 
 nginx requires X right to whole tree of parent directories of particular file on linked location. Check it with

@@ -205,7 +205,7 @@
             <fieldset id="camera-fieldset">
                 <legend>Camera</legend>
                 <div>
-                    <select id="camera-list" name="camera_id" onchange="adjust(); adjust_camera_preview(); sendCommand('SET_CAMERA', ['camera-list'])">
+                    <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
                         <option value="" selected disabled>select camera...</option>
                     </select>
                     &nbsp;
@@ -213,7 +213,7 @@
                 </div>
                 <div id="camera-info" class="vertical-spacer">
                     <span id="battery-info" class="clickable" onclick="toggle_status(this, 'camera-detail')" title="Click to toggle camera details" >Battery: <span id="battery-level" style="width: 6ch"></span></span>&nbsp;
-                    <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview()" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
+                    <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
                 </div>
                 <div id="camera-detail" class="vertical-spacer detail"><textarea id="camera-abilities" class="description" readonly></textarea></div>
             </fieldset>
@@ -320,10 +320,13 @@
                         <option value="white" selected>White</option>
                         <option value="red+green+blue">RGB</option>
                         <option value="white+red+green+blue">RGBW</option>
+                        <option value="amber+white+red+green+blue">RGBAW</option>
                         <option value="ir">IR</option>
                         <option value="external">Manual</option>
                     </select>
                     <span id="backlight-color-ranges">
+                        <!-- order a-w-b-g-r is important -->
+                        <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
                         <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
                         <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
                         <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
@@ -406,12 +409,13 @@
         var camera_list = document.getElementById("camera-list");
         var project_list = document.getElementById("project-list");
         var film_list = document.getElementById("film-list");
+        var usb_preview_checkbox = document.getElementById("usb-preview-cb");
 
         if (camera_list.selectedIndex == 0) {
             update_battery();
         }
         var abilities = (camera_list.selectedIndex > 0) && (typeof window.current_camera != "undefined");
-        var usbpreview = connected && abilities && document.getElementById("usb-preview-cb").checked && window.current_camera.capture_preview;
+        var usbpreview = connected && abilities && usb_preview_checkbox.checked && window.current_camera.capture_preview;
         if (usbpreview != window.current_usbpreview) {
             document.getElementById("stream").src = "http://"+window._hostname+ ":" + (usbpreview ? "8408" : "8409") + "/stream";
             document.getElementById("preview-source").innerHTML = usbpreview ? "USB" : "HDMI";
@@ -422,7 +426,7 @@
 
         document.getElementById("camera-fieldset").disabled = !connected;
         document.getElementById("camera-info").disabled = !abilities;
-        document.getElementById("usb-preview-cb").disabled = !abilities || !window.current_camera.capture_preview;
+        usb_preview_checkbox.disabled = !abilities || !window.current_camera.capture_preview;
         if (!abilities) {
             set_visible(document.getElementById("camera-detail"), false);
         }
@@ -565,6 +569,8 @@
                 opt.disabled = !window.capabilities.ir_backlight;
             } else if (opt.value == "external") {
                 opt.disabled = !window.capabilities.preview_backlight;
+            } else if (opt.value == "amber+white+red+green+blue") {
+                opt.disabled = !window.capabilities.rgbaw_backlight;
             } else if (opt.value == "white+red+green+blue") {
                 opt.disabled = !window.capabilities.rgb_backlight || !window.capabilities.white_backlight;
             } else if (opt.value == "red+green+blue") {
@@ -606,8 +612,18 @@
         items[4].disabled = items[3].disabled;
     }
 
-    function adjust_camera_preview() {
-        var usbpreview = (document.getElementById("camera-list").selectedIndex > 0) && document.getElementById("usb-preview-cb").checked;
+    function adjust_camera_preview(force) {
+        var idx = document.getElementById("camera-list").selectedIndex;
+        var usb_preview_checkbox = document.getElementById("usb-preview-cb");
+        var usbpreview = (idx > 0) && usb_preview_checkbox.checked;
+        if (force) {
+            window.save_usb_preview = usb_preview_checkbox.checked;
+        } else {
+            if (idx > 0 && (typeof window.current_camera != "undefined") && window.current_camera.capture_preview) {
+                // revert last state if possible
+                usbpreview = window.save_usb_preview;
+            }
+        }
         if (usbpreview) {
             sendCommand("START_PREVIEW", ["camera-list"]);
         } else {
@@ -849,6 +865,7 @@
                 if (document.getElementById("automove-cb").checked || document.getElementById("capture-mode-list").value == "serial") {
                     window.automove_in_progress = true;
                     window.adapter_buttons.frame.action(1);
+                    window.stop_multicapture = false;
                 } else {
                     window.automove_in_progress = false;
                 }
@@ -992,6 +1009,7 @@
                                 document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
                                 update_battery(data.payload.battery);
                                 adjust_capabilities();
+                                adjust_camera_preview(false)
                             } else if (data.cmd == "GET_PROJECT") {
                                 var project_list = document.getElementById("project-list");
                                 var film_list = document.getElementById("film-list");
@@ -1069,7 +1087,7 @@
                                 document.onkeyup = do_onkeyup;
                                 adjust_adapter({"movement": 0, });
                             } else if (data.cmd == "LIST_CAMERAS") {
-                                adjust_camera_preview();
+                                adjust_camera_preview(false);
                             } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
                                 document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
                             }
@@ -1312,6 +1330,7 @@
             "move": {
                 "idx": [-4, -3, -2, -1, 1, 2, 3, 4],
                 "action": function(dir) {
+                    window.stop_multicapture = true;
                     sendCommand2('MOVE', {'direction': dir});
                 },
             },
@@ -1325,6 +1344,7 @@
             "moveby": {
                 "idx": [-1, 1],
                 "action": function(dir) {
+                    window.stop_multicapture = true;
                     sendCommand2("MOVE_BY", {'mm': dir*window.move_by_in_mm, 'speed': window.move_by_speed});
                 },
             },
@@ -1332,6 +1352,7 @@
             "frame": {
                 "idx": [-1, 1],
                 "action": function(dir) {
+                    window.stop_multicapture = true;
                     sendCommand2("MOVE_BY", {'mm': dir*(window.frame_width_in_mm + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': window.frame_speed});
                 },
             },
@@ -1339,12 +1360,14 @@
             "eject": {
                 "idx": [-1, 1],
                 "action": function(dir) {
+                    window.stop_multicapture = true;
                     sendCommand2("EJECT", {'forward': dir});
                 },
             },
 
             "insert": {
                 "action": function(dir) {
+                    window.stop_multicapture = true;
 					if (!document.getElementById("film-fieldset").disabled && document.getElementById("autoinc-cb").checked) {
 						var film_list = document.getElementById("film-list");
 						if (film_list.selectedIndex == 0 || film_list.options[film_list.selectedIndex]._custom_data.captured.length > 0) {
@@ -1537,6 +1560,7 @@
                 }
             }
         }
+        window.save_usb_preview = document.getElementById("usb-preview-cb").checked;
         adjust_camera_list(localStorage.getItem("select.camera"));
         adjust_delay_value(document.getElementById("serial-shoot-delay-rng"));
         adjust_delay_value(document.getElementById("trigger-delay-rng"));

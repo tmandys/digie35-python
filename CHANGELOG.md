@@ -4,6 +4,7 @@ v0.8 (2025-xx-xx)
 Features
 --------
   - RGB+W intensity control
+  - RGBAW intensity control
   - more sensitive logging to avoid floods on DEBUG level
   - websocket logging, visible in browser console or CLI client
   - filemask for captured file
@@ -12,6 +13,7 @@ Fixes
 -----
   - digie35_server service is frozen during boot and shutdown helper start because of missing PATH
   - USB Preview revert to last state after camera reveals
+  - stop multi/serial picture when a movement key is pressed
 
 v0.7 (2025-01-21)
 =================
