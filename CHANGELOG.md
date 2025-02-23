@@ -9,6 +9,7 @@ Features
   - websocket logging, visible in browser console or CLI client
   - filemask for captured file
   - GUI accordion
+  - crop slider visualization
 
 Fixes
 -----

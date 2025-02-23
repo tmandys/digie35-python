@@ -1,13 +1,14 @@
 #!/bin/env bash
 
 
-MAKE_LIBGPHOTO2=1
-MAKE_PYTHON_GPHOTO2=1
+MAKE_LIBGPHOTO2=
 # Debian package is not the same as original, requires original DEBIAN/* stuff
-MAKE_LIBGPHOTO2_DIST=
+MAKE_LIBGPHOTO2_DIST=1
+MAKE_PYTHON_GPHOTO2=1
 
 SAVE_DIR=$(cd `dirname $0`; pwd)
 LIBGPHOTO2_DIR=$SAVE_DIR/libgphoto2
+CONFIGURE_PARAMS="--prefix=$HOME/.local --enable-static"
 
 red_color='\033[0;31m'
 yellow_color='\033[1;33m'
@@ -28,9 +29,6 @@ if [ $MAKE_LIBGPHOTO2 ] ; then
     echo -e "${yellow_color}Building libgphoto2${no_color}"
 
     # cannot use a dash delimited suffix as python-gphoto2 will complain. So increase last digit
-
-    TGT_DIR=$SAVE_DIR/libgphoto2
-
     get_libgphoto2_version
 
     echo "Enter new version, unless already patched then recommended is rightmost digit increase by one or confirm [$VERSION]"
@@ -48,19 +46,42 @@ if [ $MAKE_LIBGPHOTO2 ] ; then
     cd $LIBGPHOTO2_DIR
 
     autoreconf -is
-    ./configure --prefix=$HOME/.local
+    ./configure $CONFIGURE_PARAMS
     make
 
-    if [ $MAKE_LIBGPHOTO2_DIST ] ; then
-        echo "Building packages"
-        make dist-tgz
+	cd $SAVE_DIR
+fi
 
-        debmake -a libgphoto2-$VERSION.tar.gz
-        cd libgphoto2-$VERSION
-        debuild
-    fi
+if [ $MAKE_LIBGPHOTO2_DIST ] ; then
 
+    cd $LIBGPHOTO2_DIR
+	echo "Building packages"
+	make dist
+
+    get_libgphoto2_version
+
+	debmake -a $LIBGPHOTO2_DIR/libgphoto2-$VERSION.tar.gz
+	cd libgphoto2-$VERSION
+	sed -i 's/\(libgphoto2 ([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*-[0-9]*\))/\1~digie35)/' debian/changelog
+    PKG_VERSION=$(sed -n 's/.*(\([^)]\).*/\1/p' debian/changelog)
+	echo "Package version: $PKG_VERSION"
+	echo "override_dh_auto_configure:" >> /debian/rules
+	echo "	./configure $CONFIGURE_PARAMS" >> /debian/rules
+	debuild
     cd $SAVE_DIR
+	PKG_FILEPATH=libgphoto2_${PKG_VERSION}_arm64.deb
+
+	mv "libgphoto2_${PKG_VERSION}*" $LIBGPHOTO2_DIR
+
+	rpi_project_dir=../../digie35-rpi
+	repo_dir="$rpi_project_dir/apt-repo"
+	package_dir="$repo_dir/pool/main"
+
+	echo "Copying Debian package to repository"
+	cp ${LIBGPHOTO2_DIR}/${PKG_FILEPATH} ${package_dir}
+	${rpi_project_dir}/build_repo.sh
+
+	#sudo dpkg --install --prefix=$HOME/.local $LIBGPHOTO2_DIR/${PKG_FILEPATH}
 fi
 
 if [ $MAKE_PYTHON_GPHOTO2 ] ; then
