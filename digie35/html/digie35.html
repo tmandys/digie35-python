@@ -848,7 +848,7 @@
 
     function adjust_camera_list(camera_id) {
         // camera_id contains usbid which is increasing, so do some heuristic
-        if (typeof camera_id == "undefined") {
+        if (typeof camera_id == "undefined" || camera_id == null) {
             return;
         }
         var elem = document.getElementById("camera-list");

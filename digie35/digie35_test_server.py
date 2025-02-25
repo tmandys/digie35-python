@@ -174,7 +174,7 @@ def main():
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="Logging file, default: stderr")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("-b", "--board", choices=["HEAD", "GULP", "NIKI", "ALPHA"], type=str.upper, default="HEAD", help=f"Board name, default: %(default)s")
-    argParser.add_argument("-m", "--mainboard", choices=["GPIOZERO", "RPIGPIO", "SIMULATOR",], type=str.upper, default="RPIGPIO", help=f"Mainboard library name, default: %(default)s")
+    argParser.add_argument("-m", "--mainboard", choices=["GPIOZERO", "RPIGPIO", "SIMULATOR",], type=str.upper, default="GPIOZERO", help=f"Mainboard library name, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="localhost", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
     argParser.add_argument("-p", "--port", dest="wsPort", metavar="PORT", type=int, default=8401, help=f"Websocket listener port, default: %(default)s")
     argParser.add_argument("--version", action="version", version=f"%s, control: %s, ws protocol: v%s" % (VERSION, digie35core.ExtensionBoard.VERSION, WS_PROTOCOL_VERSION))
