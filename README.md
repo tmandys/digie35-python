@@ -74,6 +74,11 @@ Check video formats provided by HDMI grabber
       [video4linux2,v4l2 @ 0xf96cd0] Raw: yuyv422 :YUYV 4:2:2 :
       1920x1080 1600x1200 1360x768 1280x1024 1280x960 1280x720 1024x768 800x600 720x576 720x480 640x480
 
+Init and update submodules
+
+    git submodule update --init --recursive
+    git submodule update --recursive
+
 Installation
 ------------
 
