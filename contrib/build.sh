@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 
-MAKE_LIBGPHOTO2=
+MAKE_LIBGPHOTO2=1
 # Debian package is not the same as original, requires original DEBIAN/* stuff
 MAKE_LIBGPHOTO2_DIST=1
 MAKE_PYTHON_GPHOTO2=1

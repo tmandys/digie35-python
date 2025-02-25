@@ -4,6 +4,10 @@ To init submodule use
 
   git submodule update --init contrib/<name>
 
+or
+
+  git submodule update --init --recursive
+
 Required
 --------
 - qrcode

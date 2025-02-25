@@ -79,6 +79,11 @@ Init and update submodules
     git submodule update --init --recursive
     git submodule update --recursive
 
+Use gdb to debug, e.g.:
+
+    gdb --args python ./digie35_server.py -vvvv
+    > run
+
 Installation
 ------------
 
