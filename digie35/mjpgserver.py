@@ -81,7 +81,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                         frame_count += 1
                         # calculate FPS every 5s
                         if (time.time() - start_time) > 5:
-                            logging.getLogger().debug(f"FPS: %s" % ( frame_count / (time.time() - start_time)))
+                            logging.getLogger().log(logging.DEBUG-1, f"FPS: %s" % ( frame_count / (time.time() - start_time)))
                             frame_count = 0
                             start_time = time.time()
             except Exception as e:

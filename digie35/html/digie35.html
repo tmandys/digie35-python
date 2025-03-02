@@ -94,9 +94,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 14px;
+            font-size: 12px;
             cursor: pointer;
-            padding: 4px;
+            padding: 2px;
             background: lightgray;
             border: 1px solid black;
         }
@@ -115,7 +115,7 @@
         .accordion .control-set {
             display: block;
             transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
-            padding: 10px;
+            padding: 8px;
             max-height: 1000px;
         }
 
@@ -284,6 +284,23 @@
             object-fit: cover;
             /*object-position: 95px 0px;*/
         }
+
+        input[type="range"].color-range {
+            margin: 2px;
+        }
+
+        input[type="range"].color-range::-webkit-slider-thumb {
+            outline: solid gray 1px;
+            outline-offset: -1;
+            border-radius: 50%;
+        }
+
+        .color-range input[type="range"]::-moz-range-thumb {
+            outline: solid gray 1px;
+            outline-offset: -1;
+            border-radius: 50%;
+        }
+
         .range-value {
             font-size: 12px;
         }
@@ -292,7 +309,7 @@
         #preview-fieldset input[type="range"] {
             -webkit-appearance: none;
             height: 8px;
-            border: solid black 1px;
+            border: solid gray 1px;
             border-radius: 4px;
             opacity: 0.7;
             margin: 5px;
@@ -461,8 +478,8 @@
                     <hr />
                     <div class="vertical-spacer">
                         <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
-                        <button id="film_id-plus" title="Create new film id" onclick="create_next_film_id()">+</button>
-                        <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" title="Auto increment film id when lead-in film">a-Inc</label>
+                        <button id="film_id-plus" title="Create new film id, KeyP" onclick="create_next_film_id()">+</button>
+                        <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label>
                     </div>
                     <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
                     <div class="vertical-spacer">
@@ -524,7 +541,7 @@
                 <div class="control-set">
                     <div id="backlight-fieldset" class="centered-btn">
                         <input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label>
-                        <select id="backlight-color-list" style="width:8ch" onchange="adjust_backlight(true)">
+                        <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
                             <option value="white" selected>White</option>
                             <option value="red+green+blue">RGB</option>
                             <option value="white+red+green+blue">RGBW</option>
@@ -534,13 +551,13 @@
                         </select>
                         <span id="backlight-color-ranges">
                             <!-- order a-w-b-g-r is important -->
-                            <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
-                            <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
-                            <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
-                            <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
-                            <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
-                            <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
-                            <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="clipping" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                            <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
+                            <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
+                            <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
+                            <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
+                            <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
+                            <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
+                            <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
                         </span>
                     </div>
                     <div class="centered-btn vertical-spacer">
@@ -552,7 +569,7 @@
 
                         <input type="number" class="hidden" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" title="Multiple capture with or without a-move" />
                         <span id="serial-shoot-delay" class="hidden">
-                            <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" class="clipping" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
+                            <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" title="Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview" />
                             <span id="serial-shoot-delay-value" class="range-value" />
                         </span>
                     </div>
@@ -566,7 +583,7 @@
                         </select>
 
                         <span id="trigger-delay" class="hidden">
-                            <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" class="clipping" title="Delay after trigger shoot to delay any action till shooting is finished" />
+                            <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" title="Delay after trigger shoot to delay any action till shooting is finished" />
                             <span id="trigger-delay-value" class="range-value"></span>
                         </span>
                     </div>
@@ -593,9 +610,9 @@
                         <input type="radio" name="rotate" id="rotate180-rb" value="rotate180" onchange="adjust_preview()" /><label for="rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
                         <input type="radio" name="rotate" id="rotate90-rb" value="rotate90" onchange="adjust_preview()" /><label for="rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
                         <input type="checkbox" id="flip-cb" value="flip" onchange="adjust_preview()" /><label for="flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
-                        <input type="range" id="crop-x-rng" value="95" min="0" max="500" oninput="adjust_preview()" class="clipping" title="Width clipping" />
-                        <input type="range" id="crop-y-rng" value="0" min="0" max="300" oninput="adjust_preview()" class="clipping" title="Height clipping" />
-                        <input type="range" id="background-rng" value="200" min="0" max="255" oninput="adjust_preview()" class="clipping" title="Background color" />
+                        <input type="range" id="crop-x-rng" value="95" min="0" max="500" oninput="adjust_preview()" title="Width clipping" />
+                        <input type="range" id="crop-y-rng" value="0" min="0" max="300" oninput="adjust_preview()" title="Height clipping" />
+                        <input type="range" id="background-rng" value="200" min="0" max="255" oninput="adjust_preview()" title="Background color" />
                     </div>
                     <div id="stream-container" class="grey-border">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
@@ -648,7 +665,7 @@
         document.getElementById("camera-info").disabled = !abilities;
         usb_preview_checkbox.disabled = !abilities || !window.current_camera.capture_preview;
         if (!abilities) {
-            set_visible(document.getElementById("camera-detail"), false);
+            document.getElementById("camera-detail").classList.add("detail");
         }
 
         var project_id = document.getElementById("project_id");
@@ -1390,7 +1407,7 @@
         document.onkeydown = function(event) {};
         document.onkeyup = function(event) {};
         document.getElementById("server-name").innerHTML = "";
-        set_visible(document.getElementById("server-detail"), false);
+        document.getElementById("server-detail").classList.add("detail");
         document.getElementById("server-info").value = "";
         delete window.control_socket;
         adjust();
@@ -1887,10 +1904,13 @@
                     break;
                 case "KeyB":
                     var cb_elem = document.getElementById("backlight-cb");
+                    cb_elem.checked = !cb_elem.checked;
                     if (!cb_elem.disabled) {
-                        cb_elem.checked = !cb_elem.checked;
                         cb_elem.onchange();
                     }
+                    break;
+                case "KeyP":
+                    document.getElementById("film_id-plus").click();
                     break;
                 /*case "Enter":   // enter is too dangerous common key
                     if (elem.tagName != "BUTTON") {

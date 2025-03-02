@@ -11,7 +11,7 @@ with open('LICENSE') as f:
 url = "https://repos.digie35.com/python"
 setup(
     name='digie35_ctrl',
-    version='0.7',
+    version='0.7.3',
     description='Digie35 Control package',
     long_description=readme,
     author='Tomas Mandys',
