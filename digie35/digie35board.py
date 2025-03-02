@@ -272,7 +272,7 @@ class GulpBoardMemory(SerialEeprom):
     CUSTOM_ADDR = HEADER_SIZE
     CUSTOM_SIZE = 128
 
-    # (name, type: [string, STRING, datetime, int...signed, number], size, descr, [default value] )
+    # (name, type: [string, STRING, datetime, int...signed, number], size, descr, [default value, [options]] )
     HEADER_MAP = [
         (None, "number", 2, "Magic"),
         (None, None, 6, "Reserved"),
@@ -481,11 +481,11 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
     DRIVER_TMC2208_UART = 3
 
     CUSTOM_MAP = [
-        ("driver", "number", 1, "Driver 0..A4988, 1..DRV8825, 2..TMC2208 (compatible mode), 3..TMC2208 (UART mode TBD)", DRIVER_TMC2208_COMP),
-        ("gear1", "number", 1, "Wheel 1 teeth number (12, 16, 20)", 12),
-        ("gear2", "number", 1, "Wheel 2 teeth number (12, 16, 20)", 20),
+        ("driver", "number", 1, "Driver", DRIVER_TMC2208_COMP, {DRIVER_A4988: "A4988", DRIVER_DRV8825: "DRV8825", DRIVER_TMC2208_COMP: "TMC2208 (compatible)", DRIVER_TMC2208_UART: "TMC2208 (UART mode TBD)",}),
+        ("gear1", "number", 1, "Wheel 1 teeth numberx", 12, [12, 16, 20]),
+        ("gear2", "number", 1, "Wheel 2 teeth number", 20, [12, 16, 20]),
         ("steps_per_revolution", "number", 2, "Steeper number of steps per revolution", 200),
-        ("microstepping", "number", 1, "Microstepping 0..full, 1..half, 2../4, 3../8, 4../16", 2),  # for hight speed frequency is to high so think about reasonable MS
+        ("microstepping", "number", 1, "Microstepping", 2, {0: "full", 1: "half", 2: "/4", 3: "/8", 4: "/16"}),  # for hight speed frequency is to high so think about reasonable MS
         ("wheel_diameter", "number", 2, "Wheel diameter in mm/100", 1280),
         ("speed1", "number", 2, "Speed1 in mm/100/sec", 100),
         ("speed2", "number", 2, "Speed2 in mm/100/sec", 600),
@@ -775,9 +775,9 @@ class GulpLightAdapterMemory(GulpAdapterMemory):
     LED_RGBAW = 4
 
     CUSTOM_MAP = [
-        ("led1", "number", 1, "LED connected to slot 1, 0..none, 1..white", LED_WHITE),
-        ("led2", "number", 1, "LED connected to slot 2, 0..none, 2..IR", 0),
-        ("led3", "number", 1, "LED connected to slot 3, 0..none, 3..RGB, 4..RGBAW", 0),
+        ("led1", "number", 1, "LED connected to slot 1", LED_WHITE, {0: "None", 1: "White"}),
+        ("led2", "number", 1, "LED connected to slot 2", 0, {0: "None", 2: "IR"}),
+        ("led3", "number", 1, "LED connected to slot 3", 0, {0: "None", 3: "RGB", 4: "RGBAW"}),
     ]
 
 class GulpLightAdapter(Adapter):
@@ -880,8 +880,8 @@ class GulpExtensionBoardMemory(GulpBoardMemory):
     LED_RGB = 3
 
     CUSTOM_MAP = [
-        ("led1", "number", 1, "LED connected to slot 1, 0..none, 1..white, 2..IR", LED_WHITE),
-        ("led2", "number", 1, "LED connected to slot 2, 0..none, 2..IR, 3..RGB", 0),
+        ("led1", "number", 1, "LED connected to slot 1", LED_WHITE, {0: "none", LED_WHITE: "white", LED_IR: "IR"}),
+        ("led2", "number", 1, "LED connected to slot 2", 0, {0: "none", LED_IR: "IR", LED_RGB: "RGB"}),
         ("pwr_button", "number", 1, "Power button on RPI 5 board driven by Sleep button", 0),
     ]
 

@@ -40,16 +40,29 @@ def add_arg_opts(argParser, prefix, map):
     pfx = "--" + prefix
     res = []
     for item in map:
+        help = item[3]
+        choices = None
+        if len(item) > 5:
+            opts = []
+            choices = []
+            for opt in item[5]:
+                if isinstance(item[5], dict):
+                    opts.append("%s..%s" % (opt, item[5][opt]))
+                else:
+                    opts.append(str(opt))
+                choices.append(str(opt))
+            help += " (" + (", ".join(opts)) + ")"
+
         if item[0] == None:
             continue
         if item[1] == "string":
-            argParser.add_argument(pfx + item[0], help=item[3])
+            argParser.add_argument(pfx + item[0], help=help, choices=choices)
         elif item[1] == "STRING":
-            argParser.add_argument(pfx + item[0], type=str.upper, help=item[3])
+            argParser.add_argument(pfx + item[0], type=str.upper, help=help, choices=choices)
         elif item[1] == "datetime":
-            argParser.add_argument(pfx + item[0], action="store_true", help=item[3])
+            argParser.add_argument(pfx + item[0], action="store_true", help=help, choices=choices)
         elif item[1] in ["number", "int"]:
-            argParser.add_argument(pfx + item[0], type=int, help=item[3])
+            argParser.add_argument(pfx + item[0], type=int, help=help, choices=choices)
 
 def process_map(args, prefix, map, write_default, now):
     res = {}

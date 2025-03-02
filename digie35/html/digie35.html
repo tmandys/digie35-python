@@ -1136,7 +1136,7 @@
                                 adjust_capabilities()
                             }
                             adjust_adapter(data.payload);
-                            if (window.capabilities.motorized) {
+                            if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
                                 if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
                                     window.adapter_buttons.insert.action(undefined);
                                 }
@@ -1278,6 +1278,9 @@
                                 document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
                                 window.steps_per_mm = data.payload.steps_per_mm;
                                 window.capabilities = data.payload.capabilities;
+                                if (data.payload.client_count > 1) {
+                                    window.save_usb_preview = data.payload.usbpreview;
+                                }
                                 adjust_capabilities()
                                 if (typeof data.payload.volume_list == "undefined") {
                                     set_visible(document.getElementById("select-volume"), false);
@@ -1550,7 +1553,7 @@
             "control.preset": "preset-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
-			"control.backlight": "backlight-cb",
+			//"control.backlight": "backlight-cb",    do not affect when multi client
 			"control.backlight.color": "backlight-color-list",
 			"control.backlight.white": "backlight-white-rng",
 			"control.backlight.red": "backlight-red-rng",

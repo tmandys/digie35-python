@@ -143,19 +143,19 @@ class CameraWrapper:
         else:
             return obj
 
-    def _acquire_capture_lock(self, info = ""):
+    def _acquire_capture_lock(self, info = "", level = logging.DEBUG):
         self._capture_lock.acquire()
-        logging.getLogger().debug("capture_lock.acquire(%s) %s" % (info, get_native_id()))
+        logging.getLogger().log(level, "capture_lock.acquire(%s) %s" % (info, get_native_id()))
         if self._capture_lock_thread_id != get_native_id():
             while time.perf_counter() - self._capture_lock_release_clock < self._INTERTHREAD_CAPTURE_TIMEOUT:
                 #logging.getLogger().debug("interthread delay: %s-%s<%s" % (time.perf_counter(), self._capture_lock_release_clock, self._INTERTHREAD_CAPTURE_TIMEOUT))
                 pass
         self._capture_lock_thread_id = get_native_id()
 
-    def _release_capture_lock(self, info = ""):
+    def _release_capture_lock(self, info = "", level = logging.DEBUG):
         self._capture_lock_release_clock = time.perf_counter()
         self._capture_lock.release()
-        logging.getLogger().debug("capture_lock.release(%s) %s" % (info, get_native_id()))
+        logging.getLogger().log(level, "capture_lock.release(%s) %s" % (info, get_native_id()))
         
     def _usb_connect(self):
         # proceed Sony camera connection
@@ -395,7 +395,7 @@ class CameraWrapper:
             result["capture_audio"] = (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_AUDIO) != 0
             result["config_support"] = (self._camera_abilities.operations & gp.GP_OPERATION_CONFIG) != 0
             result["trigger_capture"] = (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0
-            result["sdcard_capture"] = not re.match(".*ILCE.*", self._camera_model);
+            result["sdcard_capture"] = not re.match(".*ILCE.*", self._camera_model)
 
             result["file_delete"] = (self._camera_abilities.file_operations & gp.GP_FILE_OPERATION_DELETE) != 0
             result["file_preview"] = (self._camera_abilities.file_operations & gp.GP_FILE_OPERATION_PREVIEW) != 0
@@ -784,20 +784,20 @@ class CameraWrapper:
             try:
                 while not self._stop_preview_flag:
                     # capture preview image
-                    self._acquire_capture_lock()
+                    self._acquire_capture_lock("", logging.DEBUG-1)
                     try:
-                        logging.getLogger().debug("gp.gp_camera_capture_preview()")
+                        logging.getLogger().log(logging.DEBUG-1, "gp.gp_camera_capture_preview()")
                         OK, camera_file = gp.gp_camera_capture_preview(self._camera)  # in JPG
                         if OK < gp.GP_OK:
                             logging.getLogger().error(f"Failed to capture preview: %s: %s" % (OK, gp.gp_result_as_string(OK)))
                             # Sony fails to preview without a obvious reason and USB reinit is required
                             self._reinit_camera()
-                            continue;
-                        logging.getLogger().debug("camera_file.get_data_and_size()")
+                            continue
+                        logging.getLogger().log(logging.DEBUG-1, "camera_file.get_data_and_size()")
                         file_data = camera_file.get_data_and_size()
                         #logging.getLogger().debug(f"%s" % file_data)
                     finally:
-                        self._release_capture_lock()
+                        self._release_capture_lock("", logging.DEBUG-1)
 
 
                     data = memoryview(file_data)
@@ -811,7 +811,7 @@ class CameraWrapper:
                             elif e.errno == errno.EWOULDBLOCK:
                                 pass
                             else:
-                                logging.getLogger().debug(f"Errno: %d" % e.errno)
+                                logging.getLogger().error(f"Errno: %d" % e.errno)
                                 raise
                     if self._frame_buffer != None:
                         # logging.getLogger().debug(f"Write frame buffer: %s" % len(data))
@@ -993,7 +993,7 @@ class CameraWrapper:
         for filename in filenames:
             if filename[0] == ".":
                 continue
-            filepath = os.path.join(path, filename);
+            filepath = os.path.join(path, filename)
             if os.path.isfile(filepath):
                 fname, fext = os.path.splitext(filename)
                 if fext == self._XMP_EXTENSION:
@@ -1025,7 +1025,7 @@ class CameraWrapper:
         for filename in filenames:
             if filename[0] == ".":
                 continue
-            filepath = os.path.join(self._preset_dir, filename);
+            filepath = os.path.join(self._preset_dir, filename)
             if os.path.isfile(filepath):
                 fname, fext = os.path.splitext(filename)
                 if fext == self._XMP_EXTENSION:
@@ -1171,7 +1171,7 @@ async def ws_control_handler(websocket, path):
 
                     elif cmd == "SET_BACKLIGHT":
                         digitizer.set_backlight(**params)
-                        status = digitizer.get_state();
+                        status = digitizer.get_state()
                     elif cmd == "LEVEL":
                         digitizer.set_io_state(**params)
                         reply_status = True
@@ -1233,6 +1233,8 @@ async def ws_control_handler(websocket, path):
                                     break
                         reply["verbosity"] = logger_helper.getLevel()
                         if cmd == "HELLO":
+                            reply["client_count"] = len(ws_control_clients)
+                            reply["usbpreview"] = camera._camera_preview
                             reply["preset_list"] = camera.list_presets()
                     elif cmd == "BYE":
                         reply = ""
@@ -1262,10 +1264,10 @@ async def ws_control_handler(websocket, path):
                     ws_lock.release()
 
             except websockets.exceptions.ConnectionClosedError:
-                log.error("Connection closed");
-                break;
+                log.error("Connection closed")
+                break
             except websockets.exceptions.ConnectionClosedOK:
-                break;
+                break
     finally:
         ws_control_clients.remove(websocket)
         if len(ws_control_clients) == 0:
@@ -1277,7 +1279,7 @@ def run_send(websocket, message):
 
 async def send(websocket, message):
     try:
-        global ws_lock;
+        global ws_lock
         ws_lock.acquire()
         try:
             await websocket.send(json.dumps(message))
@@ -1390,9 +1392,9 @@ async def ws_logger_handler(websocket, path):
                     if len(l) > 1:
                         logger_helper.setLevel(int(l[1]))
             except websockets.exceptions.ConnectionClosedError:
-                break;
+                break
             except websockets.exceptions.ConnectionClosedOK:
-                break;
+                break
     finally:
         ws_logger_clients.remove(websocket)
 
