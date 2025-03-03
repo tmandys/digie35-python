@@ -7,120 +7,399 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="icon" type="image/x-png" href="images/digie35-scanner-96.png" />
     <title>Digie35 Adapter Test Client</title>
+    <style>
+        body {
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif
+        }
+
+        .sidebar {
+            width: 200px;
+            padding: 10px;
+            margin: 5px 0;
+            border: none;
+            background: #ddd;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .sidebar button {
+            width: 100%;
+        }
+
+        .sidebar button:hover {
+            background:  #bbb;
+        }
+
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .main-content {
+            flex-grow: 1;
+
+        }
+
+        .section, .xtab {
+            display: none;
+        }
+
+        .active {
+            display: block;
+        }
+
+        /*.controls {
+                display: flex;
+        }
+
+        .controls label {
+            min-width:120px;
+            text-align: right;
+        }*/
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            width: 200px;            
+        }
+
+        .dropdown-active {
+            display: block !important;
+        }
+
+        .dropdown input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            border: 1px solid #333;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .dropdown-content div:hover {
+            background-color: #f1f1f1;
+        }
+
+        .log-area {
+            height: 100px;
+            background: #222;
+            color: #0f0;
+            font-family: monospace;
+            padding: 10px;
+            overflow-y: auto;
+            border-top: 2px solid #666;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+    </style>
 
 </head>
 
 <body>
-    <fieldset>
-        <legend>Connection</legend>
-        <button onclick="connect()">Connect</button>
-        <button onclick="disconnect()">Disconnect</button>
-        <button onclick="sendCommand('HOTPLUG')">Hotplug</button>
-    </fieldset>
-    <br />
-    <fieldset>
-        <legend>Transport</legend>
-        <button onclick="sendCommand('MOVE:-4')">&lt;&lt;&lt;&lt;</button>
-        <button onclick="sendCommand('MOVE:-3')">&lt;&lt;&lt;</button>
-        <button onclick="sendCommand('MOVE:-2')">&lt;&lt;</button>
-        <button onclick="sendCommand('MOVE:-1')">&lt;</button>
-        <button onclick="sendCommand('STOP')">STOP</button>
-        <button onclick="sendCommand('MOVE:1')">&gt;</button>
-        <button onclick="sendCommand('MOVE:2')">&gt;&gt;</button>
-        <button onclick="sendCommand('MOVE:3')">&gt;&gt;&gt;</button>
-        <button onclick="sendCommand('MOVE:4')">&gt;&gt;&gt;&gt;</button>
-        <br />
-        <br />
-        <button onclick="sendCommand('INSERT')">LEAD-IN FILM</button>
-        <button onclick="sendCommand('EJECT:-1')">&lt; EJECT FILM</button>
-        <button onclick="sendCommand('EJECT:1')">EJECT FILM &gt;</button>
-        <button onclick="sendCommand('MOVE_BY:-36:4')">&lt; MOVE BY FRAME</button>
-        <button onclick="sendCommand('MOVE_BY:36:4')">MOVE BY FRAME &gt;</button>
-    </fieldset>
-    <br />
-    <fieldset>
-        <legend>Outputs</legend>
-        <button onclick="sendCommand('PULSE:FOCUS:0.5')">FOCUS</button>
-        <button onclick="sendCommand('PULSE:SHUTTER:0.5')">SHUTTER</button>
-        <button onclick="sendCommand('PULSE:FOCUS:0.5:1.0|PULSE:SHUTTER:0.5:0.5')">FOCUS &amp; SHUTTER</button>
-        <button onclick="sendCommand('LEVEL:FOCUS:1|WAIT:0.5|LEVEL:FOCUS:0|LEVEL:SHUTTER:1|WAIT:0.5|LEVEL:SHUTTER:0')">FOCUS &amp; SHUTTER (wait)</button>
-        <br />
-        <br />
-        <button onclick="sendCommand('LEVEL:RESERVE:1')">RESERVE ON</button>
-        <button onclick="sendCommand('LEVEL:RESERVE:0')">RESERVE OFF</button>
-        <button onclick="sendCommand('LEVEL:SHUTTER:1')">SHUTTER ON</button>
-        <button onclick="sendCommand('LEVEL:SHUTTER:0')">SHUTTER OFF</button>
-        <button onclick="sendCommand('LEVEL:FOCUS:1')">FOCUS ON</button>
-        <button onclick="sendCommand('LEVEL:FOCUS:0')">FOCUS OFF</button>
-        <button onclick="sendCommand('LEVEL:PSU_LED:1')">PSU LED  ON</button>
-        <button onclick="sendCommand('LEVEL:PSU_LED:0')">PSU LED OFF</button>
-        <br />
-        <br />
-        <label for="led_pwm">PWM<input type="number" id="led_pwm" min="0" max="100" value="50" /></label>
-        <button onclick="sendCommand('SET_BACKLIGHT:WHITE:'+document.getElementById('led_pwm').value)">SET WHITE</button>
-        <button onclick="sendCommand('SET_BACKLIGHT:EXTERNAL:'+document.getElementById('led_pwm').value)">SET EXTERNAL</button>
-    </fieldset>
-    <br />
-    <fieldset>
-        <legend>Simulator</legend>
-            <button onclick="sendCommand('SENSOR:SENSOR_F:1')">FRONT ON</button>
-            <button onclick="sendCommand('SENSOR:SENSOR_F:0')">FRONT OFF</button>
-            <button onclick="sendCommand('SENSOR:SENSOR_R:1')">REAR ON</button>
-            <button onclick="sendCommand('SENSOR:SENSOR_R:0')">REAR OFF</button>
-            <button onclick="sendCommand('SENSOR:SENSOR_M:1')">MIDDLE ON</button>
-            <button onclick="sendCommand('SENSOR:SENSOR_M:0')">MIDDLE OFF</button>
-            <button onclick="sendCommand('SENSOR:DETECT_AOT:1')">ADAPTER ON</button>
-            <button onclick="sendCommand('SENSOR:DETECT_AOT:0')">ADAPTER OFF</button>
-            <button onclick="sendCommand('SENSOR:JACK:1')">JACK ON</button>
-            <button onclick="sendCommand('SENSOR:JACK:0')">JACK OFF</button>
-    </fieldset>
-    <br />
-    <fieldset>
-        <legend>Misc</legend>
-        <button onclick="sendCommand('GET')">GET</button>
-    </fieldset>
-    <hr />
 
-    <fieldset>
-        <legend>Inputs</legend>
-            <div><input type="checkbox" id="film_detected" disabled="disabled" /><label for="film_detected">Film detected</label></div>
-            <div><input type="checkbox" id="frame_ready" disabled="disabled" /><label for="frame_ready">Film ready</label></div>
-            <div><input type="checkbox" id="io.sensor_f" disabled="disabled" /><label for="io.sensor_f">FRONT</label></div>
-            <div><input type="checkbox" id="io.sensor_r" disabled="disabled" /><label for="io.sensor_r">REAR</label></div>
-            <div><input type="checkbox" id="io.sensor_m" disabled="disabled" /><label for="io.sensor_m">MIDDLE</label></div>
-            <div><input type="checkbox" id="io.detect_aot" disabled="disabled" /><label for="io.detect_aot">MIDDLE-ADAPTER</label></div>
-            <div><input type="checkbox" id="io.jack" disabled="disabled" /><label for="io.jack">JACK</label></div>
-    </fieldset>
-    <fieldset>
-        <legend>Outputs</legend>
-            <div><label>Movement<input type="number" id="movement" disabled="disabled" /></label></div>
-            <div><input type="checkbox" id="io.focus" disabled="disabled" /><label for="io.focus">FOCUS</label></div>
-            <div><input type="checkbox" id="io.shutter" disabled="disabled" /><label for="io.shutter">SHUTTER</label></div>
-            <div><input type="checkbox" id="io.reserve" disabled="disabled" /><label for="io.reserve">RESERVE</label></div>
-            <div><input type="checkbox" id="io.psu_led" disabled="disabled" /><label for="io.psu_led">PSU LED</label></div>
-    </fieldset>
-    <fieldset>
-        <legend>Counters</legend>
-            <div><label>Motor<input type="number" id="counters.motor" disabled="disabled" /></label></div>
-            <div><label>FRONT<input type="number" id="counters.front" disabled="disabled" /></label></div>
-            <div><label>REAR<input type="number" id="counters.rear" disabled="disabled" /></label></div>
-            <div><label>WINDOW<input type="number" id="counters.window" disabled="disabled" /></label></div>
-    </fieldset>
-            <div id="info" /></div>
+    <div class="sidebar">
+        <button onclick="showSection('connection')">Connection</button>
+        <button onclick="showSection('eeprom')">EEPROM</button>
+        <button onclick="showSection('xboard')">X-Board</button>
+        <button onclick="showSection('adapter')">Adapter</button>
+        <button onclick="showSection('light')">Light</button>
+        <button onclick="showSection('obsolete')">Obsolete</button>
+    </div>
+    <div class="content">
+        <div class="main-content">
+            <div id="connection" class="section active">
+                <fieldset>
+                    <legend>Connection</legend>
+                    <button onclick="connect()">Connect</button>
+                    <button onclick="disconnect()">Disconnect</button>
+                    <button onclick="sendCommand('HOTPLUG')">Hotplug</button>
+                </fieldset>
+            </div>
+
+            <div id="eeprom" class="section">
+                <fieldset id="eeprom-HEADER">
+                    <legend>Header</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <div id="eeprom-board">
+                    <fieldset id="eeprom-MAIN" class="tab">
+                        <legend>X-Board</legend>
+                        <div class="controls"></div>
+                    </fieldset>
+                    <fieldset id="eeprom-STEPPER" class="tab">
+                        <legend>Stepper</legend>
+                        <div class="controls"></div>
+                    </fieldset>
+                    <fieldset id="eeprom-NIKON" class="tab">
+                        <legend>Nikon</legend>
+                        <div class="controls"></div>
+                    </fieldset>
+                    <fieldset id="eeprom-MANUAL" class="tab">
+                        <legend>Manual</legend>
+                        <div class="controls"></div>
+                    </fieldset>
+                    <fieldset id="eeprom-LGHT8PWM" class="tab">
+                        <legend>Light</legend>
+                        <div class="controls"></div>
+                    </fieldset>
+    
+                </div>
+
+            </div>
+            <div id="xboard" class="section">
+                
+            </div>
+            <div id="adapter" class="section">
+                
+            </div>
+            <div id="light" class="section">
+                
+            </div>
+            <div id="obsolete" class="section">
+                <fieldset>
+                    <legend>Transport</legend>
+                    <button onclick="sendCommand('MOVE:-4')">&lt;&lt;&lt;&lt;</button>
+                    <button onclick="sendCommand('MOVE:-3')">&lt;&lt;&lt;</button>
+                    <button onclick="sendCommand('MOVE:-2')">&lt;&lt;</button>
+                    <button onclick="sendCommand('MOVE:-1')">&lt;</button>
+                    <button onclick="sendCommand('STOP')">STOP</button>
+                    <button onclick="sendCommand('MOVE:1')">&gt;</button>
+                    <button onclick="sendCommand('MOVE:2')">&gt;&gt;</button>
+                    <button onclick="sendCommand('MOVE:3')">&gt;&gt;&gt;</button>
+                    <button onclick="sendCommand('MOVE:4')">&gt;&gt;&gt;&gt;</button>
+                    <br />
+                    <br />
+                    <button onclick="sendCommand('INSERT')">LEAD-IN FILM</button>
+                    <button onclick="sendCommand('EJECT:-1')">&lt; EJECT FILM</button>
+                    <button onclick="sendCommand('EJECT:1')">EJECT FILM &gt;</button>
+                    <button onclick="sendCommand('MOVE_BY:-36:4')">&lt; MOVE BY FRAME</button>
+                    <button onclick="sendCommand('MOVE_BY:36:4')">MOVE BY FRAME &gt;</button>
+                </fieldset>
+                <br />
+                <fieldset>
+                    <legend>Outputs</legend>
+                    <button onclick="sendCommand('PULSE:FOCUS:0.5')">FOCUS</button>
+                    <button onclick="sendCommand('PULSE:SHUTTER:0.5')">SHUTTER</button>
+                    <button onclick="sendCommand('PULSE:FOCUS:0.5:1.0|PULSE:SHUTTER:0.5:0.5')">FOCUS &amp; SHUTTER</button>
+                    <button onclick="sendCommand('LEVEL:FOCUS:1|WAIT:0.5|LEVEL:FOCUS:0|LEVEL:SHUTTER:1|WAIT:0.5|LEVEL:SHUTTER:0')">FOCUS &amp; SHUTTER (wait)</button>
+                    <br />
+                    <br />
+                    <button onclick="sendCommand('LEVEL:RESERVE:1')">RESERVE ON</button>
+                    <button onclick="sendCommand('LEVEL:RESERVE:0')">RESERVE OFF</button>
+                    <button onclick="sendCommand('LEVEL:SHUTTER:1')">SHUTTER ON</button>
+                    <button onclick="sendCommand('LEVEL:SHUTTER:0')">SHUTTER OFF</button>
+                    <button onclick="sendCommand('LEVEL:FOCUS:1')">FOCUS ON</button>
+                    <button onclick="sendCommand('LEVEL:FOCUS:0')">FOCUS OFF</button>
+                    <button onclick="sendCommand('LEVEL:PSU_LED:1')">PSU LED  ON</button>
+                    <button onclick="sendCommand('LEVEL:PSU_LED:0')">PSU LED OFF</button>
+                    <br />
+                    <br />
+                    <label for="led_pwm">PWM<input type="number" id="led_pwm" min="0" max="100" value="50" /></label>
+                    <button onclick="sendCommand('SET_BACKLIGHT:WHITE:'+document.getElementById('led_pwm').value)">SET WHITE</button>
+                    <button onclick="sendCommand('SET_BACKLIGHT:EXTERNAL:'+document.getElementById('led_pwm').value)">SET EXTERNAL</button>
+                </fieldset>
+                <br />
+                <fieldset>
+                    <legend>Simulator</legend>
+                        <button onclick="sendCommand('SENSOR:SENSOR_F:1')">FRONT ON</button>
+                        <button onclick="sendCommand('SENSOR:SENSOR_F:0')">FRONT OFF</button>
+                        <button onclick="sendCommand('SENSOR:SENSOR_R:1')">REAR ON</button>
+                        <button onclick="sendCommand('SENSOR:SENSOR_R:0')">REAR OFF</button>
+                        <button onclick="sendCommand('SENSOR:SENSOR_M:1')">MIDDLE ON</button>
+                        <button onclick="sendCommand('SENSOR:SENSOR_M:0')">MIDDLE OFF</button>
+                        <button onclick="sendCommand('SENSOR:DETECT_AOT:1')">ADAPTER ON</button>
+                        <button onclick="sendCommand('SENSOR:DETECT_AOT:0')">ADAPTER OFF</button>
+                        <button onclick="sendCommand('SENSOR:JACK:1')">JACK ON</button>
+                        <button onclick="sendCommand('SENSOR:JACK:0')">JACK OFF</button>
+                </fieldset>
+                <br />
+                <fieldset>
+                    <legend>Misc</legend>
+                    <button onclick="sendCommand('GET')">GET</button>
+                </fieldset>
+                <hr />
+            
+                <fieldset>
+                    <legend>Inputs</legend>
+                        <div><input type="checkbox" id="film_detected" disabled="disabled" /><label for="film_detected">Film detected</label></div>
+                        <div><input type="checkbox" id="frame_ready" disabled="disabled" /><label for="frame_ready">Film ready</label></div>
+                        <div><input type="checkbox" id="io.sensor_f" disabled="disabled" /><label for="io.sensor_f">FRONT</label></div>
+                        <div><input type="checkbox" id="io.sensor_r" disabled="disabled" /><label for="io.sensor_r">REAR</label></div>
+                        <div><input type="checkbox" id="io.sensor_m" disabled="disabled" /><label for="io.sensor_m">MIDDLE</label></div>
+                        <div><input type="checkbox" id="io.detect_aot" disabled="disabled" /><label for="io.detect_aot">MIDDLE-ADAPTER</label></div>
+                        <div><input type="checkbox" id="io.jack" disabled="disabled" /><label for="io.jack">JACK</label></div>
+                </fieldset>
+                <fieldset>
+                    <legend>Outputs</legend>
+                        <div><label>Movement<input type="number" id="movement" disabled="disabled" /></label></div>
+                        <div><input type="checkbox" id="io.focus" disabled="disabled" /><label for="io.focus">FOCUS</label></div>
+                        <div><input type="checkbox" id="io.shutter" disabled="disabled" /><label for="io.shutter">SHUTTER</label></div>
+                        <div><input type="checkbox" id="io.reserve" disabled="disabled" /><label for="io.reserve">RESERVE</label></div>
+                        <div><input type="checkbox" id="io.psu_led" disabled="disabled" /><label for="io.psu_led">PSU LED</label></div>
+                </fieldset>
+                <fieldset>
+                    <legend>Counters</legend>
+                        <div><label>Motor<input type="number" id="counters.motor" disabled="disabled" /></label></div>
+                        <div><label>FRONT<input type="number" id="counters.front" disabled="disabled" /></label></div>
+                        <div><label>REAR<input type="number" id="counters.rear" disabled="disabled" /></label></div>
+                        <div><label>WINDOW<input type="number" id="counters.window" disabled="disabled" /></label></div>
+                </fieldset>
+                <div id="info" /></div>
+                           
+    
+            </div>
+        </div>
+        <div class="log-area" id="log"></div>
+    </div>
 </body>
 
 <script>
+    function showSection(sectionId) {
+        document.querySelectorAll(".section").forEach(section => {
+            section.classList.remove("active");
+        });
+        document.getElementById(sectionId).classList.add("active");
+    }
+
+    function addLog(message) {
+        const logArea = document.getElementById("log");
+        const time = new Date().toLocaleTimeString();
+        logArea.textContent += `[${time}] ${message}\n`;
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+    
+    function sendCommand(cmd) {
+        console.log(`sendCommand: ${cmd}`);
+        window.socket.send(cmd);        
+    }
+
+    function prepareEepromSection(board_id, params) {
+        var container = document.getElementById("eeprom-"+board_id);
+        if (container == undefined) {
+            addLog(`Unsupported board: ${board_id}`);
+            return;
+        }
+        var container2 = container.querySelector("div");
+        container2.replaceChildren();        
+        params.forEach(items => {
+            if (items[0] != null) {
+                let label = document.createElement("label");
+                let id = "eeprom-"+board_id+"-"+items[0];
+                label.setAttribute("for", id);
+                label.textContent = items[0];
+
+                let input = document.createElement("input");
+                input.type = "text";
+                input.id = id;
+                input.name = board_id+"-"+items[0];
+                input.title = items[3];
+                if ((items.length >= 5) && (items[4].toString() != "")) {
+                    input.setAttribute("placeholder", items[4]);
+                }
+                
+                let div = document.createElement("div");
+                if (items.length >= 6) {
+                    let div1 = document.createElement("div");
+                    div1.classList.add("dropdown");
+                    div1.appendChild(input);
+                    let div2 = document.createElement("div");
+                    div2.classList.add("dropdown-content");
+                    div1.appendChild(div2);
+                    opts = items[5];
+                    if (Array.isArray(opts)) {
+                        opts.forEach(opt => {
+                            let opt_div = document.createElement("div");
+                            opt_div.classList.add("option");
+                            opt_div.setAttribute("data-value", opt);
+                            opt_div.innerHTML = `${opt}`;
+                            div2.appendChild(opt_div);
+                        });
+                    } else {
+                        Object.keys(opts).forEach(opt => {
+                            let opt_div = document.createElement("div");
+                            opt_div.classList.add("option");
+                            opt_div.setAttribute("data-value", opt);
+                            opt_div.innerHTML = opts[opt]+ ` (${opt})`;
+                            div2.appendChild(opt_div);
+                        });
+                    }
+                    input = div1;
+                }
+                div.appendChild(label);
+                div.appendChild(input);
+
+                container2.appendChild(div);
+            }
+        });
+    }
     function connect() {
         if (typeof window.socket == "undefined") {
             window.socket = new WebSocket('ws://localhost:8401');
             window.socket.onopen = function(e) {
                 console.log("[open] Connection established");
-                window.socket.send("HELLO");
+                sendCommand("HELLO");
             };
             window.socket.onmessage = function(event) {
                 console.log(`[message] Data received from server: ${event.data}`);
                 if (event.data[0] == "{") {
-                    data = JSON.parse(event.data);
+                    var data = JSON.parse(event.data);
+                    console.log(data);
+                    var cmd = data.cmd;
+                    data = data.payload;
+
+                    if (cmd == "HELLO") {
+                        sendCommand("GET_CONFIG");
+
+                    } else if (cmd == "GET_CONFIG") {
+                        Object.keys(data.eeprom).forEach (board_id => {
+                            prepareEepromSection(board_id, data.eeprom[board_id]);
+                        });
+                        document.querySelectorAll(".controls input").forEach(el => {
+                            el.onfocus = function(event) {
+                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
+                                    el2.classList.remove("dropdown-active");
+                                });
+                            };
+                        });
+
+                        document.querySelectorAll(".dropdown input").forEach(el => {
+                            el.onfocus = function(event) {
+                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
+                                    // el2.classList.remove("dropdown-active");
+                                });
+                                var dd_container = event.target.parentNode.querySelector(".dropdown-content");
+                                dd_container.classList.add("dropdown-active");
+                            };
+                            el.addEventListener("focusout", function(event) {
+                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
+                                    //el2.classList.remove("dropdown-active");   TODO: option onclick is not triggered, currently done in onfocus of all inputs
+                                });
+                            });
+                            /*el.oninput = function(elem) {
+
+                            };*/
+                        });
+                        document.querySelectorAll(".dropdown .dropdown-content .option").forEach(option_el => {
+                            option_el.onclick = function(event) {
+                                var opt_el = event.target;
+                                opt_el.parentNode.parentNode.querySelector("input").value = option_el.getAttribute("data-value");
+                                opt_el.parentNode.classList.remove("dropdown-active");                            
+                            };
+                        });
+                        window.config = data;
+                    }
                     document.getElementById("movement").value = data["movement"];
                     document.getElementById("frame_ready").checked = data["frame_ready"];
                     document.getElementById("film_detected").checked = data["film_detected"];
@@ -134,7 +413,6 @@
                         document.getElementById("counters."+k2).value = data.counters[k2];
                     }
                     document.getElementById("info").innerHTML = "OK";
-                    console.log(data);
                 } else {
                     document.getElementById("info").innerHTML = event.data;
                 }

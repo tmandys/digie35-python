@@ -25,7 +25,7 @@
 __author__ = "Tomas Mandys"
 __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
-__version__ = "0.2"
+__version__ = "0.8"
 
 import sys
 import argparse
@@ -45,8 +45,14 @@ except ImportError:
     RPI_FLAG = False
     print("RPi stuff not found. RPi support disabled")
 
+def get_options(header_map):
+    return header_map
+def get_board_options(board_class):
+    header_map = board_class.ADAPTER_MEMORY_CLASS.HEADER_MAP
 
-WS_PROTOCOL_VERSION = "0.1"
+    return 
+
+WS_PROTOCOL_VERSION = "0.2"
 
 ws_clients = set()
 
@@ -67,6 +73,7 @@ async def ws_handler(websocket, path):
                 cmds = data.split(CMD_DELIMITER)
                 reply_status = False
                 reply = ""
+                reply_data = None
                 for cmd_params in cmds:
                     log.debug("cmd: %s", cmd_params)
                     params = cmd_params.split(PARAM_DELIMITER)
@@ -126,6 +133,26 @@ async def ws_handler(websocket, path):
                             reply_status = True
                         elif cmd == "HELLO":
                             reply = f"%s:protocol v%s" % (digitizer.get_id(), WS_PROTOCOL_VERSION)
+                        elif cmd == "GET_CONFIG":
+                            reply = {
+                                "eeprom": {
+                                    "HEADER": digie35board.GulpBoardMemory.HEADER_MAP,
+                                    "MAIN": digie35board.GulpExtensionBoardMemory.CUSTOM_MAP,
+                                    digie35board.GulpNikonStepperMotorAdapter.ID: digie35board.GulpNikonStepperMotorAdapterMemory.CUSTOM_MAP,
+                                    digie35board.GulpStepperMotorAdapter.ID: digie35board.GulpStepperMotorAdapterMemory.CUSTOM_MAP,
+                                    digie35board.GulpManualAdapter.ID: digie35board.GulpManualAdapterMemory.CUSTOM_MAP,
+                                    digie35board.GulpLight8xPWMAdapter.ID: digie35board.GulpLightAdapterMemory.CUSTOM_MAP,
+                                },
+                                "adapter_boards": [
+                                    digie35board.GulpNikonStepperMotorAdapter.ID,
+                                    digie35board.GulpStepperMotorAdapter.ID,
+                                    digie35board.GulpManualAdapter.ID,
+                                ],
+                                "light_boards": [
+                                    digie35board.GulpLight8xPWMAdapter.ID,
+                                ],
+                            }
+                            break
                         elif cmd == "BYE":
                             reply = ""
                             reply_status = False
@@ -140,14 +167,15 @@ async def ws_handler(websocket, path):
 
                 if reply_status and reply == "":
                     state = digitizer.get_state(True)
-                    reply = json.dumps(state)
+                    reply = state
+                reply = json.dumps({"cmd": cmd, "payload": reply})
 
                 await websocket.send(reply)
             except websockets.exceptions.ConnectionClosedError:
-                log.error("Connection closed");
-                break;
+                log.error("Connection closed")
+                break
             except websockets.exceptions.ConnectionClosedOK:
-                break;
+                break
     finally:
         ws_clients.remove(websocket)
 
@@ -170,7 +198,7 @@ def main():
         description="Film Scanner Control for Raspberry Pi, v%s" % VERSION,
         epilog="",
     )
-    #argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="Raspberry PI+HAT configuration file in YAML")
+    argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="Raspberry PI+HAT configuration file in YAML")
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="Logging file, default: stderr")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("-b", "--board", choices=["HEAD", "GULP", "NIKI", "ALPHA"], type=str.upper, default="HEAD", help=f"Board name, default: %(default)s")
@@ -204,18 +232,19 @@ def main():
         module2 = importlib.import_module("digie35.digie35rpigpio")
         mainboard = module2.RpiGpioMainboard(board != "NIKI")
 
-    module = importlib.import_module("digie35.digie35board")
+    global digie35board
+    digie35board = importlib.import_module("digie35.digie35board")
     if board == "ALPHA":
-        film_xboard_class = module.AlphalExtensionBoard
+        film_xboard_class = digie35board.AlphalExtensionBoard
     elif board == "NIKI":
-        film_xboard_class = module.NikiExtensionBoard
+        film_xboard_class = digie35board.NikiExtensionBoard
     else:   # GULP
-        film_xboard_class = module.GulpExtensionBoard.get_xboard_class(mainboard)
+        film_xboard_class = digie35board.GulpExtensionBoard.get_xboard_class(mainboard)
 
-    #if args.configFile:
-    #    log.debug("Loading config file: %s", args.configFile)
-    #    cfg = yaml.load(args.configFile, Loader=yaml.CLoader)
-    #    log.debug("Configuration: %s", cfg)
+    if args.configFile:
+        log.debug("Loading config file: %s", args.configFile)
+        cfg = yaml.load(args.configFile, Loader=yaml.CLoader)
+        log.debug("Configuration: %s", cfg)
 
     global digitizer
     log.debug("film_xboard_class: %s", film_xboard_class.__name__)
