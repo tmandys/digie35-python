@@ -50,7 +50,10 @@ def add_arg_opts(argParser, prefix, map):
                     opts.append("%s..%s" % (opt, item[5][opt]))
                 else:
                     opts.append(str(opt))
-                choices.append(str(opt))
+                if item[1] in ["number", "int"]:
+                    choices.append(int(opt))
+                else:
+                    choices.append(str(opt))
             help += " (" + (", ".join(opts)) + ")"
 
         if item[0] == None:
