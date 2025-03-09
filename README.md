@@ -213,6 +213,13 @@ So good value is e.g.:
 If not then modify via `sudo rpi-eeprom-config -e`, save and reboot. Note `rpi-eeprom-config` won't report
 updated value till reboot.
 
+- RPI5 USB-C PD 
+
+To avoid warnings because powered via internal PSU over GPIO and not via USB-C
+where negotiates PD params then add option to rpi-eeprom-config
+
+  PSU_MAX_CURRENT=4000
+
 Usage
 -----
 
