@@ -90,7 +90,7 @@ class RpiMainboard(Mainboard):
         elif func == "gpio":
             return
         else:
-            DigitizerError("GPIO%d: Unknown function type '%s'" % (num, func))
+            raise DigitizerError("GPIO%d: Unknown function type '%s'" % (num, func))
         logging.getLogger().debug("exec: %s" % params)
         subprocess.call(params, shell=False)
 
@@ -153,17 +153,17 @@ class RpiMainboard(Mainboard):
                     "thread": None,
                 }
                 return
-        DigitizerError(f"Input device '%s' not found" % (id_name))
+        raise DigitizerError(f"Input device '%s' not found" % (id_name))
 
     def get_input_device_state(self, id_name, num):
         if not id_name in self._input_devices:
-            DigitizerError(f"Input device '%s' is not registered" % (id_name))
+            raise DigitizerError(f"Input device '%s' is not registered" % (id_name))
         logging.getLogger().debug(f"get_input_device_state(%s, %s): device: %s, keys: %s" % (id_name, num, self._input_devices[id_name]["device"], self._input_devices[id_name]["device"].active_keys()))
         return ecodes.ecodes[num] in self._input_devices[id_name]["device"].active_keys()
 
     def set_input_device_handler(self, id_name, num, edge, name = None, handler = None):
         if not id_name in self._input_devices:
-            DigitizerError(f"Input device '%s' is not registered" % (id_name))
+            raise DigitizerError(f"Input device '%s' is not registered" % (id_name))
         if edge == "none":
             if num in self._input_devices[id_name]["keys"]:
                 del self._input_devices[id_name]["keys"][num]

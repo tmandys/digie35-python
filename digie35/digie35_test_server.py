@@ -49,19 +49,19 @@ except ImportError:
     RPI_FLAG = False
     print("RPi stuff not found. RPi support disabled")
 
-global digitizer
+global xboard
 
 def get_board_memory_class(board_type, board_id = None, version = None):
-    if not isinstance(digitizer, digie35board.GulpExtensionBoard):
+    if not isinstance(xboard, digie35board.GulpExtensionBoard):
         raise Digie35ServerError("No EEPROM on board")
 
     if board_type == "XBOARD":
-        eeprom = digitizer._xboard_memory
+        eeprom = xboard._xboard_memory
     else:
         if board_type == "ADAPTER":
-            eeprom = digitizer._aot_memory
+            eeprom = xboard._aot_memory
         elif board_type == "LIGHT":
-            eeprom = digitizer._light_memory
+            eeprom = xboard._light_memory
         else:
             raise Digie35ServerError(f"Unknown board type {board_type}")
         if board_id == None:
@@ -94,7 +94,7 @@ async def ws_handler(websocket, path):
         global WS_PROTOCOL_VERSION
         CMD_DELIMITER = "|"
         PARAM_DELIMITER = ":"
-        global digitizer
+        global xboard
         log = logging.getLogger()
         log.debug("path: %s", path)
         while True:
@@ -130,54 +130,54 @@ async def ws_handler(websocket, path):
                         if "":
                             pass
                         elif cmd == "LEVEL":
-                            digitizer.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
+                            xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
                             reply_status = True
                         elif cmd == "WAIT":
                             time.sleep(float(get_param(0, "1")))
                             reply_status = True
                         elif cmd == "PULSE":
-                            digitizer.pulse_output(get_param(0, "").lower(), float(get_param(2, 0)), float(get_param(1, 1)))
+                            xboard.pulse_output(get_param(0, "").lower(), float(get_param(2, 0)), float(get_param(1, 1)))
                             reply_status = True
                         elif cmd == "SENSOR":
-                            digitizer.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
+                            xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
                             reply_status = True
 
                         elif cmd == "MOVE":
-                            digitizer.check_capability("motorized")
-                            digitizer.get_adapter().set_motor(int(get_param(0, 1)))
+                            xboard.check_capability("motorized")
+                            xboard.get_adapter().set_motor(int(get_param(0, 1)))
                             reply_status = True
                         elif cmd == "STOP":
-                            digitizer.check_capability("motorized")
-                            digitizer.get_adapter().set_motor(0)
+                            xboard.check_capability("motorized")
+                            xboard.get_adapter().set_motor(0)
                             reply_status = True
                         elif cmd == "EJECT":
-                            digitizer.check_capability("motorized")
-                            digitizer.get_adapter().eject(int(get_param(0, 1)))
+                            xboard.check_capability("motorized")
+                            xboard.get_adapter().eject(int(get_param(0, 1)))
                             reply_status = True
                         elif cmd == "INSERT":
-                            digitizer.check_capability("motorized")
-                            digitizer.get_adapter().lead_in()
+                            xboard.check_capability("motorized")
+                            xboard.get_adapter().lead_in()
                             reply_status = True
                         elif cmd == "MOVE_BY":
-                            digitizer.check_capability("motorized")
-                            digitizer.get_adapter().move_by(int(get_param(0, 1)), int(get_param(1, 3)))
+                            xboard.check_capability("motorized")
+                            xboard.get_adapter().move_by(int(get_param(0, 1)), int(get_param(1, 3)))
                             reply_status = True
 
                         elif cmd == "SET_BACKLIGHT":
-                            digitizer.set_backlight(get_param(0, 1).lower(), int(get_param(1, 1)))
+                            xboard.set_backlight(get_param(0, 1).lower(), int(get_param(1, 1)))
 
                         elif cmd == "HOTPLUG":
-                            digitizer.check_connected_adapter()
+                            xboard.check_connected_adapter()
                             reply_status = True
 
                         elif cmd == "GET":
                             reply_status = True
                         elif cmd == "HELLO":
                             reply = {
-                                "board": digitizer.get_id(),
+                                "board": xboard.get_id(),
                                 "version": __version__,
                                 "ws_protocol": WS_PROTOCOL_VERSION,
-                                "eeprom": isinstance(digitizer, digie35board.GulpExtensionBoard),
+                                "eeprom": isinstance(xboard, digie35board.GulpExtensionBoard),
                             }
                         elif cmd == "GET_CONFIG":
                             header_map = digie35board.GulpBoardMemory.HEADER_MAP
@@ -201,16 +201,17 @@ async def ws_handler(websocket, path):
                                 t2 = t - datetime.timedelta(days=i*1)
                                 y = t2.isocalendar()[0]
                                 doy = int(t2.strftime("%j"))
-                                ts["%.2d%.3d" % (y % 100, doy)] = t2.strftime("%d.%m.%Y")
+                                # workaround add space to force not sorting numeric keys when parsing in JSON
+                                ts["%.2d%.3d " % (y % 100, doy)] = t2.strftime("%d.%m.%Y")
                                 #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, int(t2.strftime("%j"))))
                             for i in range(0, 5):
                                 t2 = t - datetime.timedelta(days=i*7)
                                 y = t2.isocalendar()[0]
                                 woy = t2.isocalendar()[1]
-                                ts["%.2d%.3d" % (y % 100, woy + 900)] = "%d W:%s" % (y, woy)
+                                ts["%.2d%.3d " % (y % 100, woy + 900)] = "%d W:%s" % (y, woy)
                                 #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, 900+t2.isocalendar()[1]))
 
-                            add_options(header_map, "version", [i for i in range(100, 104+1)])
+                            add_options(header_map, "version", [i for i in range(104+1, 100, -1)])
                             add_options_cfg(header_map, "pcb_by", "assemblers")
                             add_options_cfg(header_map, "pcba_smd_by", "assemblers")
                             add_options_cfg(header_map, "pcba_tht_by", "assemblers")
@@ -254,7 +255,7 @@ async def ws_handler(websocket, path):
                                 "board": eeprom.read_custom(),
                             }
                         elif cmd == "WRITE_EEPROM":
-                            eeprom = get_board_memory_class(params["board_type"])
+                            eeprom = get_board_memory_class(params["board_type"], params["common"]["adapter_id"], params["common"]["version"])
                             eeprom.write_header(params["common"])
                             eeprom.write_custom(params["board"])
                             reply = {
@@ -275,7 +276,7 @@ async def ws_handler(websocket, path):
                         break
 
                 if reply_status and reply == "":
-                    reply = digitizer.get_state(True)
+                    reply = xboard.get_state(True)
                 if isinstance(reply, (dict, list, set)):
                     reply = json.dumps({"cmd": cmd, "payload": reply})
                 log.debug("ws.send: %s" % reply)
@@ -352,14 +353,15 @@ def main():
         film_xboard_class = digie35board.GulpExtensionBoard.get_xboard_class(mainboard)
 
     global config
+    config = {}
     if args.configFile:
         log.debug("Loading config file: %s", args.configFile)
         config = yaml.load(args.configFile, Loader=yaml.CLoader)
         log.debug("Configuration: %s", config)
 
     log.debug("film_xboard_class: %s", film_xboard_class.__name__)
-    global digitizer
-    digitizer = film_xboard_class(mainboard, broadcast)
+    global xboard
+    xboard = film_xboard_class(mainboard, broadcast)
 
     async def ws_run():
         async with websockets.serve(ws_handler, host=args.wsAddr, port=args.wsPort):
@@ -368,7 +370,7 @@ def main():
     try:
         asyncio.run(ws_run())
     except KeyboardInterrupt:
-        digitizer.reset()
+        xboard.reset()
         pass
 
 

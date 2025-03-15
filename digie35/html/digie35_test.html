@@ -40,6 +40,12 @@
             padding: 20px;
         }
 
+        .content .section .header {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
         .main-content {
             flex-grow: 1;
 
@@ -53,11 +59,11 @@
             display: block;
         }
 
-        /*.controls {
+        /*.control-container {
                 display: flex;
         }
 
-        .controls label {
+        .control-container label {
             min-width:120px;
             text-align: right;
         }*/
@@ -65,7 +71,7 @@
         .dropdown-container {
             position: relative;
             display: inline-block;
-            width: 200px;
+            width: 100%;
         }
 
         .dropdown-open .dropdown-content {
@@ -92,6 +98,7 @@
         }
 
         .dropdown-content {
+            font-size: 0.8em;
             display: none;
             position: absolute;
             background-color: white;
@@ -165,6 +172,60 @@
             transform: rotate(-90deg);
         }
 
+        .form-container {
+            display: grid;
+            gap: 10px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            column-gap: 10px;
+            align-items: start;
+        }
+
+        .form-row label {
+            text-align: right;
+        }
+
+        .form-row .hint {
+            display: block;
+            font-size: 0.7em;
+            color: gray;
+            margin-top: 3px;
+        }
+
+        .input-container input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: left; /* right is wrong when box#2 is hidden */
+            padding: 5px;
+        }
+        .button-container button {
+            margin-left: 10px;
+        }
+
+        .section .box-container {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 600px) {
+            .section .box-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .section .xbox {
+            padding: 2px;
+            text-align: center;
+        }
+
     </style>
 
 </head>
@@ -210,64 +271,80 @@
             <div id="connection" class="section active">
             </div>
 
-            <div id="eeprom-XBOARD" class="section">
-                <h2>X-Board configuration</h2>
-                <fieldset id="eeprom-XBOARD-COMMON" class="eeprom-common">
-                    <legend>Common</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <fieldset id="eeprom-XBOARD-MAIN" class="eeprom-board hidden-tab">
-                    <legend>Main</legend>
-                    <div class="controls"></div>
-                </fieldset>
-
-                <div class="buttons">
+            <div id="eeprom-XBOARD" class="section eeprom">
+                <div class="header">X-Board configuration</div>
+                <div class="box-container">
+                    <div class="box">                    
+                        <fieldset id="eeprom-XBOARD-COMMON" class="eeprom-common">
+                            <legend>Common</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="box">                    
+                        <fieldset id="eeprom-XBOARD-MAIN" class="eeprom-board hidden-tab">
+                            <legend>Main</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                </div>
+                <div class="button-container">
                     <button onclick="eepromSetDefault('XBOARD');" title="Set default values">Default</button>
                     <button onclick="eepromLoad('XBOARD');" title="Load values from board">Load</button>
                     <button onclick="eepromSave('XBOARD');" title="Save values to board">Save</button>
                 </div>
             </div>
 
-            <div id="eeprom-ADAPTER" class="section">
-                <h2>Adapter board configuration</h2>
-                <fieldset id="eeprom-ADAPTER-COMMON" class="eeprom-common">
-                    <legend>Common</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <fieldset id="eeprom-ADAPTER-STEPPER" class="eeprom-board hidden-tab">
-                    <legend>Stepper</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <fieldset id="eeprom-ADAPTER-NIKON" class="eeprom-board hidden-tab">
-                    <legend>Nikon</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <fieldset id="eeprom-ADAPTER-MANUAL" class="eeprom-board hidden-tab">
-                    <legend>Manual</legend>
-                    <div class="controls"></div>
-                </fieldset>
-
-                <div class="buttons">
+            <div id="eeprom-ADAPTER" class="section eeprom">
+                <div class="header">Adapter board configuration</div>
+                <div class="box-container">
+                    <div class="box">                    
+                        <fieldset id="eeprom-ADAPTER-COMMON" class="eeprom-common">
+                            <legend>Common</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="box">                    
+                        <fieldset id="eeprom-ADAPTER-STEPPER" class="eeprom-board hidden-tab">
+                            <legend>Stepper</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                        <fieldset id="eeprom-ADAPTER-NIKON" class="eeprom-board hidden-tab">
+                            <legend>Nikon</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                        <fieldset id="eeprom-ADAPTER-MANUAL" class="eeprom-board hidden-tab">
+                            <legend>Manual</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                </div>
+                <div class="button-container">
                     <button onclick="eepromSetDefault('ADAPTER');" title="Set default values">Default</button>
                     <button onclick="eepromLoad('ADAPTER');" title="Load values from board">Load</button>
                     <button onclick="eepromSave('ADAPTER');" title="Save values to board">Save</button>
                 </div>
             </div>
 
-            <div id="eeprom-LIGHT" class="section">
-                <h2>Light board configuration</h2>
-                <fieldset id="eeprom-LIGHT-COMMON" class="eeprom-common">
-                    <legend>Common</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <fieldset id="eeprom-LIGHT-LGHT8PWM" class="eeprom-board hidden-tab">
-                    <legend>8xPWM</legend>
-                    <div class="controls"></div>
-                </fieldset>
-                <div class="buttons">
-                    <button onclick="eepromSetDefault('LIGHT');" title="Set default values">Default</button>
-                    <button onclick="eepromLoad('LIGHT');" title="Load values from board">Load</button>
-                    <button onclick="eepromSave('LIGHT');" title="Save values to board">Save</button>
+            <div id="eeprom-LIGHT" class="section eeprom">
+                <div class="header">Light board configuration</div>
+                <div class="box-container">
+                    <div class="box">                    
+                        <fieldset id="eeprom-LIGHT-COMMON" class="eeprom-common">
+                            <legend>Common</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="box">                    
+                        <fieldset id="eeprom-LIGHT-LGHT8PWM" class="eeprom-board hidden-tab">
+                            <legend>8xPWM</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="button-container">
+                        <button onclick="eepromSetDefault('LIGHT');" title="Set default values">Default</button>
+                        <button onclick="eepromLoad('LIGHT');" title="Load values from board">Load</button>
+                        <button onclick="eepromSave('LIGHT');" title="Save values to board">Save</button>
+                    </div>
                 </div>
             </div>
 
@@ -406,7 +483,7 @@
             addLog(`Unsupported board: ${board_id}`);
             return;
         }
-        var container2 = container.querySelector("div");
+        var container2 = container.querySelector(".control-container");
         container2.replaceChildren();
         if (params) {
             params.forEach(items => {
@@ -442,13 +519,12 @@
                     input.setAttribute("data-type", items[1]);
                     input.id = id;
                     input.name = items[0];
-                    input.title = items[3];
+                    // input.title = items[3];
                     if ((items.length >= 5) && items[4] && (items[4].toString() != "")) {
                         input.setAttribute("placeholder", items[4]);
                         input.setAttribute("data-default", items[4]);
                     }
 
-                    let div = document.createElement("div");
                     if (items.length >= 6) {
                         let div1 = document.createElement("div");
                         div1.classList.add("dropdown-container");
@@ -473,15 +549,26 @@
                             Object.keys(opts).forEach(opt => {
                                 let opt_div = document.createElement("div");
                                 opt_div.classList.add("option");
-                                opt_div.setAttribute("data-value", opt);
-                                opt_div.innerHTML = opts[opt]+ ` (${opt})`;
+                                let opt2 = opt.trim(); // json sorts numeric keys so space artificially added to avoid sorting
+                                opt_div.setAttribute("data-value", opt2);                                
+                                opt_div.innerHTML = opts[opt]+ ` (${opt2})`;
                                 div2.appendChild(opt_div);
                             });
                         }
                         input = div1;
                     }
+                    let div = document.createElement("div");
+                    div.classList.add("form-row");
+                    let div_ic = document.createElement("div");
+                    div_ic.classList.add("input-container");
+                    div_ic.appendChild(input);
+                    let hint = document.createElement("small");
+                    hint.classList.add("hint");
+                    hint.innerHTML = items[3];
+                    div_ic.appendChild(hint);
+
                     div.appendChild(label);
-                    div.appendChild(input);
+                    div.appendChild(div_ic);
 
                     container2.appendChild(div);
                 }
@@ -491,7 +578,7 @@
 
     function eepromSetDefault(board_type) {
         var board_id = document.getElementById("eeprom-"+board_type+"-COMMON-adapter_id").value;
-        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".controls input");
+        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".control-container input");
         inputs.forEach(input=>{
             if (input.id.includes("-COMMON-") || input.id.includes("-"+board_id+"-")) {
                 var def = input.getAttribute("data-default");
@@ -514,7 +601,7 @@
     function eepromLoad(board_type) {
         sendCommand("READ_EEPROM", {"board_type": board_type});
 
-        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".controls input");
+        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".control-container input");
         inputs.forEach(input=>{
             var def = input.getAttribute("data-default");
             if (def != null && def != input.value) {
@@ -528,7 +615,7 @@
         var data = {};
         var container = document.getElementById("eeprom-"+board_type+"-"+board_id);
         if (container) {
-            var inputs = container.querySelectorAll(".controls input");
+            var inputs = container.querySelectorAll(".control-container input");
             inputs.forEach(input=>{
                 switch (input.getAttribute("data-type")) {
                     case "int":
@@ -553,7 +640,7 @@
             if (!input) {
                 addLog(`Control not found: ${board_type}-${board_id}-${key}`);
             } else {
-                if (input.value != data[key]) {
+                if (input.value !== data[key]) {
                     input.value = data[key];
                     input.dispatchEvent(new Event("change", {bubbles: true}));
                 }
@@ -645,14 +732,14 @@
                         });
                         adjustAdapterId();
 
-                        document.querySelectorAll(".controls input").forEach(el => {
+                        document.querySelectorAll(".control-container input").forEach(el => {
                             el.onfocus = function(event) {
                                 document.querySelectorAll(".dropdown-container").forEach(el2 => {
                                     el2.classList.remove("dropdown-open");
                                 });
                             };
                             el.oninput = function(event) {
-                                var input = event.target;
+                                var input = this;
 
                                 switch (input.getAttribute("data-type")) {
                                     case "STRING":
@@ -668,16 +755,25 @@
                         document.querySelectorAll(".dropdown-container .arrow").forEach(el => {
                             el.onclick = function(event) {
                                 document.querySelectorAll(".dropdown-container").forEach(el2 => {
-                                    if (el2 != event.target.parentNode) {
+                                    if (el2 != this.parentNode) {
                                         el2.classList.remove("dropdown-open");
                                     }
                                 });
-                                adjustSelectedDropdownItem(event.target.parentNode);
-                                event.target.parentNode.classList.toggle("dropdown-open");
-                                if (event.target.parentNode.classList.contains("dropdown-open")) {
+                                adjustSelectedDropdownItem(this.parentNode);
+                                this.parentNode.classList.toggle("dropdown-open");
+                                if (this.parentNode.classList.contains("dropdown-open")) {
                                     // when closing not to reopen in onfocus
-                                    event.target.parentNode.querySelector("input").focus();
+                                    this.parentNode.querySelector("input").focus();
                                 }
+                                event.stopPropagation();
+                            };
+                        });
+
+                        document.querySelectorAll(".section").forEach(el => {
+                            el.onclick = function(event) {
+                                this.querySelectorAll(".dropdown-container").forEach(el2 => {
+                                    el2.classList.remove("dropdown-open");
+                                });
                             };
                         });
 
@@ -686,16 +782,19 @@
                                 document.querySelectorAll(".dropdown-container").forEach(el2 => {
                                      el2.classList.remove("dropdown-open");
                                 });
-                                adjustSelectedDropdownItem(event.target.parentNode);
-                                event.target.parentNode.classList.add("dropdown-open");
+                                adjustSelectedDropdownItem(this.parentNode);
+                                this.parentNode.classList.add("dropdown-open");
                             };
+                            el.onclick = function(event) {
+                                event.stopPropagation();   // not to pass to div
+                            }
                             el.addEventListener("focusout", function(event) {
                                 document.querySelectorAll(".dropdown-container").forEach(el2 => {
                                     //el2.classList.remove("dropdown-open");   // TODO: option onclick is not triggered, currently done in onfocus of all inputs
                                 });
                             });
                             el.onkeydown = function(event) {
-                                var input = event.target;
+                                var input = this;
                                 if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
                                     var inc = 0;
                                     if (!event.altKey) {
@@ -709,7 +808,8 @@
                                                 event.preventDefault();
                                                 break;
                                             case "Escape":
-                                                event.target.parentNode.classList.remove("dropdown-open");
+                                            case "Enter":
+                                                input.parentNode.classList.remove("dropdown-open");
                                                 break;
                                         }
                                     } else {
@@ -742,6 +842,7 @@
                                         }
                                         if (new_selected) {
                                             input.value = new_selected.getAttribute("data-value");
+                                            input.dispatchEvent(new Event("change", {bubbles: true}));
                                             adjustSelectedDropdownItem(input.parentNode);
                                         }
                                     }
@@ -750,12 +851,13 @@
                         });
                         document.querySelectorAll(".dropdown-container .dropdown-content .option").forEach(option_el => {
                             option_el.onclick = function(event) {
-                                const opt_el = event.target;
+                                const opt_el = this;
                                 const input = opt_el.parentNode.parentNode.querySelector("input");
                                 input.value = option_el.getAttribute("data-value");
 
                                 input.dispatchEvent(new Event("change", {bubbles: true}));
                                 opt_el.parentNode.parentNode.classList.remove("dropdown-open");
+                                event.stopPropagation();
                             };
                         });
                         window.config = data;

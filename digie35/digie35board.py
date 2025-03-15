@@ -857,7 +857,7 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
                 pwm[1] = white
         else:
-            DigitizerError("Unknown color: %s" % (color))
+            raise DigitizerError("Unknown color: %s" % (color))
 
         self._write_to_driver(0x02, pwm)  # PWM addr
         # enable/disable drivers
@@ -1285,7 +1285,7 @@ class GulpExtensionBoard_0103(GulpExtensionBoard_0102):
         }
         result["detect_aot"]["negative"] = False
         result["detect_aot"]["unused"] = False
-        if self._custom_data["pwr_button"]:
+        if self._custom_data["pwr_button"] and self._mainboard.is_rpi5():
             result |= {
                 "sleep_button": {
                     "dir": "i",
