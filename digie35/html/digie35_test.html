@@ -45,7 +45,7 @@
 
         }
 
-        .section, .xtab {
+        .section, .hidden-tab, .hidden {
             display: none;
         }
 
@@ -62,19 +62,33 @@
             text-align: right;
         }*/
 
-        .dropdown {
+        .dropdown-container {
             position: relative;
             display: inline-block;
-            width: 200px;            
+            width: 200px;
         }
 
-        .dropdown-active {
+        .dropdown-open .dropdown-content {
             display: block !important;
         }
 
-        .dropdown input {
+        .dropdown-container input {
             width: 100%;
             box-sizing: border-box;
+            padding-right: 15px;
+        }
+
+        .dropdown-container .arrow {
+            font-size: 14px;
+            position: absolute;
+            right: -4px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 0.2s;
+            /*pointer-events: none;*/
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
         }
 
         .dropdown-content {
@@ -92,6 +106,10 @@
             background-color: #f1f1f1;
         }
 
+        .dropdown-content .selected {
+            background-color: #a1a1a1;
+        }
+
         .log-area {
             height: 100px;
             background: #222;
@@ -103,70 +121,156 @@
             white-space: pre-wrap;
             min-height: 100px;
         }
+
+        .tree-menu {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .tree-menu > li {
+            margin: 10px 0;
+        }
+
+        .submenu {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+
+        .tree-menu a {
+            text-decoration: none;
+            color: #000;
+            cursor: pointer;
+        }
+
+        .tree-menu .menu-item {
+            font-weight: bold;
+        }
+
+        .tree-menu a:hover {
+            color: #007bff;
+        }
+
+        .collapsed .submenu {
+            display: none;
+        }
+
+        .tree-menu .arrow {
+            display: inline-block;
+            margin-right: 5px;
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+
+        .tree-menu .collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+
     </style>
 
 </head>
 
-<body>
+<body onload="do_onload()">
 
     <div class="sidebar">
-        <button onclick="showSection('connection')">Connection</button>
-        <button onclick="showSection('eeprom')">EEPROM</button>
-        <button onclick="showSection('xboard')">X-Board</button>
-        <button onclick="showSection('adapter')">Adapter</button>
-        <button onclick="showSection('light')">Light</button>
-        <button onclick="showSection('obsolete')">Obsolete</button>
+        <ul class="tree-menu">
+            <li>
+                <a href="#" class="menu-item toggle">Connection</a>
+                <span class="arrow">&#9660;</span>
+                <ul class="submenu">
+                    <li>
+                        <button onclick="connect()">Connect</button>
+                        <button onclick="disconnect()">Disconnect</button>
+                        <button onclick="sendCommand('HOTPLUG')">Hotplug</button>
+                    </li>
+                </ul>
+            </li>
+            <li class="">  <!-- potentially collapsed -->
+                <a href="#" id="menu-eeprom" class="menu-item toggle">Configuration</a>
+                <span class="arrow">&#9660;</span>
+                <ul class="submenu">
+                    <li>
+                        <a href="#" onclick="showSection('eeprom-XBOARD')">X-Board</a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showSection('eeprom-ADAPTER')">Adapter</a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showSection('eeprom-LIGHT')">Light</a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a href="#" class="menu-item" onclick="showSection('obsolete')">Obsolete</a>
+                <span class="arrow">&raquo;</span>
+            </li>
+        </ul>
     </div>
     <div class="content">
         <div class="main-content">
             <div id="connection" class="section active">
-                <fieldset>
-                    <legend>Connection</legend>
-                    <button onclick="connect()">Connect</button>
-                    <button onclick="disconnect()">Disconnect</button>
-                    <button onclick="sendCommand('HOTPLUG')">Hotplug</button>
-                </fieldset>
             </div>
 
-            <div id="eeprom" class="section">
-                <fieldset id="eeprom-HEADER">
-                    <legend>Header</legend>
+            <div id="eeprom-XBOARD" class="section">
+                <h2>X-Board configuration</h2>
+                <fieldset id="eeprom-XBOARD-COMMON" class="eeprom-common">
+                    <legend>Common</legend>
                     <div class="controls"></div>
                 </fieldset>
-                <div id="eeprom-board">
-                    <fieldset id="eeprom-MAIN" class="tab">
-                        <legend>X-Board</legend>
-                        <div class="controls"></div>
-                    </fieldset>
-                    <fieldset id="eeprom-STEPPER" class="tab">
-                        <legend>Stepper</legend>
-                        <div class="controls"></div>
-                    </fieldset>
-                    <fieldset id="eeprom-NIKON" class="tab">
-                        <legend>Nikon</legend>
-                        <div class="controls"></div>
-                    </fieldset>
-                    <fieldset id="eeprom-MANUAL" class="tab">
-                        <legend>Manual</legend>
-                        <div class="controls"></div>
-                    </fieldset>
-                    <fieldset id="eeprom-LGHT8PWM" class="tab">
-                        <legend>Light</legend>
-                        <div class="controls"></div>
-                    </fieldset>
-    
-                </div>
+                <fieldset id="eeprom-XBOARD-MAIN" class="eeprom-board hidden-tab">
+                    <legend>Main</legend>
+                    <div class="controls"></div>
+                </fieldset>
 
+                <div class="buttons">
+                    <button onclick="eepromSetDefault('XBOARD');" title="Set default values">Default</button>
+                    <button onclick="eepromLoad('XBOARD');" title="Load values from board">Load</button>
+                    <button onclick="eepromSave('XBOARD');" title="Save values to board">Save</button>
+                </div>
             </div>
-            <div id="xboard" class="section">
-                
+
+            <div id="eeprom-ADAPTER" class="section">
+                <h2>Adapter board configuration</h2>
+                <fieldset id="eeprom-ADAPTER-COMMON" class="eeprom-common">
+                    <legend>Common</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <fieldset id="eeprom-ADAPTER-STEPPER" class="eeprom-board hidden-tab">
+                    <legend>Stepper</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <fieldset id="eeprom-ADAPTER-NIKON" class="eeprom-board hidden-tab">
+                    <legend>Nikon</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <fieldset id="eeprom-ADAPTER-MANUAL" class="eeprom-board hidden-tab">
+                    <legend>Manual</legend>
+                    <div class="controls"></div>
+                </fieldset>
+
+                <div class="buttons">
+                    <button onclick="eepromSetDefault('ADAPTER');" title="Set default values">Default</button>
+                    <button onclick="eepromLoad('ADAPTER');" title="Load values from board">Load</button>
+                    <button onclick="eepromSave('ADAPTER');" title="Save values to board">Save</button>
+                </div>
             </div>
-            <div id="adapter" class="section">
-                
+
+            <div id="eeprom-LIGHT" class="section">
+                <h2>Light board configuration</h2>
+                <fieldset id="eeprom-LIGHT-COMMON" class="eeprom-common">
+                    <legend>Common</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <fieldset id="eeprom-LIGHT-LGHT8PWM" class="eeprom-board hidden-tab">
+                    <legend>8xPWM</legend>
+                    <div class="controls"></div>
+                </fieldset>
+                <div class="buttons">
+                    <button onclick="eepromSetDefault('LIGHT');" title="Set default values">Default</button>
+                    <button onclick="eepromLoad('LIGHT');" title="Load values from board">Load</button>
+                    <button onclick="eepromSave('LIGHT');" title="Save values to board">Save</button>
+                </div>
             </div>
-            <div id="light" class="section">
-                
-            </div>
+
             <div id="obsolete" class="section">
                 <fieldset>
                     <legend>Transport</legend>
@@ -230,7 +334,7 @@
                     <button onclick="sendCommand('GET')">GET</button>
                 </fieldset>
                 <hr />
-            
+
                 <fieldset>
                     <legend>Inputs</legend>
                         <div><input type="checkbox" id="film_detected" disabled="disabled" /><label for="film_detected">Film detected</label></div>
@@ -256,9 +360,9 @@
                         <div><label>REAR<input type="number" id="counters.rear" disabled="disabled" /></label></div>
                         <div><label>WINDOW<input type="number" id="counters.window" disabled="disabled" /></label></div>
                 </fieldset>
-                <div id="info" /></div>
-                           
-    
+                <div id="info"></div>
+
+
             </div>
         </div>
         <div class="log-area" id="log"></div>
@@ -266,6 +370,17 @@
 </body>
 
 <script>
+    function do_onload() {
+        document.querySelectorAll(".toggle").forEach(element=> {
+            element.addEventListener("click", function(e) {
+                e.preventDefault();
+                const elem = this.parentNode; // nextElementSibling;
+                elem.classList.toggle("collapsed");
+            })
+        });
+
+    }
+
     function showSection(sectionId) {
         document.querySelectorAll(".section").forEach(section => {
             section.classList.remove("active");
@@ -279,10 +394,10 @@
         logArea.textContent += `[${time}] ${message}\n`;
         logArea.scrollTop = logArea.scrollHeight;
     }
-    
+
     function sendCommand(cmd) {
         console.log(`sendCommand: ${cmd}`);
-        window.socket.send(cmd);        
+        window.socket.send(cmd);
     }
 
     function prepareEepromSection(board_id, params) {
@@ -292,58 +407,189 @@
             return;
         }
         var container2 = container.querySelector("div");
-        container2.replaceChildren();        
-        params.forEach(items => {
-            if (items[0] != null) {
-                let label = document.createElement("label");
-                let id = "eeprom-"+board_id+"-"+items[0];
-                label.setAttribute("for", id);
-                label.textContent = items[0];
+        container2.replaceChildren();
+        if (params) {
+            params.forEach(items => {
+                if (items[0] != null) {
+                    let label = document.createElement("label");
+                    let id = "eeprom-"+board_id+"-"+items[0];
+                    label.setAttribute("for", id);
+                    label.textContent = items[0];
 
-                let input = document.createElement("input");
-                input.type = "text";
-                input.id = id;
-                input.name = board_id+"-"+items[0];
-                input.title = items[3];
-                if ((items.length >= 5) && (items[4].toString() != "")) {
-                    input.setAttribute("placeholder", items[4]);
-                }
-                
-                let div = document.createElement("div");
-                if (items.length >= 6) {
-                    let div1 = document.createElement("div");
-                    div1.classList.add("dropdown");
-                    div1.appendChild(input);
-                    let div2 = document.createElement("div");
-                    div2.classList.add("dropdown-content");
-                    div1.appendChild(div2);
-                    opts = items[5];
-                    if (Array.isArray(opts)) {
-                        opts.forEach(opt => {
-                            let opt_div = document.createElement("div");
-                            opt_div.classList.add("option");
-                            opt_div.setAttribute("data-value", opt);
-                            opt_div.innerHTML = `${opt}`;
-                            div2.appendChild(opt_div);
-                        });
-                    } else {
-                        Object.keys(opts).forEach(opt => {
-                            let opt_div = document.createElement("div");
-                            opt_div.classList.add("option");
-                            opt_div.setAttribute("data-value", opt);
-                            opt_div.innerHTML = opts[opt]+ ` (${opt})`;
-                            div2.appendChild(opt_div);
-                        });
+                    let input = document.createElement("input");
+                    input.type = "text";
+                    switch (items[1]) {
+                        case "string":
+                        case "STRING":
+                            input.type = "text";
+                            input.maxLength = items[2];
+                            break;
+                        case "number":
+                            input.type = "number";
+                            input.step = 1;
+                            input.min = 0;
+                            input.max = 2**(items[2]*8) - 1;
+                            break;
+                        case "int":
+                            input.type = "number";
+                            input.step = 1;
+                            input.max = 2**(items[2]*8) / 2 -1;
+                            input.min = -input.max + 2;
+                            break;
+                        default:
+                            input.type = "text";
+                        }
+                    input.setAttribute("data-type", items[1]);
+                    input.id = id;
+                    input.name = items[0];
+                    input.title = items[3];
+                    if ((items.length >= 5) && items[4] && (items[4].toString() != "")) {
+                        input.setAttribute("placeholder", items[4]);
+                        input.setAttribute("data-default", items[4]);
                     }
-                    input = div1;
-                }
-                div.appendChild(label);
-                div.appendChild(input);
 
-                container2.appendChild(div);
+                    let div = document.createElement("div");
+                    if (items.length >= 6) {
+                        let div1 = document.createElement("div");
+                        div1.classList.add("dropdown-container");
+                        div1.appendChild(input);
+                        let arrow = document.createElement("span");
+                        arrow.innerHTML = "&#9660;";
+                        arrow.classList.add("arrow");
+                        div1.appendChild(arrow);
+                        let div2 = document.createElement("div");
+                        div2.classList.add("dropdown-content");
+                        div1.appendChild(div2);
+                        opts = items[5];
+                        if (Array.isArray(opts)) {
+                            opts.forEach(opt => {
+                                let opt_div = document.createElement("div");
+                                opt_div.classList.add("option");
+                                opt_div.setAttribute("data-value", opt);
+                                opt_div.innerHTML = `${opt}`;
+                                div2.appendChild(opt_div);
+                            });
+                        } else {
+                            Object.keys(opts).forEach(opt => {
+                                let opt_div = document.createElement("div");
+                                opt_div.classList.add("option");
+                                opt_div.setAttribute("data-value", opt);
+                                opt_div.innerHTML = opts[opt]+ ` (${opt})`;
+                                div2.appendChild(opt_div);
+                            });
+                        }
+                        input = div1;
+                    }
+                    div.appendChild(label);
+                    div.appendChild(input);
+
+                    container2.appendChild(div);
+                }
+            });
+        }
+    }
+
+    function eepromSetDefault(board_type) {
+        var board_id = document.getElementById("eeprom-"+board_type+"-COMMON-adapter_id").value;
+        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".controls input");
+        inputs.forEach(input=>{
+            if (input.id.includes("-COMMON-") || input.id.includes("-"+board_id+"-")) {
+                var def = input.getAttribute("data-default");
+                if (def != null && def != input.value) {
+                    input.value = def;
+                    input.dispatchEvent(new Event("change", {bubbles: true}));
+                }
             }
         });
     }
+
+    function eepromSave(board_type) {
+        sendCommand("WRITE_EEPROM", {
+            "board_type": board_type,
+            "common": getEepromControls(board_type, "COMMON"),
+            "board": getEepromControls(board_type, document.getElementById("eeprom-"+board_type+"-COMMON-adapter_id").value),
+        });
+    }
+
+    function eepromLoad(board_type) {
+        sendCommand("READ_EEPROM", {"board_type": board_type});
+
+        var inputs = document.getElementById("eeprom-"+board_type).querySelectorAll(".controls input");
+        inputs.forEach(input=>{
+            var def = input.getAttribute("data-default");
+            if (def != null && def != input.value) {
+                input.value = def;
+                input.dispatchEvent(new Event("change", {bubbles: true}));
+            }
+        });
+    }
+
+    function getEepromControls(board_type, board_id) {
+        var data = {};
+        var container = document.getElementById("eeprom-"+board_type+"-"+board_id);
+        if (container) {
+            var inputs = container.querySelectorAll(".controls input");
+            inputs.forEach(input=>{
+                switch (input.getAttribute("data-type")) {
+                    case "int":
+                    case "number":
+                        if (input.value == "") {
+                            data[input.name] = null
+                        } else {
+                            data[input.name] = Number(input.value);
+                        }
+                        break;
+                    default:
+                        data[input.name] = input.value;
+                }
+            });
+        }
+        return data;
+    }
+
+    function updateEepromControls(board_type, board_id, data) {
+        Object.keys(data).forEach(key => {
+            var input = document.getElementById("eeprom-"+board_type+"-"+board_id+"-"+key);
+            if (!input) {
+                addLog(`Control not found: ${board_type}-${board_id}-${key}`);
+            } else {
+                if (input.value != data[key]) {
+                    input.value = data[key];
+                    input.dispatchEvent(new Event("change", {bubbles: true}));
+                }
+            }
+        });
+    }
+
+    function adjustAdapterId() {
+        BOARD_TYPES.forEach(board_type => {
+            const adapter_id = document.getElementById("eeprom-"+board_type+"-COMMON-adapter_id").value;
+            const container = document.getElementById("eeprom-"+board_type);
+            container.querySelectorAll(".eeprom-board").forEach(element=> {
+                if (element.id == "eeprom-"+board_type+"-"+adapter_id) {
+                    element.classList.remove("hidden-tab");
+                } else {
+                    element.classList.add("hidden-tab");
+                }
+            });
+        });
+    }
+
+    function adjustSelectedDropdownItem(container) {
+        var input = container.querySelector("input");
+        var options = container.querySelectorAll(".dropdown-content .option");
+        options.forEach(element=> {
+            if (element.getAttribute("data-value") === input.value) {
+                element.classList.add("selected");
+            } else {
+                element.classList.remove("selected");
+            }
+        });
+
+    }
+
+    const BOARD_TYPES = ["XBOARD", "ADAPTER", "LIGHT"]
+
     function connect() {
         if (typeof window.socket == "undefined") {
             window.socket = new WebSocket('ws://localhost:8401');
@@ -360,45 +606,168 @@
                     data = data.payload;
 
                     if (cmd == "HELLO") {
-                        sendCommand("GET_CONFIG");
+                        addLog(event.data);
+                        var cfg = document.getElementById("menu-eeprom");
+                        if (data.eeprom) {
+                            sendCommand("GET_CONFIG");
+                            cfg.classList.remove("hidden")
+                        } else {
+                            cfg.classList.add("hidden");
+                        }
 
                     } else if (cmd == "GET_CONFIG") {
-                        Object.keys(data.eeprom).forEach (board_id => {
-                            prepareEepromSection(board_id, data.eeprom[board_id]);
+                        prepareEepromSection("XBOARD-MAIN", data.eeprom["MAIN"]);
+                        data.adapter_boards.forEach(board_id => {
+                            prepareEepromSection("ADAPTER-" + board_id, data.eeprom[board_id]);
                         });
+                        data.light_boards.forEach(board_id => {
+                            prepareEepromSection("LIGHT-" + board_id, data.eeprom[board_id]);
+                        });
+                        var adapter_ids = {
+                            "XBOARD": ["MAIN"],
+                            "ADAPTER": data.adapter_boards,
+                            "LIGHT": data.light_boards,
+                        };
+                        var adapter_id_idx = -1;
+                        for (var i=0; i < data.eeprom["COMMON"].length; i++) {
+                            if (data.eeprom["COMMON"][i][0] == "adapter_id") {
+                                adapter_id_idx = i;
+                                break;
+                            }
+                        }
+                        BOARD_TYPES.forEach(board_type => {
+                            data.eeprom["COMMON"][adapter_id_idx][5] = adapter_ids[board_type];
+                            prepareEepromSection(board_type+"-COMMON", data.eeprom["COMMON"]);
+                            const el = document.getElementById("eeprom-"+board_type+"-COMMON-adapter_id");
+                            el.addEventListener("change", function(event) {
+                                adjustAdapterId();
+                            });
+                        });
+                        adjustAdapterId();
+
                         document.querySelectorAll(".controls input").forEach(el => {
                             el.onfocus = function(event) {
-                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
-                                    el2.classList.remove("dropdown-active");
+                                document.querySelectorAll(".dropdown-container").forEach(el2 => {
+                                    el2.classList.remove("dropdown-open");
                                 });
+                            };
+                            el.oninput = function(event) {
+                                var input = event.target;
+
+                                switch (input.getAttribute("data-type")) {
+                                    case "STRING":
+                                        input.value = input.value.toUpperCase();
+                                    case "string":
+                                        input.value = input.value.replace(/[^A-Z0-9_a-z]/g, "");
+                                        break;
+                                }
+                                adjustSelectedDropdownItem(input.parentNode);
                             };
                         });
 
-                        document.querySelectorAll(".dropdown input").forEach(el => {
-                            el.onfocus = function(event) {
-                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
-                                    // el2.classList.remove("dropdown-active");
+                        document.querySelectorAll(".dropdown-container .arrow").forEach(el => {
+                            el.onclick = function(event) {
+                                document.querySelectorAll(".dropdown-container").forEach(el2 => {
+                                    if (el2 != event.target.parentNode) {
+                                        el2.classList.remove("dropdown-open");
+                                    }
                                 });
-                                var dd_container = event.target.parentNode.querySelector(".dropdown-content");
-                                dd_container.classList.add("dropdown-active");
+                                adjustSelectedDropdownItem(event.target.parentNode);
+                                event.target.parentNode.classList.toggle("dropdown-open");
+                                if (event.target.parentNode.classList.contains("dropdown-open")) {
+                                    // when closing not to reopen in onfocus
+                                    event.target.parentNode.querySelector("input").focus();
+                                }
+                            };
+                        });
+
+                        document.querySelectorAll(".dropdown-container input").forEach(el => {
+                            el.onfocus = function(event) {
+                                document.querySelectorAll(".dropdown-container").forEach(el2 => {
+                                     el2.classList.remove("dropdown-open");
+                                });
+                                adjustSelectedDropdownItem(event.target.parentNode);
+                                event.target.parentNode.classList.add("dropdown-open");
                             };
                             el.addEventListener("focusout", function(event) {
-                                document.querySelectorAll(".dropdown .dropdown-content").forEach(el2 => {
-                                    //el2.classList.remove("dropdown-active");   TODO: option onclick is not triggered, currently done in onfocus of all inputs
+                                document.querySelectorAll(".dropdown-container").forEach(el2 => {
+                                    //el2.classList.remove("dropdown-open");   // TODO: option onclick is not triggered, currently done in onfocus of all inputs
                                 });
                             });
-                            /*el.oninput = function(elem) {
-
-                            };*/
+                            el.onkeydown = function(event) {
+                                var input = event.target;
+                                if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
+                                    var inc = 0;
+                                    if (!event.altKey) {
+                                        switch (event.key) {
+                                            case "ArrowDown":
+                                                inc = 1;
+                                                event.preventDefault();
+                                                break;
+                                            case "ArrowUp":
+                                                inc = -1;
+                                                event.preventDefault();
+                                                break;
+                                            case "Escape":
+                                                event.target.parentNode.classList.remove("dropdown-open");
+                                                break;
+                                        }
+                                    } else {
+                                        switch (event.key) {
+                                            case "ArrowDown":
+                                            case "ArrowUp":
+                                                input.parentNode.querySelector(".arrow").dispatchEvent(new Event("click", {bubbles: true}));
+                                                event.preventDefault();
+                                                break;
+                                        }
+                                    }
+                                    if (inc != 0) {
+                                        var selected = input.parentNode.querySelector(".option.selected");
+                                        var new_selected = null;
+                                        if (!selected) {
+                                            var opts = input.parentNode.querySelectorAll(".option");
+                                            if (opts) {
+                                                if (inc > 0) {
+                                                    new_selected = opts[0];
+                                                } else {
+                                                    new_selected = opts[opts.length - 1];
+                                                }
+                                            }
+                                        } else {
+                                            if (inc > 0) {
+                                                new_selected = selected.nextElementSibling;
+                                            } else {
+                                                new_selected = selected.previousElementSibling;
+                                            }
+                                        }
+                                        if (new_selected) {
+                                            input.value = new_selected.getAttribute("data-value");
+                                            adjustSelectedDropdownItem(input.parentNode);
+                                        }
+                                    }
+                                }
+                            }
                         });
-                        document.querySelectorAll(".dropdown .dropdown-content .option").forEach(option_el => {
+                        document.querySelectorAll(".dropdown-container .dropdown-content .option").forEach(option_el => {
                             option_el.onclick = function(event) {
-                                var opt_el = event.target;
-                                opt_el.parentNode.parentNode.querySelector("input").value = option_el.getAttribute("data-value");
-                                opt_el.parentNode.classList.remove("dropdown-active");                            
+                                const opt_el = event.target;
+                                const input = opt_el.parentNode.parentNode.querySelector("input");
+                                input.value = option_el.getAttribute("data-value");
+
+                                input.dispatchEvent(new Event("change", {bubbles: true}));
+                                opt_el.parentNode.parentNode.classList.remove("dropdown-open");
                             };
                         });
                         window.config = data;
+                    } else if (cmd == "READ_EEPROM") {
+                        if (data.board_type == "XBOARD") {
+                            board_id = "MAIN";
+                        } else {
+                            board_id = data.common.adapter_id;
+                        }
+                        updateEepromControls(data.board_type, "COMMON", data.common);
+                        updateEepromControls(data.board_type, board_id, data.board);
+                        adjustAdapterId();
                     }
                     document.getElementById("movement").value = data["movement"];
                     document.getElementById("frame_ready").checked = data["frame_ready"];
@@ -415,18 +784,21 @@
                     document.getElementById("info").innerHTML = "OK";
                 } else {
                     document.getElementById("info").innerHTML = event.data;
+                    addLog(event.data);
                 }
-
             };
 
             window.socket.onclose = function(event) {
-                if (event.wasClean) {
-                    window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                if (event.wasClean && (window.socket.readyState != window.socket.CLOSED)) {
+                    try {
+                        window.socket.send(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                    } catch(err) {
+                    }
                 } else {
                     // e.g. server process killed or network down
                     // event.code is usually 1006 in this case
                     console.log('[close] Connection died');
-                    delete window.socket;
+                    do_disconnect();
                 }
             }
 
@@ -441,14 +813,25 @@
             window.socket.send("BYE");
             window.socket.onclose = function () {};
             window.socket.close();
-            delete window.socket;
+            do_disconnect();
         }
     }
 
-    function sendCommand(cmd) {
-        if (typeof window.socket != "undefined") {
+    function sendCommand(cmd, obj) {
+        if (typeof window.socket != "undefined" && window.socket.readyState == window.socket.OPEN) {
+            if (typeof obj != "undefined") {
+                cmd = cmd + ":" + JSON.stringify(obj);
+            }
+            //update_status_info("");
+            console.log(`[send]: ${cmd}`);
             window.socket.send(cmd);
         }
     }
+
+    function do_disconnect() {
+        delete window.socket;
+    }
+
+
 </script>
 </html>

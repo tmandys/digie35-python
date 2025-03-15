@@ -277,7 +277,7 @@ class GulpBoardMemory(SerialEeprom):
         (None, "number", 2, "Magic"),
         (None, None, 6, "Reserved"),
         ("system_id", "STRING", 8, "System id", "DIGIE35"),
-        ("adapter_id", "STRING", 8, "Adapter id used to identify plugged-in adapter"),
+        ("adapter_id", "STRING", 8, "Adapter id used to identify plugged-in adapter", None, lambda: [cls.ID for cls in registered_boards]),
         ("board_id", "STRING", 8, "Board id", "GULP"),
         ("version", "number", 2, "Board version in decimal form 'xxyy' corresponding to xx.yy"), # no default value not to overwrite easily value
         ("serial_number", "number", 8, "Unique serial number"), # dtto
@@ -388,7 +388,7 @@ class GulpBoardMemory(SerialEeprom):
 class GulpAdapterMemory(GulpBoardMemory):
 
     def create_adapter_memory(self, adapter_class):
-        res = adapter_class.ADAPTER_MEMORY_CLASS(self._mainboard, self._i2c_addr, self._page_size)
+        res = adapter_class.BOARD_MEMORY_CLASS(self._mainboard, self._i2c_addr, self._page_size)
         return res
 
     def get_adapter_custom(self, adapter):
@@ -412,7 +412,7 @@ class GulpNikonStepperMotorAdapterMemory(GulpAdapterMemory):
 
 class GulpNikonStepperMotorAdapter(NikonStepperMotorAdapter):
     ID = "NIKON"
-    ADAPTER_MEMORY_CLASS = GulpNikonStepperMotorAdapterMemory
+    BOARD_MEMORY_CLASS = GulpNikonStepperMotorAdapterMemory
 
     def __init__(self, xboard):
         super().__init__(xboard)
@@ -499,7 +499,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
 
 class GulpStepperMotorAdapter(StepperMotorAdapter):
     ID = "STEPPER"
-    ADAPTER_MEMORY_CLASS = GulpStepperMotorAdapterMemory
+    BOARD_MEMORY_CLASS = GulpStepperMotorAdapterMemory
 
     #_GEAR1 = 16
     #_GEAR2 = 20
@@ -696,7 +696,7 @@ class GulpManualAdapterMemory(GulpAdapterMemory):
 
 class GulpManualAdapter(Adapter):
     ID = "MANUAL"
-    ADAPTER_MEMORY_CLASS = GulpManualAdapterMemory
+    BOARD_MEMORY_CLASS = GulpManualAdapterMemory
 
     def __init__(self, xboard):
         super().__init__(xboard)
@@ -782,7 +782,7 @@ class GulpLightAdapterMemory(GulpAdapterMemory):
 
 class GulpLightAdapter(Adapter):
     # ID = "LIGHT"
-    ADAPTER_MEMORY_CLASS = GulpLightAdapterMemory
+    BOARD_MEMORY_CLASS = GulpLightAdapterMemory
 
     def set_backlight(self, color, intensity=None):
         pass
@@ -888,19 +888,18 @@ class GulpExtensionBoardMemory(GulpBoardMemory):
 class GulpExtensionBoard(ExtensionBoardWithI2C):
     XBOARD_MEMORY_ADDR = 0b1010100 # 24LCxx EEPROM on main board
     LIGHT_NAME = "light"
+    BOARD_MEMORY_CLASS = GulpExtensionBoardMemory
+    ID = "MAIN"
 
     def __init__(self, mainboard, callback):
         # we need memory instance early during initialization
         i2c = self._get_i2c_configuration()
-        self._xboard_memory = self.get_board_momory_class()(mainboard, i2c["addr"]["main_eeprom"], i2c["eeprom_page_size"])
+        self._xboard_memory = self.BOARD_MEMORY_CLASS(mainboard, i2c["addr"]["main_eeprom"], i2c["eeprom_page_size"])
         self._aot_memory = GulpAdapterMemory(mainboard, i2c["addr"]["aot_eeprom"], i2c["eeprom_page_size"])
         self._light_memory = GulpAdapterMemory(mainboard, i2c["addr"]["light_eeprom"], i2c["eeprom_page_size"])
         self._custom_data = self._xboard_memory.read_custom()
         super().__init__(mainboard, callback)
         self._light_adapter = self.get_adapter(self.LIGHT_NAME)
-
-    def get_board_momory_class(self):
-        return GulpExtensionBoardMemory
 
     def get_xboard_class_by_version(version):
         if version == None:
@@ -1319,3 +1318,15 @@ class GulpExtensionBoard_0103(GulpExtensionBoard_0102):
         result = super().get_capabilities()
         result["aot_detection"] = True
         return result
+
+
+global registered_boards
+registered_boards = [
+    GulpExtensionBoard,
+    GulpNikonStepperMotorAdapter,
+    GulpStepperMotorAdapter,
+    GulpManualAdapter,
+    GulpLight8xPWMAdapter,
+]
+
+

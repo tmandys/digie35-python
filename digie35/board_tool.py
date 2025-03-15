@@ -45,9 +45,11 @@ def add_arg_opts(argParser, prefix, map):
         if len(item) > 5:
             opts = []
             choices = []
-            for opt in item[5]:
-                if isinstance(item[5], dict):
-                    opts.append("%s..%s" % (opt, item[5][opt]))
+            item5 = item[5]() if callable(item[5]) else item[5]
+            for opt in item5:
+
+                if isinstance(item5, dict):
+                    opts.append("%s..%s" % (opt, item5[opt]))
                 else:
                     opts.append(str(opt))
                 if item[1] in ["number", "int"]:

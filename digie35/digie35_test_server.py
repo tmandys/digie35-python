@@ -29,7 +29,7 @@ __version__ = "0.8"
 
 import sys
 import argparse
-#import yaml
+import yaml
 import logging
 import asyncio
 import websockets
@@ -37,6 +37,10 @@ import json
 import time
 import importlib
 import digie35.digie35core as digie35core
+import datetime
+
+class Digie35ServerError(Exception):
+    pass
 
 RPI_FLAG = True
 try:
@@ -45,12 +49,39 @@ except ImportError:
     RPI_FLAG = False
     print("RPi stuff not found. RPi support disabled")
 
-def get_options(header_map):
-    return header_map
-def get_board_options(board_class):
-    header_map = board_class.ADAPTER_MEMORY_CLASS.HEADER_MAP
+global digitizer
 
-    return 
+def get_board_memory_class(board_type, board_id = None, version = None):
+    if not isinstance(digitizer, digie35board.GulpExtensionBoard):
+        raise Digie35ServerError("No EEPROM on board")
+
+    if board_type == "XBOARD":
+        eeprom = digitizer._xboard_memory
+    else:
+        if board_type == "ADAPTER":
+            eeprom = digitizer._aot_memory
+        elif board_type == "LIGHT":
+            eeprom = digitizer._light_memory
+        else:
+            raise Digie35ServerError(f"Unknown board type {board_type}")
+        if board_id == None:
+            id_ver = eeprom.get_id_version()
+        else:
+            id = board_id
+            if version == None:
+                ver = 0
+            else:
+                ver = version
+            id_ver = (id, ver)
+        if id_ver == None:
+            raise Digie35ServerError("Board not specified")
+        logging.getLogger().debug("id: %s, ver: %s" % id_ver)
+        adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+        if adapter_class == None:
+            raise Digie35ServerError("Cannot find adapter '%s'" % (id_ver, ))
+        eeprom = eeprom.create_adapter_memory(adapter_class)
+    return eeprom
+
 
 WS_PROTOCOL_VERSION = "0.2"
 
@@ -70,14 +101,24 @@ async def ws_handler(websocket, path):
             try:
                 data = await websocket.recv()
                 log.debug("ws: %s", data)
-                cmds = data.split(CMD_DELIMITER)
+                l = data.split(PARAM_DELIMITER, 1)
+                commands = []
+                if len(l) > 1 and len(l[1]) > 0 and l[1][0] == "{":
+                    commands.append((l[0].upper(), json.loads(l[1]), ))
+                else:
+                    l = data.split(CMD_DELIMITER)
+                    for cmd_param in l:
+                        params = cmd_param.split(PARAM_DELIMITER)
+                        cmd = params.pop(0).upper()
+                        commands.append((cmd, params))
+
                 reply_status = False
                 reply = ""
                 reply_data = None
-                for cmd_params in cmds:
+                for cmd_params in commands:
                     log.debug("cmd: %s", cmd_params)
-                    params = cmd_params.split(PARAM_DELIMITER)
-                    cmd = params.pop(0).upper()
+                    cmd = cmd_params[0]
+                    params = cmd_params[1]
 
                     def get_param(num, default):
                         if len(params) > num and params[num].strip() != "":
@@ -132,27 +173,95 @@ async def ws_handler(websocket, path):
                         elif cmd == "GET":
                             reply_status = True
                         elif cmd == "HELLO":
-                            reply = f"%s:protocol v%s" % (digitizer.get_id(), WS_PROTOCOL_VERSION)
+                            reply = {
+                                "board": digitizer.get_id(),
+                                "version": __version__,
+                                "ws_protocol": WS_PROTOCOL_VERSION,
+                                "eeprom": isinstance(digitizer, digie35board.GulpExtensionBoard),
+                            }
                         elif cmd == "GET_CONFIG":
+                            header_map = digie35board.GulpBoardMemory.HEADER_MAP
+                            def add_options(map, id, opts):
+                                for i in range(len(map)):
+                                    if map[i][0] == id and opts:
+                                        item = list(map[i])
+                                        if len(item) <= 4:
+                                            item += [None, ]
+                                        if len(item) <= 5:
+                                            item += [None, ]
+                                        item[5] = opts
+                                        map[i] = tuple(item)
+
+                            def add_options_cfg(map, id, cfg_key):
+                                if cfg_key in config:
+                                    add_options(map, id, config[cfg_key])
+                            ts = {}
+                            t = datetime.date.today()
+                            for i in range(0, 7):
+                                t2 = t - datetime.timedelta(days=i*1)
+                                y = t2.isocalendar()[0]
+                                doy = int(t2.strftime("%j"))
+                                ts["%.2d%.3d" % (y % 100, doy)] = t2.strftime("%d.%m.%Y")
+                                #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, int(t2.strftime("%j"))))
+                            for i in range(0, 5):
+                                t2 = t - datetime.timedelta(days=i*7)
+                                y = t2.isocalendar()[0]
+                                woy = t2.isocalendar()[1]
+                                ts["%.2d%.3d" % (y % 100, woy + 900)] = "%d W:%s" % (y, woy)
+                                #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, 900+t2.isocalendar()[1]))
+
+                            add_options(header_map, "version", [i for i in range(100, 104+1)])
+                            add_options_cfg(header_map, "pcb_by", "assemblers")
+                            add_options_cfg(header_map, "pcba_smd_by", "assemblers")
+                            add_options_cfg(header_map, "pcba_tht_by", "assemblers")
+                            add_options_cfg(header_map, "tested1_by", "testers")
+                            add_options_cfg(header_map, "tested2_by", "testers")
+                            add_options(header_map, "pcb_stamp", ts)
+                            add_options(header_map, "pcba_smd_stamp", ts)
+                            add_options(header_map, "pcba_tht_stamp", ts)
+                            add_options(header_map, "tested1_stamp", ts)
+                            add_options(header_map, "tested2_stamp", ts)
+                            def process_map(map):
+                                result = []
+                                for item1 in map:
+                                    if not item1[0]:
+                                        continue
+                                    item = list(item1)
+                                    if len(item) > 5 and callable(item[5]):
+                                        item[5] = item[5]()
+                                    result.append(item)
+                                return result
+
                             reply = {
                                 "eeprom": {
-                                    "HEADER": digie35board.GulpBoardMemory.HEADER_MAP,
-                                    "MAIN": digie35board.GulpExtensionBoardMemory.CUSTOM_MAP,
-                                    digie35board.GulpNikonStepperMotorAdapter.ID: digie35board.GulpNikonStepperMotorAdapterMemory.CUSTOM_MAP,
-                                    digie35board.GulpStepperMotorAdapter.ID: digie35board.GulpStepperMotorAdapterMemory.CUSTOM_MAP,
-                                    digie35board.GulpManualAdapter.ID: digie35board.GulpManualAdapterMemory.CUSTOM_MAP,
-                                    digie35board.GulpLight8xPWMAdapter.ID: digie35board.GulpLightAdapterMemory.CUSTOM_MAP,
-                                },
-                                "adapter_boards": [
-                                    digie35board.GulpNikonStepperMotorAdapter.ID,
-                                    digie35board.GulpStepperMotorAdapter.ID,
-                                    digie35board.GulpManualAdapter.ID,
-                                ],
-                                "light_boards": [
-                                    digie35board.GulpLight8xPWMAdapter.ID,
-                                ],
+                                    "COMMON": process_map(header_map),
+                                    } | {cls.ID: process_map(cls.BOARD_MEMORY_CLASS.CUSTOM_MAP) for cls in digie35board.registered_boards},
+                                "adapter_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35core.Adapter) and not issubclass(cls, digie35board.GulpLightAdapter)],
+                                "light_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter)],
                             }
+                            for id in list(reply["eeprom"]):
+                                for i in range(len(reply["eeprom"][id])):
+                                    item = list(reply["eeprom"][id][i])
+                                    if len(item) > 5 and callable(item[5]):
+                                        item[5] = item[5]()
+                                    reply["eeprom"][id][i] = tuple(item)
                             break
+                        elif cmd == "READ_EEPROM":
+                            eeprom = get_board_memory_class(params["board_type"])
+                            reply = {
+                                "board_type": params["board_type"],
+                                "common": eeprom.read_header(),
+                                "board": eeprom.read_custom(),
+                            }
+                        elif cmd == "WRITE_EEPROM":
+                            eeprom = get_board_memory_class(params["board_type"])
+                            eeprom.write_header(params["common"])
+                            eeprom.write_custom(params["board"])
+                            reply = {
+                                "board_type": params["board_type"],
+                                "common": eeprom.read_header(),
+                                "board": eeprom.read_custom(),
+                            }
                         elif cmd == "BYE":
                             reply = ""
                             reply_status = False
@@ -161,14 +270,15 @@ async def ws_handler(websocket, path):
                             reply = f"Unknown command: {cmd}"
 
                     except Exception as e:
-                        log.error("%s", repr(e))
+                        log.error("%s", e, exc_info=True)
                         reply = repr(e)
                         break
 
                 if reply_status and reply == "":
-                    state = digitizer.get_state(True)
-                    reply = state
-                reply = json.dumps({"cmd": cmd, "payload": reply})
+                    reply = digitizer.get_state(True)
+                if isinstance(reply, (dict, list, set)):
+                    reply = json.dumps({"cmd": cmd, "payload": reply})
+                log.debug("ws.send: %s" % reply)
 
                 await websocket.send(reply)
             except websockets.exceptions.ConnectionClosedError:
@@ -241,13 +351,14 @@ def main():
     else:   # GULP
         film_xboard_class = digie35board.GulpExtensionBoard.get_xboard_class(mainboard)
 
+    global config
     if args.configFile:
         log.debug("Loading config file: %s", args.configFile)
-        cfg = yaml.load(args.configFile, Loader=yaml.CLoader)
-        log.debug("Configuration: %s", cfg)
+        config = yaml.load(args.configFile, Loader=yaml.CLoader)
+        log.debug("Configuration: %s", config)
 
-    global digitizer
     log.debug("film_xboard_class: %s", film_xboard_class.__name__)
+    global digitizer
     digitizer = film_xboard_class(mainboard, broadcast)
 
     async def ws_run():
