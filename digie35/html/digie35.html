@@ -301,10 +301,29 @@
             margin-right: 8px;
         }
 
-        .accordion .header .legend {
+        .accordion .header .title {
             flex-grow: 1;
             text-align: right;
-            padding-right: 10px;
+            padding-right: 1px;
+        }
+
+        .accordion .header .subtitle {
+            display: inline-block;  /* to accept max.width */
+            vertical-align: middle;
+            margin-left: 5px;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-style: italic;
+            border: 1px solid gray;
+            padding-left: 2px;
+            padding-right: 2px;
+            background: white;
+        }
+
+        .accordion .header .subtitle:empty {
+            display: none;
         }
 
         .accordion.closed .header .arrow {
@@ -626,7 +645,7 @@
             <div class="accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="connection-settings-modal" title="Click to show server details">&#9881</button>
-                    <span class="legend">Connection</span>
+                    <span class="title">Connection</span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="connection-fieldset">
@@ -641,7 +660,10 @@
             </div>
 
             <div class="accordion">
-                <div class="header"><span class="legend">Camera</span><span class="arrow">&#9660;</span></div>
+                <div class="header">
+                    <span class="title">Camera<span class="subtitle" id="header-camera-name"></span></span>
+                    <span class="arrow">&#9660;</span>
+                </div>
                 <fieldset id="camera-fieldset">
                     <div class="control-set">
                         <div>
@@ -660,7 +682,10 @@
             </div>
 
             <div class="accordion">
-                <div class="header"><span class="legend">Volumes</span><span class="arrow">&#9660;</span></div>
+                <div class="header">
+                    <span class="title">Volume<span class="subtitle" id="header-volume-name"></span></span>
+                    <span class="arrow">&#9660;</span>
+                </div>
                 <fieldset id="volume-fieldset">
                     <div class="control-set">
                         <div id="select-volume">
@@ -675,14 +700,16 @@
             </div>
 
             <div class="accordion">
-                <div class="header"><span class="legend">Project</span><span class="arrow">&#9660;</span></div>
+                <div class="header">
+                    <span class="title">Project<span class="subtitle" id="header-project-name"></span></span>
+                    <span class="arrow">&#9660;</span>
+                </div>
                 <fieldset id="project-fieldset">
                     <div class="control-set">
                         <select id="project-list" onchange="update_project_selection(false);adjust()">
                             <option value="" selected>select project...</option>
                         </select>
-                        <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project repository">Refresh&#x21bb;</button>
-                        <hr />
+                        <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project repository">Refresh&#x21bb;</button>                        
                         <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
                         <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
                         <div>
@@ -696,7 +723,7 @@
             <div class="accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="film-settings-modal" title="Click to show film setting">&#9881</button>
-                    <span class="legend">Film</span>
+                    <span class="title">Film<span class="subtitle" id="header-film-name"></span></span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="film-fieldset">
@@ -705,14 +732,15 @@
                             <option value="" selected>select film...</option>
                         </select>
                         <button onclick="sendCommand('GET_PROJECT', ['project_id'])" title="Reload project directory and enumerate films">Refresh&#x21bb;</button>
-                        <hr />
                         <div class="vertical-spacer">
-                            <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
-                            <button id="film_id-plus" title="Create new film id, KeyP" onclick="create_next_film_id()">+</button>
-                            <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label>
+                            <input type="text" id="film_id" class="id" placeholder="enter film id, e.g. C_001_35" maxlength="25" title="The first digit group is considered as counter and will be incremented inside mask (prefix-counter-suffix). Use enough nulls to reserve place in mask, e.g. BW_001_Agfa, C_002_Kodak, 003, ..." />
                         </div>
                         <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
-                        <div class="vertical-spacer"><span id="capture-count" title="Number of captured images in film directory"></span></div>
+                        <div class="vertical-spacer horizontal-spacer">
+                            <span><input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label></span>
+                            <button id="film_id-plus" title="Find next empty film or create new one, KeyP" onclick="create_next_film_id()">Next film</button>
+                            <span id="capture-count" title="Number of captured images in film directory"></span>
+                        </div>
                         <div class="vertical-spacer">
                             <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
                             <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
@@ -726,7 +754,7 @@
             <div class="accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="motion-settings-modal" title="Click to show motion setting">&#9881</button>
-                    <span class="legend">Motion</span>
+                    <span class="title">Motion<span class="subtitle" id="header-motion-name"></span></span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="motion-fieldset">
@@ -765,7 +793,7 @@
             <div class="accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
-                    <span class="legend">Capture</span>
+                    <span class="title">Capture</span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="capture-fieldset">
@@ -993,11 +1021,11 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Reverse sense of movement</small>
+                        <small class="hint">Reverse sense of film movement versus button control direction</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="autolead-cb" accesskey="l" >Auto <u>L</u>ead</label>
+                            <label for="autolead-cb" accesskey="l" >Auto <u>l</u>ead</label>
                             <div class="switch-container">
                                 <label class="switch">
                                     <input type="checkbox" id="autolead-cb" value="1" checked />
@@ -1021,7 +1049,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="automove-cb" accesskey="m">Auto <u>M</u>ove</label>
+                            <label for="automove-cb" accesskey="m">Auto <u>m</u>ove</label>
                             <div class="switch-container">
                                 <label class="switch">
                                     <input type="checkbox" id="automove-cb" value="1" checked />
@@ -1034,7 +1062,7 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="autocorrection-cb" accesskey="c" >Auto <u>C</u>orrection</label>
+                            <label for="autocorrection-cb" accesskey="c" >Auto <u>c</u>orrection</label>
                             <div class="switch-container">
                                 <label class="switch">
                                     <input type="checkbox" id="autocorrection-cb" value="1" />
@@ -1142,6 +1170,12 @@
             update_battery();
         }
         var abilities = (camera_list.selectedIndex > 0) && (typeof window.current_camera != "undefined");
+        var elem = document.getElementById("header-camera-name");
+        if (abilities) {
+            elem.textContent = window.current_camera.model;
+        } else {
+            elem.textContent = "";
+        }
         var usbpreview = connected && abilities && usb_preview_checkbox.checked && window.current_camera.capture_preview;
         if (usbpreview != window.current_usbpreview) {
             document.getElementById("stream").src = "http://"+window._hostname+ ":" + (usbpreview ? "8408" : "8409") + "/stream";
@@ -1160,7 +1194,9 @@
 
         var project_id = document.getElementById("project_id");
         project_id.value = project_list.value;
+        set_visible(project_id, project_id.value == "");
         project_id.readOnly = project_id.value != "";
+        document.getElementById("header-project-name").textContent = project_id.value;
 
         var project_description = document.getElementById("project_descr");
         var fl = []
@@ -1184,7 +1220,9 @@
         document.getElementById("film-fieldset").disabled = !connected || !volume || (project_id.value == "");
         var film_id = document.getElementById("film_id");
         film_id.value = film_list.value;
+        set_visible(film_id, film_id.value == "");
         film_id.readOnly = film_id.value != "";
+        document.getElementById("header-film-name").textContent = film_id.value;
 
         var film_description = document.getElementById("film_descr");
         var cnt = 0;
@@ -1219,7 +1257,7 @@
 
         document.getElementById("motion-fieldset").disabled = !connected;
         document.getElementById("capture-fieldset").disabled = !connected;
-        var elem = document.getElementById("shoot-mode-list");
+        elem = document.getElementById("shoot-mode-list");
         document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_id.value == "") || (film_id.value == "") || !volume || !abilities ||
             elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
 
@@ -1262,6 +1300,8 @@
             for (const i in arr) {
                 adjust_class("eject", arr[i], (data.action=="EJECT") && ((data.movement > 0) == (reverse(arr[i]) > 0)));
             }
+            var action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
+            document.getElementById("header-motion-name").textContent = action_elem ? action_elem.textContent : "";
             if (typeof data.capturing != "undefined") {
                 adjust_class("shoot", "", data.capturing);
             }
@@ -1382,26 +1422,31 @@
         adjust();
     }
 
-    function format_volume_info(volume) {
+    function format_volume_info(volume, verbose) {
         var a = [];
         if (volume.partlabel || volume.name) {
             a.push(volume.partlabel ? volume.partlabel : volume.name);
         }
         a.push(volume.size);
-        a.push(" used: "+volume["use%"]);
-        return a.join(": ");
+        if (verbose) {
+            a.push(" used: "+volume["use%"]);
+        }
+        return a.join("; ");
     }
 
     function update_volume_info(volume) {
         var elem = document.getElementById("volume-info");
+        var elem2 = document.getElementById("header-volume-name");
         if (volume !== false) {
-            elem.innerHTML = format_volume_info(volume);
+            elem.innerHTML = format_volume_info(volume, true);
             var low_space = Number(volume["use%"].slice(0, -1)) > 95;
             if (low_space != elem.classList.contains("warning")) {
                 elem.classList.toggle("warning");
             }
+            elem2.textContent = format_volume_info(volume, false);
         } else {
             elem.innerHTML = "";
+            elem2.textContent = "";
         }
     }
 
@@ -1690,7 +1735,7 @@
                                 var act = false;
                                 var act_id = "";
                                 data.payload.volume_list.forEach((vol)=>{
-                                    vl.push({"id": vol.name, "name": format_volume_info(vol)});
+                                    vl.push({"id": vol.name, "name": format_volume_info(vol, false)});
                                     if (vol.active) {
                                         act = vol;
                                         act_id = vol.name;

@@ -10,6 +10,9 @@ Features
   - filemask for captured file
   - GUI accordion
   - crop slider visualization
+  - settings modal dialog
+  - access key rewamping
+  - screen notification
 
 Fixes
 -----
