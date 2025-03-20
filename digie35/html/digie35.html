@@ -70,6 +70,16 @@
             display: flex;
         }
 
+        .horizontal-spacer {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .horizontal-spacer * {
+            text-align: center;
+        }
+
         .inline-container {
             position: relative;
         }
@@ -170,12 +180,22 @@
             cursor: pointer;
         }
 
+        .form-group input {
+            padding: 3px;
+            background-color: white;
+            border: 1px solid gray;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
         .modal textarea {
             width: 100%;
             resize: vertical;
             min-height: 1.5em;
             box-sizing: border-box;
             height: 20em;
+            border: 1px solid gray;
+            border-radius: 5px;
         }
 
         .form-group .hint {
@@ -253,7 +273,7 @@
             /*font-size: 16px;*/
         }
 
-        .accordion {
+        .accordion fieldset {
             border: none;
             padding: 0;
             margin: 0;
@@ -590,175 +610,192 @@
     </div>
     <div class="wrapper">
         <div class="left-sidebar" id="controls">
-            <fieldset id="connection-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header">
-                    <button id="connection-settings-button" class="modal-open" data-modal_id="connection-settings-modal" title="Click to show server details">&#9881</button>
+                    <button class="modal-open" data-modal_id="connection-settings-modal" title="Click to show server details">&#9881</button>
                     <span class="legend">Connection</span>
                     <span class="arrow">&#9660;</span>
                 </div>
-                <div class="control-set">
-                    <div class="vertical-spacer">
-                        <button onclick="connect()">Connect</button>
-                        <button onclick="disconnect()">Disconnect</button>
-                        <!-- <button id="hotplug-btn" onclick="hotplug()">Hotplug</button>&nbsp; -->
+                <fieldset id="connection-fieldset">
+                    <div class="control-set">
+                        <div class="vertical-spacer">
+                            <button onclick="connect()">Connect</button>
+                            <button onclick="disconnect()">Disconnect</button>
+                            <!-- <button id="hotplug-btn" onclick="hotplug()">Hotplug</button>&nbsp; -->
+                        </div>
                     </div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
 
-            <fieldset id="camera-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header"><span class="legend">Camera</span><span class="arrow">&#9660;</span></div>
-                <div class="control-set">
-                    <div>
-                        <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
-                            <option value="" selected disabled>select camera...</option>
-                        </select>
-                        <button onclick="sendCommand('LIST_CAMERAS')" title="Reinitialize gphoto camera list">Refresh&#x21bb;</button>
+                <fieldset id="camera-fieldset">
+                    <div class="control-set">
+                        <div>
+                            <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
+                                <option value="" selected disabled>select camera...</option>
+                            </select>
+                            <button onclick="sendCommand('LIST_CAMERAS')" title="Reinitialize gphoto camera list">Refresh&#x21bb;</button>
+                        </div>
+                        <div id="camera-info" class="vertical-spacer horizontal-spacer">
+                            <span id="battery-info" title="Battery charging level notified by camera" >Battery: <span id="battery-level" style="width: 6ch"></span></span>
+                            <span><input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label></span>
+                            <span><button class="modal-open" data-modal_id="camera-info-modal" title="Click to show camera detail">Info</button></span>
+                        </div>
                     </div>
-                    <div id="camera-info" class="vertical-spacer">
-                        <span id="battery-info" class="modal-open clickable" data-modal_id="camera-info-modal" title="Click to show camera details" >Battery: <span id="battery-level" style="width: 6ch"></span></span>&nbsp;
-                        <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label>
-                    </div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
 
-            <fieldset id="volume-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header"><span class="legend">Volumes</span><span class="arrow">&#9660;</span></div>
-                <div class="control-set">
-                    <div id="select-volume">
-                        <select id="volume-list" onchange="set_volume()">
-                            <option value="" selected>select volume...</option>
-                        </select>
-                        <button onclick="sendCommand('LIST_VOLUMES')" title="Reload volume directory">Refresh&#x21bb;</button>
+                <fieldset id="volume-fieldset">
+                    <div class="control-set">
+                        <div id="select-volume">
+                            <select id="volume-list" onchange="set_volume()">
+                                <option value="" selected>select volume...</option>
+                            </select>
+                            <button onclick="sendCommand('LIST_VOLUMES')" title="Reload volume mounting point directory">Refresh&#x21bb;</button>
+                        </div>
+                        <div id="volume-info" class="vertical-spacer"></div>
                     </div>
-                    <div id="volume-info" class="vertical-spacer"></div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
 
-            <fieldset id="project-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header"><span class="legend">Project</span><span class="arrow">&#9660;</span></div>
-                <div class="control-set">
-                    <select id="project-list" onchange="update_project_selection(false);adjust()">
-                        <option value="" selected>select project...</option>
-                    </select>
-                    <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project directory">Refresh&#x21bb;</button>
-                    <hr />
-                    <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
-                    <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
-                    <div>
-                        <button id="create-project-btn" onclick="sendCommand('CREATE_PROJECT', ['project_id', 'project_descr']);">Create</button>
-                        <button id="update-project-btn" onclick="sendCommand('UPDATE_PROJECT', ['project_id', 'project_descr']);sendCommand('LIST_PROJECTS')">Update</button>
-                        <button id="delete-project-btn" onclick="sendCommand('DELETE_PROJECT', ['project_id']);sendCommand('LIST_PROJECTS')">Delete</button>
+                <fieldset id="project-fieldset">
+                    <div class="control-set">
+                        <select id="project-list" onchange="update_project_selection(false);adjust()">
+                            <option value="" selected>select project...</option>
+                        </select>
+                        <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project repository">Refresh&#x21bb;</button>
+                        <hr />
+                        <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
+                        <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
+                        <div>
+                            <button id="create-project-btn" onclick="sendCommand('CREATE_PROJECT', ['project_id', 'project_descr']);">Create</button>
+                            <button id="update-project-btn" onclick="sendCommand('UPDATE_PROJECT', ['project_id', 'project_descr']);sendCommand('LIST_PROJECTS')">Update</button>
+                            <button id="delete-project-btn" onclick="sendCommand('DELETE_PROJECT', ['project_id']);sendCommand('LIST_PROJECTS')">Delete</button>
+                        </div>
                     </div>
-                </div>
-            </fieldset>
-
-            <fieldset id="film-fieldset" class="accordion">
+                </fieldset>
+            </div>
+            <div class="accordion">
                 <div class="header">
-                    <button id="film-settings-button" class="modal-open" data-modal_id="film-settings-modal" title="Click to show motion setting">&#9881</button>
+                    <button class="modal-open" data-modal_id="film-settings-modal" title="Click to show film setting">&#9881</button>
                     <span class="legend">Film</span>
                     <span class="arrow">&#9660;</span>
                 </div>
-                <div class="control-set">
-                    <select id="film-list" onchange="update_project_selection(true);adjust()">
-                        <option value="" selected>select film...</option>
-                    </select>
-                    <button onclick="sendCommand('GET_PROJECT', ['project_id'])" title="Reload project directory and enumerate films">Refresh&#x21bb;</button>
-                    <hr />
-                    <div class="vertical-spacer">
-                        <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
-                        <button id="film_id-plus" title="Create new film id, KeyP" onclick="create_next_film_id()">+</button>
-                        <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label>
+                <fieldset id="film-fieldset">
+                    <div class="control-set">
+                        <select id="film-list" onchange="update_project_selection(true);adjust()">
+                            <option value="" selected>select film...</option>
+                        </select>
+                        <button onclick="sendCommand('GET_PROJECT', ['project_id'])" title="Reload project directory and enumerate films">Refresh&#x21bb;</button>
+                        <hr />
+                        <div class="vertical-spacer">
+                            <input type="text" id="film_id" class="id" placeholder="enter film id..." maxlength="25" />
+                            <button id="film_id-plus" title="Create new film id, KeyP" onclick="create_next_film_id()">+</button>
+                            <input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label>
+                        </div>
+                        <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
+                        <div class="vertical-spacer"><span id="capture-count" title="Number of captured images in film directory"></span></div>
+                        <div class="vertical-spacer">
+                            <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
+                            <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
+                            <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
+                            <button class="modal-open" data-modal_id="capture-info-modal" title="Click to show file list of captured pictures">Files</button>
+                        </div>
                     </div>
-                    <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
-                    <div class="vertical-spacer"><span id="capture-count" class="clickable modal-open" data-modal_id="capture-info-modal" title="Click to show file list of captured pictures"></span></div>
-                    <div class="vertical-spacer">
-                        <button id="create-film-btn" onclick="sendCommand('CREATE_FILM', ['project_id', 'film_id', 'film_descr']);">Create</button>
-                        <button id="update-film-btn" onclick="sendCommand('UPDATE_FILM', ['project_id', 'film_id', 'film_descr']);sendCommand('GET_PROJECT', ['project_id', 'film_id'])">Update</button>
-                        <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
-                    </div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
 
-            <fieldset id="motion-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header">
-                    <button id="motion-settings-button" class="modal-open" data-modal_id="motion-settings-modal" title="Click to show motion setting">&#9881</button>
+                    <button class="modal-open" data-modal_id="motion-settings-modal" title="Click to show motion setting">&#9881</button>
                     <span class="legend">Motion</span>
                     <span class="arrow">&#9660;</span>
                 </div>
-                <div class="control-set">
-                    <div class="centered-btn vertical-spacer">
-                        <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
+                <fieldset id="motion-fieldset">
+                    <div class="control-set">
+                        <div class="centered-btn vertical-spacer">
+                            <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
+                        </div>
+                        <div class="centered-btn vertical-spacer">
+                            <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
+                            <button id="move-3b-btn" title="KeyS">&lt;&lt;&lt;</button>
+                            <button id="move-3f-btn" title="KeyK">&gt;&gt;&gt;</button>
+                            <button id="move-4f-btn" title="ArrowRight, KeyL">&gt;&gt;&gt;&gt;</button>
+                        </div>
+                        <div class="centered-btn vertical-spacer">
+                            <button id="move-2b-btn" title="Shift+ArrowLeft, KeyD">&lt;&lt;</button>
+                            <button id="move-1b-btn" title="KeyF">&lt;</button>
+                            <button id="stop-btn"    title="Esc, KeyG">STOP</button>
+                            <button id="move-1f-btn" title="KeyH">&gt;</button>
+                            <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
+                        </div>
+                        <div class="centered-btn vertical-spacer">
+                            <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
+                            <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
+                            <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
+                            <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
+                        </div>
+                        <div class="centered-btn vertical-spacer">
+                            <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
+                            <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
+                            <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
+                        </div>
                     </div>
-                    <div class="centered-btn vertical-spacer">
-                        <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
-                        <button id="move-3b-btn" title="KeyS">&lt;&lt;&lt;</button>
-                        <button id="move-3f-btn" title="KeyK">&gt;&gt;&gt;</button>
-                        <button id="move-4f-btn" title="ArrowRight, KeyL">&gt;&gt;&gt;&gt;</button>
-                    </div>
-                    <div class="centered-btn vertical-spacer">
-                        <button id="move-2b-btn" title="Shift+ArrowLeft, KeyD">&lt;&lt;</button>
-                        <button id="move-1b-btn" title="KeyF">&lt;</button>
-                        <button id="stop-btn"    title="Esc, KeyG">STOP</button>
-                        <button id="move-1f-btn" title="KeyH">&gt;</button>
-                        <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
-                    </div>
-                    <div class="centered-btn vertical-spacer">
-                        <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
-                        <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
-                        <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
-                        <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
-                    </div>
-                    <div class="centered-btn vertical-spacer">
-                        <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
-                        <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
-                        <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
-                    </div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
 
-            <fieldset id="capture-fieldset" class="accordion">
+            <div class="accordion">
                 <div class="header">
-                    <button id="capture-settings-button" class="modal-open" data-modal_id="capture-settings-modal" title="Click to show motion setting">&#9881</button>
+                    <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
                     <span class="legend">Capture</span>
                     <span class="arrow">&#9660;</span>
                 </div>
-                <div class="control-set">
-                    <div id="backlight-fieldset" class="centered-btn">
-                        <input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label>
-                        <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
-                            <option value="white" selected>White</option>
-                            <option value="red+green+blue">RGB</option>
-                            <option value="white+red+green+blue">RGBW</option>
-                            <option value="amber+white+red+green+blue">RGBAW</option>
-                            <option value="ir">IR</option>
-                            <option value="external">Manual</option>
-                        </select>
-                        <span id="backlight-color-ranges">
-                            <!-- order a-w-b-g-r is important -->
-                            <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
-                            <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
-                            <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
-                            <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
-                            <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
-                            <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
-                            <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
-                        </span>
+                <fieldset id="capture-fieldset">
+                    <div class="control-set">
+                        <div id="backlight-fieldset" class="centered-btn">
+                            <div class="horizontal-spacer">
+                                <span><input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label></span>
+                                <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
+                                    <option value="white" selected>White</option>
+                                    <option value="red+green+blue">RGB</option>
+                                    <option value="white+red+green+blue">RGBW</option>
+                                    <option value="amber+white+red+green+blue">RGBAW</option>
+                                    <option value="ir">IR</option>
+                                    <option value="external">Manual</option>
+                                </select>
+                            </div>
+                            <div id="backlight-color-ranges" class="vertical-spacer">
+                                <!-- order a-w-b-g-r is important -->
+                                <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
+                                <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
+                                <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
+                                <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
+                                <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
+                                <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
+                                <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                            </div>
+                        </div>
+                        <div class="centered-btn vertical-spacer">
+                            <input type="radio" name="capture-mode" id="capture-mode-single-rb" value="single" checked /><label for="capture-mode-single-rb" accesskey="n" title="It will capture one photo and move in case of Auto-move is set">Si<u>n</u>gle</label>
+                            <input type="radio" name="capture-mode" id="capture-mode-serial-rb" value="serial" /><label for="capture-mode-serial-rb" accesskey="s" title="It will capture when film frame is ready and is available for motorized adapters only and implies auto move"><u>S</u>erial</label>
+                            <input type="radio" name="capture-mode" id="capture-mode-multi-rb" value="multi" /><label for="capture-mode-multi-rb" accesskey="m" title="It will capture specific number of pictures. Auto move settings is essential"><u>M</u>ulti</label>
+                        </div>
+                        <div class="vertical-spacer centered-btn">
+                            <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
+                        </div>
                     </div>
-                    <div class="centered-btn vertical-spacer">
-                        <input type="radio" name="capture-mode" id="capture-mode-single-rb" value="single" checked /><label for="capture-mode-single-rb" accesskey="g" title="It will capture one photo and move in case of Auto-move is set">Sin<u>g</u>le</label>
-                        <input type="radio" name="capture-mode" id="capture-mode-serial-rb" value="serial" /><label for="capture-mode-serial-rb" accesskey="s" title="It will capture when film frame is ready and is available for motorized adapters only and implies auto move"><u>S</u>erial</label>
-                        <input type="radio" name="capture-mode" id="capture-mode-multi-rb" value="multi" /><label for="capture-mode-multi-rb" accesskey="m" title="It will capture specific number of pictures. Auto move settings is essential"><u>M</u>ulti</label>
-                    </div>
-                    <div class="vertical-spacer centered-btn">
-                        <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
-                    </div>
-                </div>
-            </fieldset>
+                </fieldset>
+            </div>
         </div>
         <div id="preview" class="preview inline-container">
             <fieldset id="preview-fieldset">
                 <legend>Preview (<span id="preview-source"></span>)</legend>
-                <div id="stream-error" class="error">Stream is not available</div>
+                <div id="stream-error" class="error-message"><span class="icon">&#x26a0;</span>Stream is not available</div>
                 <div id="stream-container" class="inline-container">
                     <div id="stream-control">
                         <input type="checkbox" id="invert-cb" value="invert" onchange="adjust_preview()" /><label for="invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
@@ -801,7 +838,7 @@
                 <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="verbose-list">Verbosity</label>
+                            <label for="verbose-list" accesskey="v"><u>V</u>erbosity</label>
                             <select id="verbose-list" name="level" style="width: 12ch" onchange="sendCommand('VERBOSE', ['verbose-list'])">
                                 <option value="0">Critical</option>
                                 <option value="1">Error</option>
@@ -812,7 +849,7 @@
                                 <option value="6">Debug 2</option>
                             </select>
                         </div>
-                        <small class="hint">Set global log verbosity</small>
+                        <small class="hint">Server side logging verbosity. It is global service settings. More verbose levels may flood the control socket</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -824,7 +861,19 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Looging output is browser console</small>
+                        <small class="hint">Redirect looging output to browser console.
+                            <ul>
+                                <li>
+                                    <b>Chrome</b>, <b>Edge</b>, <b>Firefox</b>: Press <code>F12</code> or <code>Ctrl+Shift+I</code> (Windows/Linux), <code>Cmd+Option+I</code> (MAC)
+                                </li>
+                                <li>
+                                    <b>Safari</b>: enable <i>Developer mode</i> <i>Preferences > Advanced > Show Develop menu</i> then press <code>Cmd+Option+C</code>
+                                </li>
+                                <li>
+                                    <b>Alternative method</b>:Right-click anywhere in the page, select <i>Inspect</i>, then go to the <i>Console tab</i>
+                                </li>
+                            </ul>
+                        </small>
                     </div>
 
                     <div id="remote-control">
@@ -864,7 +913,7 @@
             <div class="modal">
                 <div class="header">
                     <span class="title">
-                        Picture list
+                        List of image files
                     </span>
                     <button class="close">&times;</button>
                 </div>
@@ -888,7 +937,7 @@
                 <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="capture-file-mask">File mask</label>
+                            <label for="capture-file-mask" accesskey="m">File <u>m</u>ask</label>
                             <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="25" />
                         </div>
                         <small class="hint">File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: <code>{fname}</code>, <code>{projid}</code>, <code>{filmid}</code>. E.g. <code>{projid}_{filmid}_{fname}</code></small>
@@ -948,7 +997,7 @@
                             <label for="automove-cb" accesskey="m">Auto <u>M</u>ove</label>
                             <div class="switch-container">
                                 <label class="switch">
-                                    <input type="checkbox" id="automove-cb" value="1" checked class="hidden" />
+                                    <input type="checkbox" id="automove-cb" value="1" checked />
                                     <span class="slider round"></span>
                                 </label>
                             </div>
@@ -971,7 +1020,7 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="frame-correction">Frame correction</label>
+                            <label for="frame-correction" accesskey="f"><u>F</u>rame correction</label>
                             <input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" />mm
                         </div>
                         <small class="hint">Standard frame distance is 38mm. The value will be adjusted by this value when moving film to next frame</small>
@@ -993,14 +1042,14 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="capture-multi">Multi count</label>
+                            <label for="capture-multi" accesskey="m"><u>M</u>ulti count</label>
                             <input type="number" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" />
                         </div>
                         <small class="hint">Multiple capture with or without auto move</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="serial-shoot-delay-rng">Capture delay</label>
+                            <label for="serial-shoot-delay-rng" accesskey="c"><u>C</u>apture delay</label>
                             <span id="serial-shoot-delay">
                                 <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" />
                                 <span id="serial-shoot-delay-value" class="range-value"></span>
@@ -1010,7 +1059,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="shoot-mode-list">Shooting mode</label>
+                            <label for="shoot-mode-list" accesskey="s"><u>S</u>hooting mode</label>
                             <select id="shoot-mode-list" style="width:20ch">
                                 <option value="capture|download" selected>Download</option>
                                 <option value="capture|download+sdcard">Download+SD card</option>
@@ -1023,7 +1072,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="trigger-delay-rng">Trigger delay</label>
+                            <label for="trigger-delay-rng" accesskey="t"><u>T</u>rigger delay</label>
                             <span id="trigger-delay">
                                 <input type="range" id="trigger-delay-rng" value="1" min="1" max="20" oninput="adjust_delay_value(this)" />
                                 <span id="trigger-delay-value" class="range-value"></span>
@@ -1033,7 +1082,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="preset-list">Preset list</label>
+                            <label for="preset-list" accesskey="p"><u>P</u>reset list</label>
                             <select id="preset-list" style="width:20ch">
                                 <option value="" selected>--no XMP file--</option>
                             </select>
@@ -1135,7 +1184,7 @@
             film_description.value = "";
             capture_list.value = "";
         }
-        document.getElementById("capture-count").innerHTML = "Picture count: " + cnt;
+        document.getElementById("capture-count").innerHTML = "Image count: " + cnt;
 
         document.getElementById("create-film-btn").disabled = (project_id.value == "") || (film_id.value != "");
         document.getElementById("update-film-btn").disabled = (project_id.value == "") || (film_id.value == "");
@@ -2010,8 +2059,23 @@
             })
         });
 
+        window.access_keys = {};
+        /* get rid of accesskeys which does not work in browser as expected, they ignores unvisibility etc. */
+        document.querySelectorAll("[accesskey]").forEach(label=>{
+            const key = label.getAttribute("accesskey").toLowerCase();
+            const control = document.getElementById(label.getAttribute("for"));
+            if (control) {
+                if (!window.access_keys[key]) {
+                    window.access_keys[key] = [];
+                }
+                window.access_keys[key].push(control);
+            }
+            label.removeAttribute("accesskey");
+        });
+
         window.settings = {
-            "control.capture.mode": "capture-mode",
+            "connection.logger": "logger-cb",
+            "capture.capture.mode": "capture-mode",
             "capture.filemask": "capture-file-mask",
             "preview.rotate": "rotate",
             "preview.invert": "invert-cb",
@@ -2036,8 +2100,10 @@
 			"control.backlight.blue": "backlight-blue-rng",
 			"control.backlight.ir": "backlight-ir-rng",
 			"control.backlight.external": "backlight-external-rng",
-            "control.shoot.serial_delay": "serial-shoot-delay-rng",
-            "control.shoot.trigger_delay": "trigger-delay-rng",
+            "capture.multi": "capture-multi",
+            "capture.shoot.mode": "shoot-mode-list",
+            "capture.shoot.serial_delay": "serial-shoot-delay-rng",
+            "capture.shoot.trigger_delay": "trigger-delay-rng",
             "select.camera": "camera-list",
             "select.volume": "volume-list",
             "select.project": "project-list",
@@ -2257,7 +2323,7 @@
                     elem = elems[i];
                     elem.addEventListener("change", save_settings);
                     if (val === elem.value) {
-                        elem.checked = true
+                        elem.checked = true;
                     }
                 }
             } else {
@@ -2280,12 +2346,63 @@
         adjust_camera_list(localStorage.getItem("select.camera"));
         adjust_delay_value(document.getElementById("serial-shoot-delay-rng"));
         adjust_delay_value(document.getElementById("trigger-delay-rng"));
+        adjust_logger();
         connect();
         adjust_preview();
     }
 
     function do_onkeydown(event) {
         var shift_count = Number(event.altKey) + Number(event.metaKey) + Number(event.shiftKey) + Number(event.ctrlKey);
+        if (shift_count == 1 && event.altKey) {
+            const key = event.key.toLowerCase();
+            if (window.access_keys[key]) {
+                for (const control of window.access_keys[key]) {
+                    var visible = true;
+                    var node = control;
+                    var is_modal_control = false;
+                    while (node) {
+                        if (node === document) {
+                            break;
+                        }
+                        if (node.classList.contains("modal-container")) {
+                            is_modal_control = true;
+                        }
+                        if (control.disabled) {
+                            visible = false;
+                            break;
+                        }
+                        var style = window.getComputedStyle(node);                        
+                        if (style.display === "none") {
+                            visible = false;
+                            break;
+                        }
+                        node = node.parentNode;
+                    }
+                    if (get_modal() && !is_modal_control) {
+                        visible = false;
+                    }
+                    if (visible) {
+                        event.preventDefault();
+                        switch (control.type) {
+                            case "radio":
+                                if (!control.checked) {
+                                    control.checked = true;
+                                    control.dispatchEvent(new Event("change"));
+                                }
+                                break;
+                            case "checkbox":
+                                control.checked = !control.checked;
+                                control.dispatchEvent(new Event("change"));
+                                break;
+                            default:
+                                control.focus();                        
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+
         if (get_modal()) {
             if (shift_count == 0)
             switch (event.code) {
