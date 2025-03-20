@@ -943,7 +943,7 @@ class CameraWrapper:
             path = self._get_path(project_id)
             os.remove(self._get_descr(project_id))
             os.rmdir(path)
-            return "OK"
+            return {"status": "OK"}
         else:
             raise CameraControlError(f"Project '%s' is not empty" % project_id)
 
@@ -978,7 +978,7 @@ class CameraWrapper:
         path = self._get_path(project_id, film_id)
         os.remove(self._get_descr(project_id, film_id))
         os.rmdir(path)
-        return "OK"
+        return {"status": "OK"}
 
     def get_film(self, project_id, film_id):
         self._check_film_exists(project_id, film_id)
@@ -1292,12 +1292,12 @@ async def send(websocket, message):
 def broadcast(message):
     global last_adapter   # should be per ws_client but it is corner case
     logging.getLogger().debug("broadcast: %s", message)
+    send_flag = not ("last_adapter" in globals())
     try:
         last_adapter   # initialization pain
         last_adapter = message | last_adapter  # add missing fields
     except NameError:
         last_adapter = message
-    send_flag = not ("last_adapter" in globals())
     if message["source"] == "sleep_button":
         if (on_sleep_button()):
             send_flag = True
@@ -1337,15 +1337,14 @@ def broadcast(message):
         if not send_flag and "frame_ready" in last_adapter:  # when changing adapters
             send_flag = last_adapter["frame_ready"] != message["frame_ready"] or \
                 last_adapter["film_detected"] != message["film_detected"]
-        if "last_adapter" in globals():
-            # TODO: it may generate oscillating level, the signal should be stable for some time
-            insert_detected = (message["movement"] == 0 and \
-                # not message["film_detected"] and \
-                not last_adapter["io"]["sensor_f"] and message["io"]["sensor_f"] and \
-                message["insert_ready"])
-                #not last_adapter["io"]["sensor_r"] and not message["io"]["sensor_r"] and \
-                #not last_adapter["io"]["sensor_m"] and not message["io"]["sensor_m"])
-            send_flag |= insert_detected
+        # TODO: it may generate oscillating level, the signal should be stable for some time
+        insert_detected = (message["movement"] == 0 and \
+            # not message["film_detected"] and \
+            not last_adapter["io"]["sensor_f"] and message["io"]["sensor_f"] and \
+            message["insert_ready"])
+            #not last_adapter["io"]["sensor_r"] and not message["io"]["sensor_r"] and \
+            #not last_adapter["io"]["sensor_m"] and not message["io"]["sensor_m"])
+        send_flag |= insert_detected
 
         message2 |= {
             "film_position": message["film_position"],

@@ -591,6 +591,19 @@
             display: inline-block;
         }
 
+        .screen-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 200px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px black;
+            color: orange;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
 
         @keyframes tilt-shaking {
             0% { transform: rotate(0deg); }
@@ -943,6 +956,20 @@
                         <small class="hint">File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: <code>{fname}</code>, <code>{projid}</code>, <code>{filmid}</code>. E.g. <code>{projid}_{filmid}_{fname}</code></small>
                     </div>
                 </div>
+                <div class="content">
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="notify-film-id-cb" accesskey="n"><u>N</u>otify film</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="notify-film-id-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Notify visually user that next film id has been created. If <i>auto-Inc</i> option is enabled then id is created automatically when next film is detected in motorized adapter but it might not be reliable in case of demaged perforation or so.</small>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1093,8 +1120,8 @@
             </div>
         </div>
 
-
     </div>
+    <div id="screen-notification" class="screen-notification"></div>
 </body>
 
 <script>
@@ -1465,6 +1492,15 @@
         }, 300 );
     }
 
+    function screen_notification(text) {
+        let notification = document.getElementById("screen-notification");
+        notification.textContent = text;
+        notification.style.opacity = "1";
+        setTimeout(() => {
+            notification.style.opacity = "0";
+        }, 2000);
+    }
+
     function create_next_film_id() {
         var list = document.getElementById("film-list");
         if (list.selectedIndex > 0) {
@@ -1508,6 +1544,9 @@
         var elem = document.getElementById("film_id");
         elem.value = s;
         notify_update(elem);
+        if (document.getElementById("notify-film-id-cb").checked) {
+            screen_notification(s);
+        }
         document.getElementById("film_descr").value = "";
         document.getElementById("create-film-btn").onclick();
     }
@@ -2076,7 +2115,8 @@
         window.settings = {
             "connection.logger": "logger-cb",
             "capture.capture.mode": "capture-mode",
-            "capture.filemask": "capture-file-mask",
+            "film.filemask": "capture-file-mask",
+            "film.notify.film_id": "notify-film-id-cb",
             "preview.rotate": "rotate",
             "preview.invert": "invert-cb",
             "preview.flip": "flip-cb",
