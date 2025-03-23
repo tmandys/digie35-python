@@ -13,6 +13,7 @@ Features
   - settings modal dialog
   - access key rewamping
   - screen notification
+  - focus control vs. global hotkey
 
 Fixes
 -----

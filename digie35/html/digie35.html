@@ -508,10 +508,10 @@
         }
 
         /* indicate that hotkeys won't work when control focused. No indication in modal needed */
-        .wrapper input[type="number"]:focus, .wrapper input[type="text"]:focus, .wrapper textarea:focus, .wrapper select:focus {
+        .wrapper input[type="number"]:focus, .wrapper input[type="text"]:focus, .wrapper textarea:focus {
             outline: none !important;
             border: 2px solid #2d282f;
-            background-color: #b7f3fb;
+            background-color: #e8fbfd;
         }
 
         /*
@@ -1192,39 +1192,48 @@
             document.getElementById("camera-abilities").value = "";
         }
 
-        var project_id = document.getElementById("project_id");
-        project_id.value = project_list.value;
-        set_visible(project_id, project_id.value == "");
-        project_id.readOnly = project_id.value != "";
-        document.getElementById("header-project-name").textContent = project_id.value;
+        if (window.last_project_list_idx !== project_list.selectedIndex) {
+            window.last_project_list_idx = project_list.selectedIndex;
+            window.last_film_list_idx = null;
+            var project_id = document.getElementById("project_id");
+            project_id.value = project_list.value;
+            set_visible(project_id, project_list.value == "");
+            project_id.readOnly = project_list.value != "";
+            document.getElementById("header-project-name").textContent = project_id.value;
 
-        var project_description = document.getElementById("project_descr");
-        var fl = []
-        if (project_list.selectedIndex > 0) {
-            var custom = project_list.options[project_list.selectedIndex]._custom_data;
-            project_description.value = custom["descr"];
-            if (typeof custom["film_list"] != "undefined") {
-                fl = custom["film_list"];
+            var project_description = document.getElementById("project_descr");
+            var fl = []
+            if (project_list.selectedIndex > 0) {
+                var custom = project_list.options[project_list.selectedIndex]._custom_data;
+                project_description.value = custom["descr"];
+                if (typeof custom["film_list"] != "undefined") {
+                    fl = custom["film_list"];
+                }
+            } else {
+                project_description.value = "";
             }
-        } else {
-            project_description.value = "";
+            update_select_options("film-list", fl, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["film_ids"][project_list.value] : "");
         }
-        update_select_options("film-list", fl, "id", "id", (typeof window.current_project_selection[window.current_volume] != "undefined") ? window.current_project_selection[window.current_volume]["film_ids"][project_list.value] : "");
 
         document.getElementById("volume-fieldset").disabled = !connected;
         document.getElementById("project-fieldset").disabled = !connected || !volume;
-        document.getElementById("create-project-btn").disabled = project_id.value != "";
+        document.getElementById("create-project-btn").disabled = project_list.value != "";
         document.getElementById("update-project-btn").disabled = !document.getElementById("create-project-btn").disabled;
         document.getElementById("delete-project-btn").disabled = document.getElementById("update-project-btn").disabled || (film_list.length > 1);
 
-        document.getElementById("film-fieldset").disabled = !connected || !volume || (project_id.value == "");
-        var film_id = document.getElementById("film_id");
-        film_id.value = film_list.value;
-        set_visible(film_id, film_id.value == "");
-        film_id.readOnly = film_id.value != "";
-        document.getElementById("header-film-name").textContent = film_id.value;
+        document.getElementById("film-fieldset").disabled = !connected || !volume || (project_list.value == "");
 
-        var film_description = document.getElementById("film_descr");
+        if (window.last_film_list_idx !== film_list.selectedIndex) {
+            window.last_film_list_idx = film_list.selectedIndex;
+
+            var film_id = document.getElementById("film_id");
+            film_id.value = film_list.value;
+            set_visible(film_id, film_id.value == "");
+            film_id.readOnly = film_id.value != "";
+            document.getElementById("header-film-name").textContent = film_id.value;
+            document.getElementById("film_descr").value =
+                film_list.selectedIndex > 0 ? film_list.options[film_list.selectedIndex]._custom_data["descr"] : "";
+        }
         var cnt = 0;
         var capture_list = document.getElementById("capture-list");
 
@@ -1237,7 +1246,6 @@
 
         if (film_list.selectedIndex > 0) {
             var custom = film_list.options[film_list.selectedIndex]._custom_data;
-            film_description.value = custom["descr"];
             cnt = custom["captured"].length;
             var f = [];
             for (const i in custom["captured"]) {
@@ -1246,19 +1254,18 @@
             }
             capture_list.value = f.join("\n");
         } else {
-            film_description.value = "";
             capture_list.value = "";
         }
         document.getElementById("capture-count").innerHTML = "Image count: " + cnt;
 
-        document.getElementById("create-film-btn").disabled = (project_id.value == "") || (film_id.value != "");
-        document.getElementById("update-film-btn").disabled = (project_id.value == "") || (film_id.value == "");
+        document.getElementById("create-film-btn").disabled = (project_list.value == "") || (film_list.value != "");
+        document.getElementById("update-film-btn").disabled = (project_list.value == "") || (film_list.value == "");
         document.getElementById("delete-film-btn").disabled = document.getElementById("update-film-btn").disabled || (cnt >0);
 
         document.getElementById("motion-fieldset").disabled = !connected;
         document.getElementById("capture-fieldset").disabled = !connected;
         elem = document.getElementById("shoot-mode-list");
-        document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_id.value == "") || (film_id.value == "") || !volume || !abilities ||
+        document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
             elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
 
     }
@@ -1805,6 +1812,7 @@
                                     } else if (data.payload.film_list) {
                                         project_list.options[project_list.selectedIndex]._custom_data.film_list = data.payload.film_list;
                                     }
+                                    window.last_project_list_idx = null;
                                 }
                             } else if (data.cmd == "CAPTURE") {
                                 picture_taken(data.payload);
@@ -2034,31 +2042,6 @@
         console.log(`[onresize]: scale: ${scale}`);
 	}
 
-    function do_onfocusin(event) {
-        if (get_modal()) {
-            return;
-        }
-        switch (event.target.tagName) {
-            case "INPUT":
-                if (event.target.type == "checkbox") {
-                    break;
-                }
-            case "TEXTAREA":
-            case "SELECT":
-                // somohow indicate that keyboard hotkeys are not working
-                adjust_adapter_button_style(false);
-                break;
-        }
-    }
-
-    function do_onfocusout(event) {
-        if (get_modal()) {
-            return;
-        }
-        // keyboards shortcuts working
-        adjust_adapter_button_style(true);
-    }
-
     function adjust_adapter_button_style(hotkeys) {
         function adj_button(btn) {
             if (hotkeys != btn.classList.contains("hotkey-enabled")) {
@@ -2094,6 +2077,18 @@
         return document.querySelector(".modal-active");
     }
 
+    function reset_input_blur_timer(input_elem) {
+        if (typeof window.input_blur_timer != "undefined") {
+            clearTimeout(window.input_blur_timer);
+            delete window.input_blur_timer;
+        }
+        if (input_elem) {
+            window.input_blur_timer = setTimeout(() => {
+                input_elem.blur();
+            }, 3000);
+        }
+    }
+
     function do_onload() {
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
@@ -2105,9 +2100,9 @@
             }
         }
         window.stop_multicapture = false;
+        window.last_project_list_idx = null;
+        window.last_film_list_idx = null;
 		do_onresize(undefined);
-        document.addEventListener("focusin", do_onfocusin);
-        document.addEventListener("focusout", do_onfocusout);
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", function() {
                 var elem = document.getElementById(this.getAttribute("data-container_id"));
@@ -2155,6 +2150,54 @@
                 window.access_keys[key].push(control);
             }
             label.removeAttribute("accesskey");
+        });
+
+        /* global vs. focused control key override */
+        document.querySelectorAll('.wrapper input[type="range"], .wrapper input[type="radio"], .wrapper select, .wrapper button').forEach(elem=> {
+            elem.addEventListener('keydown', (event) => {
+                if (!get_modal()) {
+                    switch (event.code) {
+                        case "Escape":
+                        case "Enter":   // for BUTTON
+                        case "ArrowRight":
+                        case "ArrowLeft":
+                        case "Home":
+                        case "End":
+                            event.preventDefault();
+                            return;
+                    }
+                    if (event.target.nodeName == "SELECT") {
+                        if (event.key.length == 1 && event.key.match(/[a-zA-Z0-9,\.]/)) {
+                            event.preventDefault();
+                            return;
+                        }
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('.wrapper input[type="text"], .wrapper input[type="number"], .wrapper textarea').forEach(elem=> {
+            elem.addEventListener('focusin', (event) => {
+                if (get_modal()) {
+                    return;
+                }
+                // somohow indicate that keyboard hotkeys are not working
+                adjust_adapter_button_style(false);
+                reset_input_blur_timer(event.target);
+            });
+            elem.addEventListener('focusout', () => {
+                if (get_modal()) {
+                    return;
+                }
+                // keyboards shortcuts working
+                reset_input_blur_timer(null);
+                adjust_adapter_button_style(true);
+            });
+
+            elem.addEventListener('keydown', (event) => {
+                reset_input_blur_timer(event.target);
+                event.stopPropagation();
+            });
         });
 
         window.settings = {
@@ -2497,136 +2540,115 @@
             }
             return;
         }
-        const elem = document.activeElement;
-        switch (elem.tagName) {
-        case "INPUT":
-            if (elem.type != "checkbox") {
+        var btn = "";
+        if (shift_count == 0) {
+            switch (event.code) {
+            case "Escape":
+            case "KeyG":
+                btn = "stop";
+                break;
+            case "ArrowRight":
+            case "KeyL":
+                btn = "move-4f";
+                break;
+            case "KeyK":
+                btn = "move-3f";
+                break;
+            case "KeyJ":
+                btn = "move-2f";
+                break;
+            case "KeyH":
+                btn = "move-1f";
+                break;
+            case "KeyF":
+                btn = "move-1b";
+                break;
+            case "KeyD":
+                btn = "move-2b";
+                break;
+            case "KeyS":
+                btn = "move-3b";
+                break;
+            case "ArrowLeft":
+            case "KeyA":
+                btn = "move-4b";
+                break;
+            case "Backspace":
+            case "Insert":
+            case "KeyI":
+                btn = "insert";
+                break;
+            case "Home":
+            case "KeyW":
+                btn = "eject-1f";
+                break;
+            case "End":
+            case "KeyQ":
+                btn = "eject-1b";
+                break;
+            case "Comma":
+                btn = "frame-1b";
+                break;
+            case "Period":
+                btn = "frame-1f";
+                break;
+            case "Numpad0":
+            case "KeyX":
+                btn = "shoot";
+                break;
+            case "KeyB":
+                var cb_elem = document.getElementById("backlight-cb");
+                cb_elem.checked = !cb_elem.checked;
+                if (!cb_elem.disabled) {
+                    cb_elem.onchange();
+                }
+                break;
+            case "KeyP":
+                document.getElementById("film_id-plus").click();
                 break;
             }
-        case "BUTTON":
-        case "BODY":
-
-            var btn = "";
-            if (shift_count == 0) {
-                switch (event.code) {
-                case "Escape":
-                case "KeyG":
-                    btn = "stop";
-                    break;
-                /*case "Space":
-                    if (elem.tagName != "BUTTON") {
-                        btn = "stop";
-                    }
-                    break; */
-                case "ArrowRight":
-                case "KeyL":
-                    btn = "move-4f";
-                    break;
-                case "KeyK":
-                    btn = "move-3f";
-                    break;
-                case "KeyJ":
-                    btn = "move-2f";
-                    break;
-                case "KeyH":
-                    btn = "move-1f";
-                    break;
-                case "KeyF":
-                    btn = "move-1b";
-                    break;
-                case "KeyD":
-                    btn = "move-2b";
-                    break;
-                case "KeyS":
-                    btn = "move-3b";
-                    break;
-                case "ArrowLeft":
-                case "KeyA":
-                    btn = "move-4b";
-                    break;
-                case "Backspace":
-                case "Insert":
-                case "KeyI":
-                    btn = "insert";
-                    break;
-                case "Home":
-                case "KeyW":
-                    btn = "eject-1f";
-                    break;
-                case "End":
-                case "KeyQ":
-                    btn = "eject-1b";
-                    break;
-                case "Comma":
-                    btn = "frame-1b";
-                    break;
-                case "Period":
+        } else if (shift_count == 1) {
+            switch (event.code) {
+            case "ArrowRight":
+                if (event.ctrlKey) {
                     btn = "frame-1f";
-                    break;
-                case "Numpad0":
-                case "KeyX":
-                    btn = "shoot";
-                    break;
-                case "KeyB":
-                    var cb_elem = document.getElementById("backlight-cb");
-                    cb_elem.checked = !cb_elem.checked;
-                    if (!cb_elem.disabled) {
-                        cb_elem.onchange();
-                    }
-                    break;
-                case "KeyP":
-                    document.getElementById("film_id-plus").click();
-                    break;
-                /*case "Enter":   // enter is too dangerous common key
-                    if (elem.tagName != "BUTTON") {
-                        btn = "shoot";
-                    }
-                    break;*/
+                } else if (event.shiftKey) {
+                    btn = "move-2f";
                 }
-            } else if (shift_count == 1) {
-                switch (event.code) {
-                case "ArrowRight":
-                    if (event.ctrlKey) {
-                        btn = "frame-1f";
-                    } else if (event.shiftKey) {
-                        btn = "move-2f";
-                    }
-                    break;
-                case "ArrowLeft":
-                    if (event.ctrlKey) {
-                        btn = "frame-1b";
-                    } else if (event.shiftKey) {
-                        btn = "move-2b";
-                    }
-                    break;
+                break;
+            case "ArrowLeft":
+                if (event.ctrlKey) {
+                    btn = "frame-1b";
+                } else if (event.shiftKey) {
+                    btn = "move-2b";
                 }
-            } else if (shift_count == 2) {
-                switch (event.code) {
-                case "ArrowRight":
-                    if (event.ctrlKey && event.shiftKey) {
-                        btn = "moveby-1f";
-                    }
-                    break;
-                case "ArrowLeft":
+                break;
+            }
+        } else if (shift_count == 2) {
+            switch (event.code) {
+            case "ArrowRight":
                 if (event.ctrlKey && event.shiftKey) {
-                        btn = "moveby-1b";
-                    }
-                    break;
+                    btn = "moveby-1f";
                 }
-            }
-            if (btn != "") {
-                if (event.repeat == false) {
-                    if (document.getElementById("sticky-cb").checked && (btn.indexOf("move-") == 0)) {
-                        window.sticky_key = event.code;
-                        delete window.sticky_mouse;
-                        delete window.sticky_touch;
-                    }
-                    document.getElementById(btn+"-btn").click();
+                break;
+            case "ArrowLeft":
+            if (event.ctrlKey && event.shiftKey) {
+                    btn = "moveby-1b";
                 }
-                event = event || window.event;
-                consume_event_propagation(event);    // to consume event to avoid page scroll
+                break;
             }
-            break;
+        }
+        if (btn != "") {
+            if (event.repeat == false) {
+                if (document.getElementById("sticky-cb").checked && (btn.indexOf("move-") == 0)) {
+                    window.sticky_key = event.code;
+                    delete window.sticky_mouse;
+                    delete window.sticky_touch;
+                }
+                document.getElementById(btn+"-btn").click();
+            }
+            event = event || window.event;
+            consume_event_propagation(event);    // to consume event to avoid page scroll
         }
         // console.log("[keydown]: "+JSON.stringify(event));
         // console.log("[keydown]: "+event.type+ "/"+elem.tagName);
@@ -2747,6 +2769,7 @@
         if (film_update) {
             rec["film_ids"][rec["project_id"]] = document.getElementById("film-list").value;
         }
+        window.last_project_list_idx = null;
         window.current_project_selection[window.current_volume] = rec;
         localStorage.setItem("current_project_selection", JSON.stringify(window.current_project_selection));
     }
