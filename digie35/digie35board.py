@@ -842,7 +842,7 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
         pwm = [0, 0, 0, 0, 0, 0, 0, 0]
         if color == None:
             pass
-        if color == "white":
+        elif color == "white":
             pwm[1] = intensity
         elif color == "ir":
             pwm[2] = intensity

@@ -979,7 +979,7 @@
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="capture-file-mask" accesskey="m">File <u>m</u>ask</label>
-                            <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="25" />
+                            <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="50" />
                         </div>
                         <small class="hint">File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: <code>{fname}</code>, <code>{projid}</code>, <code>{filmid}</code>. E.g. <code>{projid}_{filmid}_{fname}</code></small>
                     </div>
@@ -1316,7 +1316,7 @@
         }
     }
 
-    function adjust_capabilities() {
+    function adjust_capabilities(send_backlight_cmd) {
         var elem = document.getElementById("motion-fieldset");
         set_visible(elem, window.capabilities.motorized);
         elem = document.getElementById("backlight-fieldset");
@@ -1358,7 +1358,7 @@
         if (change_value) {
             elem.value = enabled_value;
         }
-        adjust_backlight(true);
+        adjust_backlight(true, send_backlight_cmd);
 
         elem = document.getElementById("capture-mode-serial-rb");
         elem.disabled = !window.capabilities.motorized;
@@ -1701,7 +1701,7 @@
                                 // hotplug
                                 window.steps_per_mm = data.payload.steps_per_mm;
                                 window.capabilities = data.payload.capabilities;
-                                adjust_capabilities()
+                                adjust_capabilities(false)
                             }
                             adjust_adapter(data.payload);
                             if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
@@ -1796,7 +1796,7 @@
                                 window.current_camera = data.payload;
                                 document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
                                 update_battery(data.payload.battery);
-                                adjust_capabilities();
+                                adjust_capabilities(false);
                                 adjust_camera_preview(false)
                             } else if (data.cmd == "GET_PROJECT") {
                                 var project_list = document.getElementById("project-list");
@@ -1849,7 +1849,7 @@
                                 if (data.payload.client_count > 1) {
                                     window.save_usb_preview = data.payload.usbpreview;
                                 }
-                                adjust_capabilities()
+                                adjust_capabilities(data.payload.client_count == 1)
                                 if (typeof data.payload.volume_list == "undefined") {
                                     set_visible(document.getElementById("select-volume"), false);
                                     window.current_volume = true
@@ -1866,10 +1866,8 @@
                                 elem.innerHTML = "";
                                 if (is_lan_control) {
                                     var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
+ 
                                 }
-
-                                adjust_backlight();
-
                                 sendCommand("LIST_CAMERAS");
                                 if (window.current_volume) {
                                     sendCommand("LIST_PROJECTS");
