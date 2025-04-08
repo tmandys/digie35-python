@@ -14,12 +14,14 @@ Features
   - access key rewamping
   - screen notification
   - focus control vs. global hotkey
+  - backlight notification when more clients connected
 
 Fixes
 -----
   - digie35_server service is frozen during boot and shutdown helper start because of missing PATH
   - USB Preview revert to last state after camera reveals
   - stop multi/serial picture when a movement key is pressed
+  - CLI verbosity for server
 
 v0.7 (2025-01-21)
 =================

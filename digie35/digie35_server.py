@@ -1374,7 +1374,7 @@ def broadcast(message):
                 send_thread.join()
         else:
             # asyncio.run(send(websocket, {"cmd": "ADAPTER", "payload": message2}))
-            run_send(websocket, {"cmd": "ADAPTER", "payload": msg_cmd})
+            run_send(websocket, msg_cmd)
 
 global ws_logger_clients
 ws_logger_clients = set()
