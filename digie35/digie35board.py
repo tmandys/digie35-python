@@ -595,6 +595,10 @@ class GulpStepperMotorAdapter(StepperMotorAdapter):
                     time.sleep(self._motor_job.interval.total_seconds())
             # now we can smoothly switch of current
             self._xboard.set_io_state("stepper_sleep", True)
+            # a pause to allow motor stabilize, when microstepping there is movement between poles when switched off
+            # there might be picture shift because of e-shutter. Maybe also inertia has a role
+            time.sleep(0.15)
+            # logging.getLogger().debug("STEPPER: motor decayed")
 
     def _do_step_impl(self):
         #logging.getLogger().debug("do step")
