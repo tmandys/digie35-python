@@ -1354,26 +1354,27 @@ def broadcast(message):
     last_adapter = message
     if not send_flag:
         return
-    logging.getLogger().debug("broadcast: %s", message2)
+    logging.getLogger().debug("broadcast2: %s", message2)
 
     # eg. set_backlight triggers broadcast when is in running loop
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:  # 'RuntimeError: There is no current event loop...'
         loop = None
+    msg_cmd = {"cmd": "ADAPTER", "payload": message2}
     for websocket in ws_control_clients.copy():
         if loop and loop.is_running():
                 logging.getLogger().debug("starting broadcast thread for: %s", message2)
                 send_thread = Thread(target=run_send, kwargs={
                     "websocket": websocket,
-                    "message": message2,
+                    "message": msg_cmd,
                     })   # to avoid running event loop error, async/await pain
                 send_thread.name = "broadcast_notify"
                 send_thread.start()
                 send_thread.join()
         else:
             # asyncio.run(send(websocket, {"cmd": "ADAPTER", "payload": message2}))
-            run_send(websocket, {"cmd": "ADAPTER", "payload": message2})
+            run_send(websocket, {"cmd": "ADAPTER", "payload": msg_cmd})
 
 global ws_logger_clients
 ws_logger_clients = set()

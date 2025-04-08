@@ -1696,24 +1696,26 @@
                         if (typeof data.payload.verbosity != "undefined") {
                             document.getElementById("verbose-list").value = data.payload.verbosity;
                         }
-                        if (data.cmd == "ADAPTER") {
-                            if (typeof data.payload.capabilities != "undefined") {
-                                // hotplug
-                                window.steps_per_mm = data.payload.steps_per_mm;
-                                window.capabilities = data.payload.capabilities;
-                                adjust_capabilities(false)
-                            }
-                            adjust_adapter(data.payload);
-                            if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
-                                if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
-                                    window.adapter_buttons.insert.action(undefined);
+                        if (data.cmd == "ADAPTER" || data.cmd == "GET") {
+                            if (data.cmd == "ADAPTER") {
+                                if (typeof data.payload.capabilities != "undefined") {
+                                    // hotplug
+                                    window.steps_per_mm = data.payload.steps_per_mm;
+                                    window.capabilities = data.payload.capabilities;
+                                    adjust_capabilities(false)
                                 }
-                                if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
-                                    if (data.payload.frame_ready) {
-                                        window.automove_in_progress = false;
-                                        check_multicapture();
-                                    } else {
-                                        delete window.automove_in_progress;
+                                adjust_adapter(data.payload);
+                                if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
+                                    if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
+                                        window.adapter_buttons.insert.action(undefined);
+                                    }
+                                    if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
+                                        if (data.payload.frame_ready) {
+                                            window.automove_in_progress = false;
+                                            check_multicapture();
+                                        } else {
+                                            delete window.automove_in_progress;
+                                        }
                                     }
                                 }
                             }
@@ -1871,6 +1873,9 @@
                                 sendCommand("LIST_CAMERAS");
                                 if (window.current_volume) {
                                     sendCommand("LIST_PROJECTS");
+                                }
+                                if (data.payload.client_count > 1) {
+                                    sendCommand("GET");
                                 }
                                 document.onkeydown = do_onkeydown;
                                 document.onkeyup = do_onkeyup;
@@ -2218,7 +2223,7 @@
             "control.preset": "preset-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
-			//"control.backlight": "backlight-cb",    do not affect when multi client
+			"control.backlight": "backlight-cb",
 			"control.backlight.color": "backlight-color-list",
 			"control.backlight.white": "backlight-white-rng",
 			"control.backlight.red": "backlight-red-rng",
