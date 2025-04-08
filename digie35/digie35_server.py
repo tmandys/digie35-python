@@ -1547,7 +1547,7 @@ def main():
     argParser.add_argument("-s", "--shutdown", choices=["OFF", "ON", "HELPER"], type=str.upper, default="OFF", help=f"Shutdown when side button is pressed between {SLEEP_INTERVAL[1]}-{SLEEP_INTERVAL[2]} secs, ON..quietly via 'shutdown', HELPER..via GUI '{SHUTDOWN_HELPER}', default: %(default)s")
     argParser.add_argument("--system-power-button", dest="system_power_button", action="store_true", help="Do not block system RPI 5 power button handler")
     argParser.add_argument("-m", "--mainboard", choices=["GPIOZERO", "RPIGPIO", "SIMULATOR",], type=str.upper, default="GPIOZERO", help=f"Mainboard library name, default: %(default)s")
-    argParser.add_argument("-v", "--verbose", action="count", default=2, help="verbose output")
+    argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("--logger-port", dest="wsLoggerPort", metavar="PORT", type=int, default=8401, help=f"Websocket logger listener port, when 0 then disable logger, default: %(default)s")
     argParser.add_argument("-g", "--gphoto2-logging", dest="gp_log", action="store_true", help="gphoto2 library logging")
     argParser.add_argument("--version", action="version", version=f"%s" % VERSION_INFO)
@@ -1558,7 +1558,8 @@ def main():
         logging.basicConfig(filename=args.logFile, format=LOGGING_FORMAT)
     else:
         logging.basicConfig(format=LOGGING_FORMAT)
-
+    if not args.verbose:  # when specified action="count" then default > 0 is useless
+        args.verbose = 2
     global logger_helper
     logger_helper = LoggerHelper()
     logger_helper.setLevel(args.verbose-1)
