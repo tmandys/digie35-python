@@ -15,6 +15,7 @@ Features
   - screen notification
   - focus control vs. global hotkey
   - backlight notification when more clients connected
+  - image filename notification
 
 Fixes
 -----

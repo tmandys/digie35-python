@@ -611,6 +611,7 @@
         }
 
         .screen-notification {
+            max-width: 100vw;
             position: fixed;
             top: 50%;
             left: 50%;
@@ -760,7 +761,7 @@
                 <fieldset id="motion-fieldset">
                     <div class="control-set">
                         <div class="centered-btn vertical-spacer">
-                            <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" />mm</label>
+                            <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" /><input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Standard frame distance is 38mm. The value will be adjusted by this value when moving film to next frame"/>mm</label>        
                         </div>
                         <div class="centered-btn vertical-spacer">
                             <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
@@ -801,14 +802,6 @@
                         <div id="backlight-fieldset" class="centered-btn">
                             <div class="horizontal-spacer">
                                 <span><input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label></span>
-                                <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
-                                    <option value="white" selected>White</option>
-                                    <option value="red+green+blue">RGB</option>
-                                    <option value="white+red+green+blue">RGBW</option>
-                                    <option value="amber+white+red+green+blue">RGBAW</option>
-                                    <option value="ir">IR</option>
-                                    <option value="external">Manual</option>
-                                </select>
                             </div>
                             <div id="backlight-color-ranges" class="vertical-spacer">
                                 <!-- order a-w-b-g-r is important -->
@@ -998,6 +991,20 @@
                         <small class="hint">Notify visually user that next film id has been created. If <i>auto-Inc</i> option is enabled then id is created automatically when next film is detected in motorized adapter but it might not be reliable in case of demaged perforation or so.</small>
                     </div>
                 </div>
+                <div class="content">
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="notify-image-filename-cb" accesskey="i">Notify <u>i</u>mage filename</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="notify-image-filename-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Notify visually image file name when being downloaded from camera.</small>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1072,15 +1079,6 @@
                         </div>
                         <small class="hint">Set <i>Frame correction</i> from consequent capture positions</small>
                     </div>
-
-                    <div class="form-group vertical-spacer">
-                        <div class="input-row">
-                            <label for="frame-correction" accesskey="f"><u>F</u>rame correction</label>
-                            <input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" />mm
-                        </div>
-                        <small class="hint">Standard frame distance is 38mm. The value will be adjusted by this value when moving film to next frame</small>
-                    </div>
-
                 </div>
             </div>
         </div>
@@ -1094,6 +1092,21 @@
                     <button class="close">&times;</button>
                 </div>
                 <div class="content">
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="backlight-color-list" accesskey="l"><u>L</u>ED colors</label>
+                            <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
+                                <option value="white" selected>White</option>
+                                <option value="red+green+blue">RGB</option>
+                                <option value="white+red+green+blue">RGBW</option>
+                                <option value="amber+white+red+green+blue">RGBAW</option>
+                                <option value="ir">IR</option>
+                                <option value="external">Manual</option>
+                            </select>
+                        </div>
+                        <small class="hint">Set backlight LED set to illuminate film. Each color intensity can be adjusted individually. In case of color negative orange mask can be masked off.</small>
+                    </div>
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1546,6 +1559,8 @@
 
     function screen_notification(text) {
         let notification = document.getElementById("screen-notification");
+        // change font size to fit, simple algorithm
+        notification.style.fontSize = (text.length > 10) ? "50px" : "";
         notification.textContent = text;
         notification.style.opacity = "1";
         setTimeout(() => {
@@ -1823,6 +1838,9 @@
 
                             } else if (data.cmd == "DOWNLOAD") {
                                 file_transfer_finished(data.payload);
+                                if (document.getElementById("notify-image-filename-cb").checked) {
+                                    screen_notification(data.payload.file_path.replace(/^.*[\\/]/, ''));
+                                }
                                 window.download_in_progress = false;
                                 check_multicapture();
 
@@ -2209,6 +2227,7 @@
             "capture.capture.mode": "capture-mode",
             "film.filemask": "capture-file-mask",
             "film.notify.film_id": "notify-film-id-cb",
+            "film.notify.filename": "notify-image-filename-cb",
             "preview.rotate": "rotate",
             "preview.invert": "invert-cb",
             "preview.flip": "flip-cb",
