@@ -1171,7 +1171,7 @@ async def ws_control_handler(websocket, path):
 
                     elif cmd == "SET_BACKLIGHT":
                         digitizer.set_backlight(**params)
-                        status = digitizer.get_state()
+                        reply_status = True
                     elif cmd == "LEVEL":
                         digitizer.set_io_state(**params)
                         reply_status = True
@@ -1306,6 +1306,7 @@ def broadcast(message):
                 del message["backlight"]["intensity"]
     if message["source"] == "backlight":
         send_flag |= True
+        message["action"] = "BACKLIGHT"
     if not "action" in message:
         message["action"] = ""
     if not "movement" in message:

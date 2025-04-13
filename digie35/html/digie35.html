@@ -2105,6 +2105,7 @@
         window.stop_multicapture = false;
         window.last_project_list_idx = null;
         window.last_film_list_idx = null;
+        window.last_backlight = null;
 		do_onresize(undefined);
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", function() {
@@ -2752,10 +2753,18 @@
             }
         }
         if (send_cmd) {
-            if (is_on && val > 0) {
-                sendCommand2("SET_BACKLIGHT", {"color": color, "intensity": val});
-            } else {
-                sendCommand2("SET_BACKLIGHT");
+            var bck = `${is_on}`;
+            if (is_on) {
+                bck += `:${val}`;
+            }
+            if (window.last_backlight !== bck) {
+                // avoid flooding when switched off and miving slidebar
+                window.last_backlight = bck;
+                if (is_on) {
+                    sendCommand2("SET_BACKLIGHT", {"color": color, "intensity": val});
+                } else {
+                    sendCommand2("SET_BACKLIGHT");
+                }
             }
         }
 	}

@@ -135,6 +135,7 @@ class ExtensionBoard:
         self._current_backlight_color = None
         self._merge_io_configuration()
         self._initialize_io_map(False)
+        self._pending_notification = Event()
 
         self.check_connected_adapter()
         self.reset()
@@ -367,11 +368,34 @@ class ExtensionBoard:
             self.get_adapter(adapter_type).on_gpio_change(source)
         self._call_notify_callback(source)
 
-    def _call_notify_callback(self, source):
+    def _do_pending_notification(self, source, postpone_interval):
+        self._pending_notification.wait(timeout=postpone_interval)
+        # logging.getLogger().debug("Pending notification: %s" % (source))
+        self._notify_callback({"source": source} | self.get_state())
+
+    def _call_notify_callback(self, source, new_thread = False, postpone_interval = 0):
         if not self._initialized:
             return
         if self._notify_callback != None:
-            self._notify_callback({"source": source} | self.get_state())
+            # avoid notification flooding (e.g. backlight slidebar) so postpone callback call on demand
+            if hasattr(self, "_notify_thread") and self._notify_thread.is_alive():
+                # logging.getLogger().debug("Check pending: %s vs. %s" % (source, self._pending_source))
+                if source != self._pending_source:
+                    # call pending event immediately
+                    self._pending_notification.set()
+                    self._notify_thread.join()
+                else:
+                    return
+            if new_thread:
+                self._pending_source = source
+                self._pending_notification.clear()
+                # logging.getLogger().debug("Set pending notification: %s, %s" % (source, postpone_interval))
+                self._notify_thread = Thread(target=self._do_pending_notification, kwargs={"source": source, "postpone_interval": postpone_interval})
+                self._notify_thread.name = "notify"
+                self._notify_thread.start()
+            else:
+                # logging.getLogger().debug("Normal notification: %s" % (source))
+                self._notify_callback({"source": source} | self.get_state())
 
     # public stuff
     def get_id(self):
@@ -561,7 +585,7 @@ class ExtensionBoard:
             change_flag |= not color in self._save_backlight_intensity or self._save_backlight_intensity[color] != intensity
             self._save_backlight_intensity[color] = intensity
         if change_flag:
-            self._call_notify_callback("backlight")
+            self._call_notify_callback("backlight", True, 0.2)
 
     def get_current_backlight_color(self):
         return self._current_backlight_color
@@ -906,7 +930,7 @@ class StepperMotorAdapter(Adapter):
         """
             Sensor state has changed
         """
-        logging.getLogger().debug("%s" % __name__)
+        # logging.getLogger().debug("%s" % __name__)
         super().on_gpio_change(source)
         self._xboard._get_xio(True)
         input_names = []
@@ -958,12 +982,7 @@ class StepperMotorAdapter(Adapter):
                     del self._motor_job
                 self._motor_current_action = action
                 self._motor_current_dir = direction
-                if hasattr(self, "_motor_notify_thread"):
-                    self._motor_notify_thread.join()
-                self._motor_notify_thread = Thread(target=self._xboard._call_notify_callback, kwargs={"source": "motor"})   # to avoid running event loop error
-                self._motor_notify_thread.name = "motor_notify"
-                self._motor_notify_thread.start()
-                # self._notify_callback(self.get_state())
+                self._xboard._call_notify_callback("motor", True, 0)
                 if direction != 0:
                     params = self._get_stepper_params(direction)
                     logging.getLogger().debug("Stepper params: %s", params)
