@@ -11,7 +11,7 @@ with open('LICENSE') as f:
 url = "https://repos.digie35.com/python"
 setup(
     name='digie35_ctrl',
-    version='0.7.3',
+    version='0.8.0',
     description='Digie35 Control package',
     long_description=readme,
     author='Tomas Mandys',
@@ -38,6 +38,7 @@ setup(
             "images/*",
             "nginx/*",
             "preset/*.xmp",
+            "file_template/*"
         ],
     },
     entry_points={
@@ -64,6 +65,7 @@ setup(
         "gpiozero",
         "evdev",
         "lxml",
+        "simpleeval",
         #"configparser",
     ],
     scripts = [

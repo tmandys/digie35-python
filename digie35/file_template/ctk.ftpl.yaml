@@ -1,0 +1,70 @@
+name: ČTK
+parts:
+  part1:
+    name: "Reportáž"
+    type: static
+    value: "{film_id}"
+    suffix: "_"
+
+  lomenina:
+    name: Lomenina
+    type: number
+    min: 0
+    suffix: "_"
+
+  stav:
+    name: "Stav"
+    type: enum
+    suffix: "_"
+    values:
+      - value: ZKP
+        name: "Zhoršená kvalita předlohy"
+      - value: NKP
+        name: "Normální kvalita předlohy"
+
+  medium:
+    name: "Typ média"
+    type: enum
+    suffix: "_"
+    values:
+      - value: S
+        name: "Sklo"
+        enabled: false
+      - value: F
+        name: "Papírová fotografie"
+        enabled: false
+      - value: TELE
+        name: "Telefoto"
+        enabled: false
+      - value: K
+        name: "Kontakt"
+        enabled: false
+      - value: VN
+        name: "Velký negativ"
+        enabled: false
+      - value: SF
+        name: "Svitkový film"
+        enabled: false
+      - value: KINO
+        name: "Kinofilm"
+      - value: DIA
+        name: "Diapozitiv"
+
+  color:
+    name: "Barevnost"
+    type: enum
+    values:
+      - value: CB
+        name: "Černobílý"
+      - value: BN
+        name: "Barevný negativ"
+      - value: BP
+        name: "Barevný pozitiv"
+
+  nulky:
+    name: "Nulky"
+    type: counter
+    regex: '(\d+)$'
+    prefix: "_"
+    digits: 1
+    if: "lomenina == '0'"

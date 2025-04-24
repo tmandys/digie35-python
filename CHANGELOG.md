@@ -1,21 +1,21 @@
-v0.8 (2025-xx-xx)
+v0.8 (2025-04-24)
 =================
 
 Features
 --------
-  - RGB+W intensity control
-  - RGBAW intensity control
+  - RGB+W, RGBAW intensity control
   - more sensitive logging to avoid floods on DEBUG level
   - websocket logging, visible in browser console or CLI client
-  - filemask for captured file
+  - file template patters for name of captured file 
   - GUI accordion
   - crop slider visualization
   - settings modal dialog
   - access key rewamping
-  - screen notification
+  - on-screen notification
   - focus control vs. global hotkey
   - backlight notification when more clients connected
   - image filename notification
+  - digie35_test_server stuff rewritten but still in development
 
 Fixes
 -----
@@ -23,6 +23,7 @@ Fixes
   - USB Preview revert to last state after camera reveals
   - stop multi/serial picture when a movement key is pressed
   - CLI verbosity for server
+  - revert backlight state after reload
 
 v0.7 (2025-01-21)
 =================

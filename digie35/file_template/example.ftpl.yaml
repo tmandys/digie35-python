@@ -1,0 +1,59 @@
+name: "Extended example"
+parts:
+  project_film_id:
+    name: ""
+    type: static
+    value: "{project_id}_{film_id}"
+    suffix: "_"
+
+  film_type:
+    name: "Type"
+    type: enum
+    suffix: "_"
+    values:
+      - value: NEG
+        name: "Negative"
+      - value: POS
+        name: "Positive"
+
+  neg_counter:
+    name: "Counter"
+    type: counter
+    regex: '_NEG_(\d+)_'
+    suffix: "_"
+    digits: 4
+    if: "film_type == 'NEG'"
+
+  pos_counter:
+    name: "Counter"
+    type: counter
+    regex: '_POS_(\d+)_'
+    suffix: "_"
+    digits: 4
+    if: "film_type == 'POS'"
+
+  orig_name:
+    name: ""
+    type: static
+    value: "{camera_filename}"
+    suffix: "_"
+
+  tiomestamp:
+    type: datetime
+    format: "%Y%m%d-%H%M%S"
+
+  brand:
+    name: "Film brand"
+    type: string
+    max_length: 8
+    required: false
+    prefix: "_"
+    regex: "^$|^[A-Z][A-Z_0-9]*$"
+
+  user_id:
+    name: "User id"
+    type: number
+    required: false
+    min: 1
+    max: 99
+    prefix: "_"

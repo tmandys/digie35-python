@@ -1,0 +1,32 @@
+name: Set LED and preset
+parts:
+  film_type:
+    name: Select film type
+    type: enum
+    used_in_pattern: False
+    values:
+      - value: bw_negative
+        name: "BW negative"
+      - value: color_negative
+        name: "Color negative"
+      - value: any
+        name: "Non specified"
+effects:
+  bw_negative:
+    if: "film_type == 'bw_negative'"
+    actions:
+      - type: set
+        entity: preset
+        value: BW_negative
+      - type: set
+        entity: led
+        value: white
+  color_negative:
+    if: "film_type == 'color_negative'"
+    actions:
+      - type: set
+        entity: preset
+        value: Color_negative
+      - type: set
+        entity: led
+        value: white+red+green+blue

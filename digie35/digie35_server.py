@@ -28,7 +28,7 @@ __licence__ = "MIT"
 __version__ = "0.8"
 
 import argparse
-#import yaml
+import yaml
 import logging
 import asyncio
 import websockets
@@ -55,6 +55,7 @@ import signal
 import sys
 from threading import Lock, Thread, get_native_id
 from lxml import etree
+from simpleeval import simple_eval
 
 
 RPI_FLAG = True
@@ -75,6 +76,7 @@ class CameraWrapper:
     _MIN_PICTURE_FILE_SIZE = 100000
     _XMP_EXTENSION = ".xmp"
     _XMP_NO_PRESET = "--no preset--"
+    _FILE_TEMPLATE_EXTENSION = ".ftpl.yaml"
     _LINK_EXTENSION = ".lnk"
     _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
 
@@ -97,6 +99,7 @@ class CameraWrapper:
             self._fifopath = None
         self._preview_delay = float(kwargs["preview_delay"])/1000
         self._frame_buffer = frame_buffer
+        self._template_id = ""
 
         proj_dir = os.path.abspath(os.path.expandvars(kwargs["proj_dir"]))
         l = proj_dir.split("*")
@@ -116,6 +119,7 @@ class CameraWrapper:
             logging.getLogger().debug("Mediadir: %s, volumedir: %s" % (self._media_dir, self._volume_dir))
 
         self._preset_dir = os.path.abspath(os.path.expandvars(kwargs["preset_dir"]))
+        self._file_template_dir = os.path.abspath(os.path.expandvars(kwargs["file_template_dir"]))
 
     def _dump(self, obj, indent = 2, recursion=0):
         logging.getLogger().debug("obj: %s" % (type(obj)))
@@ -411,47 +415,47 @@ class CameraWrapper:
             self._close_camera()
         return result
 
-    def _do_download(self, wire_trigger, download, delete, project_id, film_id, file_path, websocket, client_data, **kwargs):
+    def _do_download(self, wire_trigger, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_data, **kwargs):
         try:
             error = None
             try:
                 try:
-                    logging.getLogger().debug(f"Download thread started: %s, download: %s, delete: %s" % (file_path, download, delete))
-                    fname, fext = os.path.splitext(file_path.name)
+                    logging.getLogger().debug(f"Download thread started: %s, target: %s, download: %s, delete: %s" % (camera_filepath, target_filename, download, delete))
+                    fname, fext = os.path.splitext(camera_filepath.name)
                     if not download and not wire_trigger:
                         # heuristic to detect the file is in camera memory, capt0000 is likely in ram
                         x = re.search("[0-9]+$", fname)
                         if (x != None and int(x.group(0)) == 0) or re.match("capt[0-9]+", fname):
                             logging.getLogger().debug("Forcing download as image is in RAM (%s)" % (fname))
                             download = True
+
                     now = datetime.datetime.now()
                     now_s = now.strftime("%Y%m%d%H%M%S")
-                    if kwargs["file_mask"]:
-                        params = {
-                            "fname": fname,
-                            "projid": project_id,
-                            "filmid": film_id,
-                        }
-                        fname2 = kwargs["file_mask"].format(**params)
-                        if fname2 == os.path.basename(fname2):
-                            fname = fname2
-                        else:
-                            logging.getLogger().error("Vulnerable file mask (%s)" % (kwargs["file_mask"]))
-                    fname += "_" + now_s
-                    target_no_ext = os.path.join(self._get_path(project_id, film_id), fname)
+
+                    # find unique filenamwe not to overwrite file in case of ambiguous filename
+                    target_no_ext_1 = os.path.join(self._get_path(project_id, film_id), target_filename)
+                    target_no_ext = target_no_ext_1
+                    counter = 1
+                    fext2 = fext
+                    if not download:
+                        fext2 += self._LINK_EXTENSION
+                    while os.path.exists(target_no_ext + fext2):
+                        counter += 1
+                        target_no_ext = f"{target_no_ext_1} ({counter})"
                     target = target_no_ext + fext
+
                     if download:
                         logging.getLogger().info(f"Downloading image to '%s'", target)
-                        logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
-                        camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL))
+                        logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
+                        camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
                         gp.check_result(gp.gp_file_save(camera_file, target))
                         if delete:
-                            logging.getLogger().debug(f"Delete image '%s'", file_path.name)
-                            gp.check_result(gp.gp_camera_file_delete(self._camera, file_path.folder, file_path.name))
+                            logging.getLogger().debug(f"Delete image '%s'", camera_filepath.name)
+                            gp.check_result(gp.gp_camera_file_delete(self._camera, camera_filepath.folder, camera_filepath.name))
                     else:
                         logging.getLogger().info(f"Image link for '%s'", target)
                         with open(target + self._LINK_EXTENSION, "w") as file:
-                            file.write("%s\n%s\n%s\n%s" % (self._camera_id, file_path.folder, file_path.name, now_s))
+                            file.write("%s\n%s\n%s\n%s" % (self._camera_id, camera_filepath.folder, camera_filepath.name, now_s))
                     if kwargs["preset"]:
                         # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
                         # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
@@ -600,7 +604,7 @@ class CameraWrapper:
             msg = {
                 "cmd": "DOWNLOAD",
                 "payload": {
-                    "name": file_path.name,
+                    "name": camera_filepath.name,
                     "file_path": target,
                     "volume": self.get_volume_info(),
                 }}
@@ -626,6 +630,12 @@ class CameraWrapper:
         color = digitizer.get_current_backlight_color()
         if color == None or color == "external":
             raise CameraControlError("Backlight is switched off")
+        file_template = kwargs.get("file_template", {"template_id": "", "values": {}})
+        # prevalidate template values
+        tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id)
+        if tpl2.get("errors", None):
+            raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
+
         self._acquire_capture_lock()
         self._capture_in_progress = True
         self._broadcast_capture_status_from_event()
@@ -641,13 +651,17 @@ class CameraWrapper:
                 time.sleep(self._WIRE_SHUTTER_TIMEOUT)
                 digitizer.set_io_states({"focus": 0, "shutter": 0})
 
+                fake_name = "captbywire"
                 class FilePath(object):
-                    name = "captbywire.lnk"                    
+                    name = fake_name + ".zzz"  # we need a fake 3 char extension for various places in code
                     folder = ""
 
-                file_path = FilePath()
+                camera_filepath = FilePath()
+                tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name)
+                # prevalidated so error should not happen
+
                 time.sleep(kwargs["delay"]/1000)
-                download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "file_path": file_path, "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
+                download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
                 download_thread.name = "download"
                 download_thread.start()
 
@@ -690,14 +704,14 @@ class CameraWrapper:
                             if (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_IMAGE) != 0:
                                 # first try capture (= trigger+wait_for_event)
                                 logging.getLogger().debug("camera.capture()")
-                                file_path = self._camera.capture(gp.GP_CAPTURE_IMAGE)
+                                camera_filepath = self._camera.capture(gp.GP_CAPTURE_IMAGE)
 
                             elif (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0:
                                 logging.getLogger().debug("camera.trigger()")
                                 self._camera.trigger_capture()
                                 ts = time.monotonic()
                                 while True:
-                                    event_type, file_path = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
+                                    event_type, camera_filepath = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
                                     if event_type == gp.GP_EVENT_FILE_ADDED:
                                         break
                                     if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT:
@@ -710,14 +724,19 @@ class CameraWrapper:
                             logging.getLogger().error(e, exc_info=True)
                             # self._reinit_camera()
 
-                    logging.getLogger().debug('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
+                    logging.getLogger().debug('Camera file path: {0}/{1}'.format(camera_filepath.folder, camera_filepath.name))
 
                     if save_capturetarget != None:
                         logging.getLogger().debug("restore target: %s" % save_capturetarget)
                         capturetarget_cfg.set_value(save_capturetarget)
                         self._camera.set_config(camera_config)
+
+                    fname, fext = os.path.splitext(camera_filepath.name)
+                    tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname)
+                    # prevalidated so error should not happen
+
                     # leave asap to allow move commands
-                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "file_path": file_path, "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
+                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
                     download_thread.name = "download"
                     download_thread.start()
                 except Exception as e:
@@ -731,8 +750,9 @@ class CameraWrapper:
             raise e
         return {
             "camera": self._camera_model,
-            "name": file_path.name,
-            "folder": file_path.folder,
+            "name": camera_filepath.name,
+            "target_name": tpl2["filename"],
+            "folder": camera_filepath.folder,
             "battery": self._camera_battery,
         }
 
@@ -893,7 +913,7 @@ class CameraWrapper:
         }
 
     def _check_id(self, id, fld):
-        if (id == ""):
+        if id == "":
             raise CameraControlError(f"Empty %s value" % fld)
         reg = re.compile("^[a-zA-Z0-9_\-]+$")
         if not reg.match(id):
@@ -1032,6 +1052,195 @@ class CameraWrapper:
                     result.append(fname)
         return result
 
+    def load_file_template(self, template_id):
+        if template_id != "":
+            if self._template_id == template_id:
+                return self._file_template
+            with open(os.path.join(self._file_template_dir, template_id + self._FILE_TEMPLATE_EXTENSION), "r", encoding="utf-8") as f:
+                self._file_template = yaml.safe_load(f)
+            self._template_id == template_id
+            logging.getLogger().debug("File template '%s': %s" % (template_id, self._file_template))
+            return self._file_template
+        else:
+            if self._template_id != "":
+                del self._file_template
+                self._template_id = ""
+        return None
+
+    def list_file_templates(self):
+        result = {}
+        filenames = os.listdir(self._file_template_dir)
+        filenames.sort()
+        for filename in filenames:
+            if filename[0] == ".":
+                continue
+            filepath = os.path.join(self._file_template_dir, filename)
+            if os.path.isfile(filepath):
+                if filename.endswith(self._FILE_TEMPLATE_EXTENSION):
+                    fname = filename.removesuffix(self._FILE_TEMPLATE_EXTENSION)
+                    tpl = self.load_file_template(fname)
+                    result[fname] = tpl.get("name", fname)
+        return result
+
+    def get_file_template_options(self, template_id):
+        result = {"template_id": template_id, "parts": {}}
+        tpl = self.load_file_template(template_id)   # allow refresh in cache from file
+        if template_id != "":
+            for part_id in list(tpl.get("parts", {})):
+                part = tpl["parts"][part_id]
+                if part.get("enabled", True):
+                    part_type = part.get("type")
+                    part2 = {"type": part_type}
+                    if "name" in part:
+                        part2["name"] = part["name"]
+                    if part_type == "string":
+                        if "regex" in part:
+                            part2["regex"] = part["regex"]
+                        max_length = part.get("max_length", 0)
+                        if max_length > 0:
+                            part2["max_length"] = max_length
+                    elif part_type == "number":
+                        if "min" in part:
+                            part2["min"] = part["min"]
+                        if "max" in part:
+                            part2["max"] = part["max"]
+                    elif part_type == "enum":
+                        values = []
+                        for val in part.get("values", []):
+                            if val.get("enabled", True) and val.get("value") != None:
+                                values.append({"id": val["value"], "name": val.get("name", val["value"])})
+                        if values:
+                            part2["values"] = values
+                    elif part_type in ["static", "datetime", "counter"]:
+                        continue
+                    else:
+                        raise CameraControlError("Wrong template type: %s" % (part_type))
+                    result["parts"][part_id] = part2
+        return result
+
+    def validate_file_template(self, template_id, values, project_id, film_id, camera_filename="capt0000"):
+        parts2 = {}
+        actions = []
+        errors = {}
+        result = {"template_id": template_id}
+        now = datetime.datetime.now()
+        use_default = True
+
+        if template_id != "":
+            tokens = {
+                "project_id": project_id,
+                "film_id": film_id,
+                "camera_filename": camera_filename,
+            }
+            tpl = self.load_file_template(template_id)
+            filename = ""
+            for part_id in list(tpl.get("parts", {})):
+                part = tpl["parts"][part_id]
+                part_type = part.get("type")
+                if not part.get("enabled", True):
+                    continue
+                eval_str = part.get("if")
+                if eval_str:
+                    b = False
+                    try:
+                        b = simple_eval(eval_str, names=values)
+                    except Exception as e:
+                        logging.getLogger().error(e)
+
+                    if part_type in ["datetime", "string", "number"]:
+                        parts2[part_id] = {"enabled": b}
+                    if not b:
+                        continue
+                if part.get("used_in_pattern", True):
+
+                    part_str = ""
+                    use_default = False
+                    if part_type == "datetime":
+                        part_str = now.strftime(part.get("format", "%Y%m%d%H%M%S"))
+                    elif part_type == "static":
+                        part_str = part.get("value", "").format(**tokens)
+                    elif part_type == "string":
+                        if part_id in values:
+                            regex = part.get("regex", "")
+                            if regex != "":
+                                if not re.fullmatch(regex, values[part_id]):
+                                    errors[part_id] = "Invalid string '%s'" % values[part_id]
+                                    continue
+                            max_length = part.get("max_length", 0)
+                            part_str = values[part_id][:max_length] if max_length > 0 else values[part_id]
+                    elif part_type == "number":
+                        if part_id in values and re.fullmatch("^\d+$", values[part_id]):
+                            mn = part.get("min", -sys.maxsize - 1)
+                            mx = part.get("max", sys.maxsize)
+                            part_str = str(min(max(mn, int(values[part_id])), mx))
+                    elif part_type == "enum":
+                        if part_id in values:
+                            found = False
+                            for val in part.get("values", []):
+                                if val.get("enabled", True) and val.get("value") == values[part_id]:
+                                    found = True
+                                    part_str = val.get("value")
+                                    break
+                            if not found:
+                                errors[part_id] = "Invalid option '%s'" % values[part_id]
+                                continue
+
+                            part_str = values[part_id]
+                    elif part_type == "counter":
+                        cnt = 0
+                        if project_id != "" and film_id != "":
+                            film = self.get_film(project_id, film_id)
+                            regex = part.get("regex")
+                            if not regex:
+                                errors[part_id] = "Missing regex to get count from filename '%s'" % part_id
+                            for capture in film["captured"]:
+                                fname, fext = os.path.splitext(capture["name"])
+                                match = re.search(regex, fname)
+
+                                if match:
+                                    n = int(match.group(1))
+                                    if n > cnt:
+                                        cnt = n
+                        part_str = str(cnt + 1).zfill(part.get("digits", 0))
+
+                    if part_str != "":
+                        part_str = part.get("prefix", "") + part_str + part.get("suffix", "")
+                    elif part.get("required", True):
+                        errors[part_id] = "Missing value '%s'" % part_id
+                        continue
+
+                    filename += part_str
+
+            if filename != "":
+                if filename != os.path.basename(filename):
+                    errors["*"] = "Vulnerable file template result (%s)" % (filename)
+
+            for effect_id in list(tpl.get("effects", {})):
+                effect = tpl["effects"][effect_id]
+                eval_str = effect.get("if")
+                if eval_str:
+                    b = False
+                    try:
+                        b = simple_eval(eval_str, names=values)
+                    except Exception as e:
+                        logging.getLogger().error(e)
+                    if not b:
+                        continue
+                    for action in effect.get("actions", []):
+                        actions.append(action)
+
+
+        if use_default:
+            filename = camera_filename + "_" + now.strftime("%Y%m%d%H%M%S")
+
+        result["parts"] = parts2
+        result["filename"] = filename
+        result["actions"] = actions
+        if errors:
+            result["errors"] = errors
+        return result
+
+
     def _get_path(self, project_id, film_id = ""):
         if self._cur_proj_dir == None:
             raise CameraControlError("Target directory is not specified")
@@ -1154,6 +1363,11 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "GET_FILM":
                         reply = camera.get_film(**params)
 
+                    elif cmd == "GET_TEMPLATE":
+                        reply = camera.get_file_template_options(**params)
+                    elif cmd == "VALIDATE_TEMPLATE":
+                        reply = camera.validate_file_template(**params)
+
                     elif cmd == "CAPTURE":
                         reply = camera.capture(websocket, **params)
                         status = digitizer.get_state()
@@ -1236,6 +1450,7 @@ async def ws_control_handler(websocket, path):
                             reply["client_count"] = len(ws_control_clients)
                             reply["usbpreview"] = camera._camera_preview
                             reply["preset_list"] = camera.list_presets()
+                            reply["file_template_list"] = camera.list_file_templates()
                     elif cmd == "BYE":
                         reply = ""
                         break
@@ -1539,6 +1754,7 @@ def main():
     #argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="RPi+HAT configuration file in YAML")
     argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects, default: %(default)s")
     argParser.add_argument("-P", "--preset_directory", dest="preset_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "preset"), help=f"XMP preset directory, e.g.$HOME/.digie35/preset, default: %(default)s")
+    argParser.add_argument("-T", "--file_template_directory", dest="file_template_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "file_template"), help=f"File template directory, e.g.$HOME/.digie35/file_template, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
     argParser.add_argument("-p", "--port", dest="wsControlPort", metavar="PORT", type=int, default=8400, help=f"Websocket control listener port, default: %(default)s")
     argParser.add_argument("-u", "--preview-port", dest="previewPort", metavar="PORT", type=int, default=8408, help=f"HTTP server port for preview stream, default: %(default)s")

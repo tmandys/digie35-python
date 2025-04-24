@@ -284,7 +284,7 @@
         .accordion .header {
             display: flex;
             justify-content: space-between;
-            gap: 10px;
+            gap: 5px;
             align-items: center;
             font-size: 12px;
             cursor: pointer;
@@ -298,7 +298,7 @@
             border: none;
             cursor: pointer;
             font-size: 16px;
-            margin-right: 8px;
+            margin-right: 3px;
         }
 
         .accordion .header .title {
@@ -311,7 +311,7 @@
             display: inline-block;  /* to accept max.width */
             vertical-align: middle;
             margin-left: 5px;
-            max-width: 150px;
+            max-width: 210px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -320,6 +320,14 @@
             padding-left: 2px;
             padding-right: 2px;
             background: white;
+        }
+
+        .accordion .header .subtitle:hover {
+            white-space: normal;
+            overflow: visible;
+            max-width: none;
+            position: relative;
+            z-index: 10;
         }
 
         .accordion .header .subtitle:empty {
@@ -748,6 +756,8 @@
                             <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
                             <button class="modal-open" data-modal_id="capture-info-modal" title="Click to show file list of captured pictures">Files</button>
                         </div>
+                        <div id="file-template-options" class="centered-btn vertical-spacer">
+                        </div>
                     </div>
                 </fieldset>
             </div>
@@ -794,7 +804,7 @@
             <div class="accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
-                    <span class="title">Capture</span>
+                    <span class="title">Capture<span class="subtitle" id="header-capture-filename"></span></span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="capture-fieldset">
@@ -959,7 +969,6 @@
             </div>
         </div>
 
-
         <div id="film-settings-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
@@ -971,13 +980,13 @@
                 <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="capture-file-mask" accesskey="m">File <u>m</u>ask</label>
-                            <input type="text" id="capture-file-mask" placeholder="enter file mask..." maxlength="50" />
+                            <label for="file-template-list" accesskey="t">File <u>t</u>emplate</label>
+                            <select id="file-template-list" name="template_id" style="width:20ch" onchange="sendCommand('GET_TEMPLATE', [this.id])">
+                                <option value="" selected>--default--</option>
+                            </select>
                         </div>
-                        <small class="hint">File mask to name captured file. File name is always suffixed with timestamp to satisfy uniqueness. Supported macro expansion names: <code>{fname}</code>, <code>{projid}</code>, <code>{filmid}</code>. E.g. <code>{projid}_{filmid}_{fname}</code></small>
+                        <small class="hint">Define pattern which is used for image file name. Also a side effect as LED or preset setting is supported. Recipies are defined at server side</small>
                     </div>
-                </div>
-                <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="notify-film-id-cb" accesskey="n"><u>N</u>otify film</label>
@@ -988,10 +997,8 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Notify visually user that next film id has been created. If <i>auto-Inc</i> option is enabled then id is created automatically when next film is detected in motorized adapter but it might not be reliable in case of demaged perforation or so.</small>
+                        <small class="hint">Notify visually user that next film id has been created. If <i>auto-Inc</i> option is enabled then id is created automatically when next film is detected in motorized adapter but it might not be reliable in case of damaged perforation or so.</small>
                     </div>
-                </div>
-                <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="notify-image-filename-cb" accesskey="i">Notify <u>i</u>mage filename</label>
@@ -1150,7 +1157,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="preset-list" accesskey="p"><u>P</u>reset list</label>
+                            <label for="preset-list" accesskey="p"><u>P</u>reset</label>
                             <select id="preset-list" style="width:20ch">
                                 <option value="" selected>--no XMP file--</option>
                             </select>
@@ -1246,6 +1253,7 @@
             document.getElementById("header-film-name").textContent = film_id.value;
             document.getElementById("film_descr").value =
                 film_list.selectedIndex > 0 ? film_list.options[film_list.selectedIndex]._custom_data["descr"] : "";
+            sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
         }
         var cnt = 0;
         var capture_list = document.getElementById("capture-list");
@@ -1275,7 +1283,7 @@
         document.getElementById("update-film-btn").disabled = (project_list.value == "") || (film_list.value == "");
         document.getElementById("delete-film-btn").disabled = document.getElementById("update-film-btn").disabled || (cnt >0);
 
-        document.getElementById("motion-fieldset").disabled = !connected;
+        document.getElementById("motion-fieldset").disabled = !connected || typeof window.capabilities == "undefined" || !window.capabilities.motorized;
         document.getElementById("capture-fieldset").disabled = !connected;
         elem = document.getElementById("shoot-mode-list");
         document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
@@ -1332,8 +1340,10 @@
     function adjust_capabilities(send_backlight_cmd) {
         var elem = document.getElementById("motion-fieldset");
         set_visible(elem, window.capabilities.motorized);
+        elem.disabled = !window.capabilities.motorized;
         elem = document.getElementById("backlight-fieldset");
         set_visible(elem, window.capabilities.backlight_control);
+        elem.disabled = !window.capabilities.backlight_control;
         // TODO: setup backlight stuff, white,RGB,IR,preview...
         //elem = document.getElementById("preview-backlight-fieldset");
         //elem.style.display = window.capabilities.preview_backlight_control ? "block" : "none";
@@ -1808,6 +1818,13 @@
                                 });
                                 update_select_options("preset-list", list, "id", "id");
                             }
+                            if (typeof data.payload.file_template_list != "undefined") {
+                                var list = []
+                                for (const [key, value] of Object.entries(data.payload.file_template_list)) {
+                                    list.push({"id": key, "name": value});
+                                }
+                                update_select_options("file-template-list", list, "id", "name");
+                            }
                             if (data.cmd == "SET_CAMERA") {
                                 document.getElementById("camera-list").value = data.payload.id;
                                 window.current_camera = data.payload;
@@ -1868,6 +1885,8 @@
                                 window.capabilities = data.payload.capabilities;
                                 if (data.payload.client_count > 1) {
                                     window.save_usb_preview = data.payload.usbpreview;
+                                } else {
+                                    window.last_backlight = null   // force backlight refresh
                                 }
                                 adjust_capabilities(data.payload.client_count == 1)
                                 if (typeof data.payload.volume_list == "undefined") {
@@ -1895,6 +1914,7 @@
                                 if (data.payload.client_count > 1) {
                                     sendCommand("GET");
                                 }
+                                sendCommand("GET_TEMPLATE", ["file-template-list"]);
                                 document.onkeydown = do_onkeydown;
                                 document.onkeyup = do_onkeyup;
                                 adjust_adapter({"movement": 0, });
@@ -1902,6 +1922,11 @@
                                 adjust_camera_preview(false);
                             } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
                                 document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
+                            } else if (data.cmd == "GET_TEMPLATE") {
+                                create_file_template(data.payload);
+                                sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
+                            } else if (data.cmd == "VALIDATE_TEMPLATE") {
+                                adjust_file_template(data.payload);
                             }
                             adjust();
                             if (data.cmd == "DOWNLOAD") {
@@ -2110,6 +2135,53 @@
         }
     }
 
+    function add_event_listeners_for_select(elem) {
+        elem.addEventListener('keydown', (event) => {
+            if (!get_modal()) {
+                switch (event.code) {
+                    case "Escape":
+                    case "Enter":   // for BUTTON
+                    case "ArrowRight":
+                    case "ArrowLeft":
+                    case "Home":
+                    case "End":
+                        event.preventDefault();
+                        return;
+                }
+                if (event.target.nodeName == "SELECT") {
+                    if (event.key.length == 1 && event.key.match(/[a-zA-Z0-9,\.]/)) {
+                        event.preventDefault();
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    function add_event_listeners_for_input(elem) {
+        elem.addEventListener('focusin', (event) => {
+            if (get_modal()) {
+                return;
+            }
+            // somohow indicate that keyboard hotkeys are not working
+            adjust_adapter_button_style(false);
+            reset_input_blur_timer(event.target);
+        });
+        elem.addEventListener('focusout', () => {
+            if (get_modal()) {
+                return;
+            }
+            // keyboards shortcuts working
+            reset_input_blur_timer(null);
+            adjust_adapter_button_style(true);
+        });
+
+        elem.addEventListener('keydown', (event) => {
+            reset_input_blur_timer(event.target);
+            event.stopPropagation();
+        });
+    }
+
     function do_onload() {
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
@@ -2176,56 +2248,16 @@
 
         /* global vs. focused control key override */
         document.querySelectorAll('.wrapper input[type="range"], .wrapper input[type="radio"], .wrapper select, .wrapper button').forEach(elem=> {
-            elem.addEventListener('keydown', (event) => {
-                if (!get_modal()) {
-                    switch (event.code) {
-                        case "Escape":
-                        case "Enter":   // for BUTTON
-                        case "ArrowRight":
-                        case "ArrowLeft":
-                        case "Home":
-                        case "End":
-                            event.preventDefault();
-                            return;
-                    }
-                    if (event.target.nodeName == "SELECT") {
-                        if (event.key.length == 1 && event.key.match(/[a-zA-Z0-9,\.]/)) {
-                            event.preventDefault();
-                            return;
-                        }
-                    }
-                }
-            });
+            add_event_listeners_for_select(elem);
         });
 
         document.querySelectorAll('.wrapper input[type="text"], .wrapper input[type="number"], .wrapper textarea').forEach(elem=> {
-            elem.addEventListener('focusin', (event) => {
-                if (get_modal()) {
-                    return;
-                }
-                // somohow indicate that keyboard hotkeys are not working
-                adjust_adapter_button_style(false);
-                reset_input_blur_timer(event.target);
-            });
-            elem.addEventListener('focusout', () => {
-                if (get_modal()) {
-                    return;
-                }
-                // keyboards shortcuts working
-                reset_input_blur_timer(null);
-                adjust_adapter_button_style(true);
-            });
-
-            elem.addEventListener('keydown', (event) => {
-                reset_input_blur_timer(event.target);
-                event.stopPropagation();
-            });
+            add_event_listeners_for_input(elem);
         });
 
         window.settings = {
             "connection.logger": "logger-cb",
             "capture.capture.mode": "capture-mode",
-            "film.filemask": "capture-file-mask",
             "film.notify.film_id": "notify-film-id-cb",
             "film.notify.filename": "notify-image-filename-cb",
             "preview.rotate": "rotate",
@@ -2241,6 +2273,7 @@
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
             "control.preset": "preset-list",
+            "control.file_template": "file-template-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
 			"control.backlight": "backlight-cb",
@@ -2336,11 +2369,12 @@
                             params.rotation = Number(val.replace(/^rotate/, ""));
                         }
                     }
-                    params.file_mask = document.getElementById("capture-file-mask").value;
+                    params.file_template = get_file_template_values();
                     sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], params);
                 },
             },
         };
+
 
         function do_adapter_onclick(obj) {
             if (window.sticky_mouse == event.currentTarget.id) {
@@ -2777,7 +2811,7 @@
                 bck += `:${val}`;
             }
             if (window.last_backlight !== bck) {
-                // avoid flooding when switched off and miving slidebar
+                // avoid flooding when switched off and moving slidebar
                 window.last_backlight = bck;
                 if (is_on) {
                     sendCommand2("SET_BACKLIGHT", {"color": color, "intensity": val});
@@ -2791,6 +2825,131 @@
     function adjust_delay_value(range_elem) {
         var value_elem = document.getElementById(range_elem.id.replace("-rng", "-value"));
         value_elem.innerHTML = String(Number(range_elem.value) * 0.5)+"s";
+    }
+
+    function create_file_template(tpl) {
+        var container = document.getElementById("file-template-options");
+        container.innerHTML = "";
+        for (const [part_id, part] of Object.entries(tpl.parts)) {
+            var input;
+            var len = 0;
+            var val = localStorage.getItem("file_template."+part_id);
+            if (part.type == "enum") {
+                input = document.createElement("select");
+                var valid = false;
+                part.values.forEach(opt=>{
+                    var option = new Option(opt.name, opt.id);
+                    if (opt.id === val) {
+                        valid = true;
+                    }
+                    input.add(option);
+                    if (opt.name.length > len) {
+                        len = opt.name.length;
+                    }
+                });
+                len += 2;
+                if (!valid) {
+                    val = null;
+                }
+                add_event_listeners_for_select(input);
+
+            } else if (part.type == "string") {
+                input = document.createElement("input");
+                input.type = "text";
+                if (typeof part.max_length != "undefined") {
+                    input.maxLength = part.max_length;
+                    len = part.max_length;
+                } else {
+                    len = 10;
+                }
+                add_event_listeners_for_input(input);
+
+            } else if (part.type == "number") {
+                input = document.createElement("input");
+                input.type = "number";
+                input.step = 1;
+                if (typeof part.min != "undefined") {
+                    input.min = part.min;
+                } else {
+                    input.min = 1;
+                }
+                if (typeof part.max != "undefined") {
+                    input.max = part.max;
+                } else {
+                    input.max = 9999;
+                }
+                input.value = input.min;
+                len = Math.max(String(input.min).length, String(input.max).length) + 2;
+                add_event_listeners_for_input(input);
+
+            } else {
+                return;
+            }
+            input.setAttribute("data-type", part.type);
+            input.id = "file-template-"+part_id;
+            input.name = part_id;
+            if (typeof part.name != "undefined")  {
+                input.title = part.name;
+            }
+            input.style.width = String(len)+"ch";
+
+            if (val != null) {
+                input.value = val;
+            }
+            input.addEventListener("change", function() {
+                localStorage.setItem("file_template."+this.name, this.value);
+                sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values())
+            });
+            container.appendChild(input);
+        }
+    }
+
+    function get_file_template_values() {
+        var values = {};
+        document.getElementById("file-template-options").querySelectorAll("input, select").forEach(elem=>{
+            if (typeof elem.value != "undefined") {
+                values[elem.name] = elem.value;
+            }
+        });
+        return {"template_id": document.getElementById("file-template-list").value, "values": values};
+    }
+
+    function adjust_file_template(tpl) {
+        for (const [part_id, part] of Object.entries(tpl.parts)) {
+            var elem = document.getElementById("file-template-"+part_id);
+            if (part.visible === true) {
+                elem.classList.remove("hidden");
+            } else if (part.visible === false) {
+                elem.classList.add("hidden");
+            }
+        }
+        document.getElementById("header-capture-filename").innerHTML = tpl.filename;
+        tpl.actions.forEach(action => {
+            if (action.type == "set") {
+                switch (action.entity) {
+                    case "led":
+                        var elem = document.getElementById("backlight-color-list");
+                        // check if enabled ??
+                        elem.value = action.value;
+                        adjust_backlight(true);
+                        break;
+                    case "preset":
+                        var elem = document.getElementById("preset-list");
+                        elem.value = action.value;
+                        break;
+                }
+            }
+        });
+
+        if (document.getElementById("film_id").value != "") {
+            var errs = "";
+            if (typeof tpl.errors != "undefined") {
+                for (const [part_id, err] of Object.entries(tpl.errors)) {
+                    errs += `${part_id}: ${err} `;
+                }
+            }
+            update_status_info(errs);
+        }
     }
 
     function update_project_selection(film_update) {
