@@ -735,6 +735,8 @@ class CameraWrapper:
                     tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname)
                     # prevalidated so error should not happen
 
+                    time.sleep(0.2)   # sometimes when from unknown reason is not stored more file in Sony buffer and we start moving before capture is processed even camera says that is ok
+
                     # leave asap to allow move commands
                     download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
                     download_thread.name = "download"
