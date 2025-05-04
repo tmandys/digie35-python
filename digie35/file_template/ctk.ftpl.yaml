@@ -2,15 +2,31 @@ name: ČTK
 parts:
   part1:
     name: "Reportáž"
-    type: static
+    type: string
     value: "{film_id}"
     suffix: "_"
+    editable: false
+
+  je_nulka:
+    name: "Nulka"
+    type: bool
+    used_in_pattern: False
+    editable: capture
 
   lomenina:
     name: Lomenina
-    type: number
-    min: 0
+    type: counter
     suffix: "_"
+    if: "je_nulka == 0"
+    regex: '^[A-Za-z0-9]+_(\d+)_'
+    editable: capture
+
+  nulka:
+    type: string
+    value: "0"
+    suffix: "_"
+    if: "je_nulka == 1"
+    editable: false
 
   stav:
     name: "Stav"
@@ -18,9 +34,9 @@ parts:
     suffix: "_"
     values:
       - value: ZKP
-        name: "Zhoršená kvalita předlohy"
+        name: "Zhoršená kvalita"
       - value: NKP
-        name: "Normální kvalita předlohy"
+        name: "Normální kvalita"
 
   medium:
     name: "Typ média"
@@ -61,10 +77,43 @@ parts:
       - value: BP
         name: "Barevný pozitiv"
 
-  nulky:
+  cislo_nulky:
     name: "Nulky"
     type: counter
     regex: '(\d+)$'
     prefix: "_"
     digits: 1
-    if: "lomenina == '0'"
+    if: "je_nulka == 1"
+    editable: false
+
+  je_externi:
+    name: "Externí"
+    type: bool
+    used_in_pattern: False
+
+  externi:
+    type: string
+    prefix: "_EX_"
+    value: "{project_id}"
+    if: "je_externi == 1"
+    editable: false
+
+effects:
+  bw_negativ:
+    if: "color != 'BN'"
+    actions:
+      - type: set
+        entity: preset
+        value: BW_negative
+      - type: set
+        entity: led
+        value: white
+  color_negativ:
+    if: "color == 'BN'"
+    actions:
+      - type: set
+        entity: preset
+        value: Color_negative
+      - type: set
+        entity: led
+        value: white+red+green+blue

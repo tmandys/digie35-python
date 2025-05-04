@@ -1,10 +1,12 @@
 name: Extended prefix
 parts:
   part1:
-    type: static
+    type: string
     value: "{project_id}_{film_id}_{camera_filename}_"
+    editable: false
 
   part2:
     type: datetime
     format: "%Y%m%d%H%M%S"
+    editable: false
 

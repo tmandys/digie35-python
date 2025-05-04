@@ -76,6 +76,14 @@
             align-items: center;
         }
 
+        .horizontal-wrap-spacer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            justify-content: space-around;
+            align-items: center;
+        }
+
         .horizontal-spacer * {
             text-align: center;
         }
@@ -746,7 +754,6 @@
                         </div>
                         <div><textarea id="film_descr" class="description" placeholder="enter film description..."></textarea></div>
                         <div class="vertical-spacer horizontal-spacer">
-                            <span><input type="checkbox" id="autoinc-cb" value="0" checked /><label for="autoinc-cb" accesskey="c" title="Auto increment film id when lead-in film">a-In<u>c </u></label></span>
                             <button id="film_id-plus" title="Find next empty film or create new one, KeyP" onclick="create_next_film_id()">Next film</button>
                             <span id="capture-count" title="Number of captured images in film directory"></span>
                         </div>
@@ -756,7 +763,7 @@
                             <button id="delete-film-btn" onclick="sendCommand('DELETE_FILM', ['project_id', 'film_id']);sendCommand('GET_PROJECT', ['project_id'])">Delete</button>
                             <button class="modal-open" data-modal_id="capture-info-modal" title="Click to show file list of captured pictures">Files</button>
                         </div>
-                        <div id="file-template-options" class="centered-btn vertical-spacer">
+                        <div id="file-template-options-film" class="centered-btn vertical-spacer horizontal-wrap-spacer">
                         </div>
                     </div>
                 </fieldset>
@@ -828,6 +835,8 @@
                             <input type="radio" name="capture-mode" id="capture-mode-single-rb" value="single" checked /><label for="capture-mode-single-rb" accesskey="n" title="It will capture one photo and move in case of Auto-move is set">Si<u>n</u>gle</label>
                             <input type="radio" name="capture-mode" id="capture-mode-serial-rb" value="serial" /><label for="capture-mode-serial-rb" accesskey="s" title="It will capture when film frame is ready and is available for motorized adapters only and implies auto move"><u>S</u>erial</label>
                             <input type="radio" name="capture-mode" id="capture-mode-multi-rb" value="multi" /><label for="capture-mode-multi-rb" accesskey="m" title="It will capture specific number of pictures. Auto move settings is essential"><u>M</u>ulti</label>
+                        </div>
+                        <div id="file-template-options-capture" class="centered-btn vertical-spacer horizontal-wrap-spacer">
                         </div>
                         <div class="vertical-spacer centered-btn">
                             <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
@@ -978,6 +987,19 @@
                     <button class="close">&times;</button>
                 </div>
                 <div class="content">
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="autoinc-cb" accesskey="a"><u>A</u>uto increment</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="autoinc-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Auto increment film id when lead-in film. Switch off in case of wrong perforation or a few frame strips which were cut from one film</small>
+                    </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="file-template-list" accesskey="t">File <u>t</u>emplate</label>
@@ -1248,7 +1270,7 @@
 
             var film_id = document.getElementById("film_id");
             film_id.value = film_list.value;
-            set_visible(film_id, film_id.value == "");
+            set_visible(film_id, film_id.value == "", "inline-block");
             film_id.readOnly = film_id.value != "";
             document.getElementById("header-film-name").textContent = film_id.value;
             document.getElementById("film_descr").value =
@@ -2828,10 +2850,14 @@
     }
 
     function create_file_template(tpl) {
-        var container = document.getElementById("file-template-options");
-        container.innerHTML = "";
+        var containers = [];
+        ["film", "capture"].forEach(name=>{
+            containers[name] = document.getElementById("file-template-options-"+name);
+            containers[name].innerHTML = "";
+        });
         for (const [part_id, part] of Object.entries(tpl.parts)) {
             var input;
+            var input_container = null;
             var len = 0;
             var val = localStorage.getItem("file_template."+part_id);
             if (part.type == "enum") {
@@ -2864,6 +2890,12 @@
                 }
                 add_event_listeners_for_input(input);
 
+            } else if (part.type == "datetime") {
+                input = document.createElement("input");
+                input.type = "text";
+                len = 17;
+                add_event_listeners_for_input(input);
+
             } else if (part.type == "number") {
                 input = document.createElement("input");
                 input.type = "number";
@@ -2882,11 +2914,41 @@
                 len = Math.max(String(input.min).length, String(input.max).length) + 2;
                 add_event_listeners_for_input(input);
 
+            } else if (part.type == "counter") {
+                input = document.createElement("input");
+                input.type = "number";
+                input.step = 1;
+                input.min = 1;
+                if (typeof part.max != "undefined") {
+                    input.max = part.max;
+                } else {
+                    input.max = 9999;
+                }
+                input.value = input.min;
+                len = String(input.max).length + 2;
+                add_event_listeners_for_input(input);
+
+            } else if (part.type == "bool") {
+                input_container = document.createElement("span");
+                input = document.createElement("input");
+                input.type = "checkbox";
+                input.value = "1";
+                add_event_listeners_for_input(input);
+                input_container.appendChild(input);
+                var label = document.createElement("label");
+                label.setAttribute("for", input);
+                label.innerHTML = part.name;
+                input_container.appendChild(label);
+                len = 2;
+
             } else {
                 return;
             }
+            if (!input_container) {
+                input_container = input;
+            };
             input.setAttribute("data-type", part.type);
-            input.id = "file-template-"+part_id;
+            input_container.id = "file-template--"+part_id;
             input.name = part_id;
             if (typeof part.name != "undefined")  {
                 input.title = part.name;
@@ -2900,14 +2962,21 @@
                 localStorage.setItem("file_template."+this.name, this.value);
                 sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values())
             });
-            container.appendChild(input);
+
+            containers[typeof part.container != "undefined" ? part.container : "film"].appendChild(input_container);
         }
     }
 
     function get_file_template_values() {
         var values = {};
-        document.getElementById("file-template-options").querySelectorAll("input, select").forEach(elem=>{
-            if (typeof elem.value != "undefined") {
+        var opts = [
+            ...document.getElementById("file-template-options-film").querySelectorAll("input, select"),
+            ...document.getElementById("file-template-options-capture").querySelectorAll("input, select")
+            ];
+        opts.forEach(elem=>{
+            if (elem.type == "checkbox") {
+                values[elem.name] = elem.checked ? 1 : 0;
+            } else if (typeof elem.value != "undefined") {
                 values[elem.name] = elem.value;
             }
         });
@@ -2916,11 +2985,13 @@
 
     function adjust_file_template(tpl) {
         for (const [part_id, part] of Object.entries(tpl.parts)) {
-            var elem = document.getElementById("file-template-"+part_id);
-            if (part.visible === true) {
-                elem.classList.remove("hidden");
-            } else if (part.visible === false) {
-                elem.classList.add("hidden");
+            var elem = document.getElementById("file-template--"+part_id);
+            if (elem) {
+                if (part.enabled === true) {
+                    elem.classList.remove("hidden");
+                } else if (part.enabled === false) {
+                    elem.classList.add("hidden");
+                }
             }
         }
         document.getElementById("header-capture-filename").innerHTML = tpl.filename;
@@ -2936,6 +3007,10 @@
                     case "preset":
                         var elem = document.getElementById("preset-list");
                         elem.value = action.value;
+                        break;
+                    case "autoinc":
+                        var elem = document.getElementById("autoinc-cb");
+                        elem.checked = action.value;
                         break;
                 }
             }

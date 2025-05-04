@@ -1090,7 +1090,8 @@ class CameraWrapper:
         if template_id != "":
             for part_id in list(tpl.get("parts", {})):
                 part = tpl["parts"][part_id]
-                if part.get("enabled", True):
+                editable = part.get("editable", True);
+                if part.get("enabled", True) and editable:
                     part_type = part.get("type")
                     part2 = {"type": part_type}
                     if "name" in part:
@@ -1106,17 +1107,25 @@ class CameraWrapper:
                             part2["min"] = part["min"]
                         if "max" in part:
                             part2["max"] = part["max"]
+                    elif part_type == "bool":
+                        pass
+                    elif part_type == "counter":
+                        pass
+                    elif part_type == "datetime":
+                        pass
                     elif part_type == "enum":
                         values = []
                         for val in part.get("values", []):
-                            if val.get("enabled", True) and val.get("value") != None:
+                            if4 val.get("enabled", True) and val.get("value") != None:
                                 values.append({"id": val["value"], "name": val.get("name", val["value"])})
                         if values:
                             part2["values"] = values
-                    elif part_type in ["static", "datetime", "counter"]:
-                        continue
                     else:
                         raise CameraControlError("Wrong template type: %s" % (part_type))
+                    if not editable is True:
+                        if not editable in ["film", "capture"]:
+                            raise CameraControlError("Wrong editable type: %s" % (editable))
+                        part2["container"] = editable
                     result["parts"][part_id] = part2
         return result
 
@@ -1139,6 +1148,8 @@ class CameraWrapper:
             for part_id in list(tpl.get("parts", {})):
                 part = tpl["parts"][part_id]
                 part_type = part.get("type")
+                editable = part.get("editable", True)
+                required = part.get("required", True)
                 if not part.get("enabled", True):
                     continue
                 eval_str = part.get("if")
@@ -1149,65 +1160,96 @@ class CameraWrapper:
                     except Exception as e:
                         logging.getLogger().error(e)
 
-                    if part_type in ["datetime", "string", "number"]:
+                    if editable:
                         parts2[part_id] = {"enabled": b}
                     if not b:
                         continue
-                if part.get("used_in_pattern", True):
 
-                    part_str = ""
-                    use_default = False
-                    if part_type == "datetime":
-                        part_str = now.strftime(part.get("format", "%Y%m%d%H%M%S"))
-                    elif part_type == "static":
-                        part_str = part.get("value", "").format(**tokens)
-                    elif part_type == "string":
-                        if part_id in values:
-                            regex = part.get("regex", "")
-                            if regex != "":
-                                if not re.fullmatch(regex, values[part_id]):
-                                    errors[part_id] = "Invalid string '%s'" % values[part_id]
-                                    continue
-                            max_length = part.get("max_length", 0)
-                            part_str = values[part_id][:max_length] if max_length > 0 else values[part_id]
-                    elif part_type == "number":
-                        if part_id in values and re.fullmatch("^\d+$", values[part_id]):
-                            mn = part.get("min", -sys.maxsize - 1)
-                            mx = part.get("max", sys.maxsize)
-                            part_str = str(min(max(mn, int(values[part_id])), mx))
-                    elif part_type == "enum":
-                        if part_id in values:
-                            found = False
-                            for val in part.get("values", []):
-                                if val.get("enabled", True) and val.get("value") == values[part_id]:
-                                    found = True
-                                    part_str = val.get("value")
-                                    break
-                            if not found:
-                                errors[part_id] = "Invalid option '%s'" % values[part_id]
+                part_str = ""
+                if part_type == "datetime":
+                    if not editable or not part_id in values or values[part_id].upper() == "NOW":
+                        values[part_id] = now.strftime(part.get("format", "%Y%m%d%H%M%S"))
+                    part_str = values[part_id]
+                elif part_type == "string":
+                    if not editable or not part_id in values:
+                        values[part_id] = part.get("value", "") if not editable or required else None
+                    if values[part_id] != None:
+                        values[part_id] = values[part_id].format(**tokens | values)
+                        regex = part.get("regex", "")
+                        if regex != "":
+                            if not re.fullmatch(regex, values[part_id]):
+                                errors[part_id] = "Invalid string '%s'" % values[part_id]
                                 continue
+                        max_length = part.get("max_length", 0)
+                        part_str = values[part_id][:max_length] if max_length > 0 else values[part_id]
+                        values[part_id] = part_str
+                elif part_type == "number":
+                    if not editable or not part_id in values or not re.fullmatch("^\d+$", values[part_id]):
+                        values[part_id] = part.get("value") if not editable or required else None
+                    if values[part_id] != None:
+                        mn = part.get("min", -sys.maxsize - 1)
+                        mx = part.get("max", sys.maxsize)
+                        values[part_id] = min(max(mn, int(values[part_id])), mx)
+                        part_str = str(abs(values[part_id])).zfill(part.get("digits", 0))
+                        if (values[part_id] < 0):
+                            part_str = "-" + part_str
+                elif part_type == "bool":
+                    if not editable or not part_id in values:
+                        values[part_id] = 0
+                    part_str = str(part.get("true_value", 1) if values[part_id] else part.get("false_value", 0))
+                elif part_type == "enum":
+                    if not editable or not part_id in values:
+                        values[part_id] = part.get("value") if not editable or required else None
+                    if values[part_id] != None:
+                        found = False
+                        for val in part.get("values", []):
+                            if val.get("enabled", True) and val.get("value") == values[part_id]:
+                                found = True
+                                part_str = val.get("value")
+                                break
+                        if not found:
+                            errors[part_id] = "Invalid option '%s'" % values[part_id]
+                            continue
 
-                            part_str = values[part_id]
-                    elif part_type == "counter":
-                        cnt = 0
+                        part_str = values[part_id]
+                elif part_type == "counter":
+                    mn = max(part.get("min", 1), 0)
+
+                    if not editable or not part_id in values:
+                        cnt = part.get("value", mn) if not editable or required else None
+                    else:
+                        cnt = max(int(values[part_id]), mn)
+                    if cnt != None:
                         if project_id != "" and film_id != "":
                             film = self.get_film(project_id, film_id)
                             regex = part.get("regex")
                             if not regex:
                                 errors[part_id] = "Missing regex to get count from filename '%s'" % part_id
+                                continue
+                            ids = []
                             for capture in film["captured"]:
                                 fname, fext = os.path.splitext(capture["name"])
                                 match = re.search(regex, fname)
-
                                 if match:
                                     n = int(match.group(1))
-                                    if n > cnt:
-                                        cnt = n
-                        part_str = str(cnt + 1).zfill(part.get("digits", 0))
+                                    if n >= cnt:
+                                        ids.append(n)
+                            ids = sorted(set(ids))   # make unique
+                            for id in ids:
+                                if id > cnt:
+                                    # free slot found
+                                    break
+                                elif id == cnt:
+                                    cnt += 1
 
+                        values[part_id] = cnt
+                        part_str = str(cnt).zfill(part.get("digits", 0))
+
+                if part.get("used_in_pattern", True):
+                    use_default = False
                     if part_str != "":
                         part_str = part.get("prefix", "") + part_str + part.get("suffix", "")
-                    elif part.get("required", True):
+                    elif required:
                         errors[part_id] = "Missing value '%s'" % part_id
                         continue
 
@@ -1219,6 +1261,7 @@ class CameraWrapper:
 
             for effect_id in list(tpl.get("effects", {})):
                 effect = tpl["effects"][effect_id]
+                b = True
                 eval_str = effect.get("if")
                 if eval_str:
                     b = False
@@ -1226,9 +1269,13 @@ class CameraWrapper:
                         b = simple_eval(eval_str, names=values)
                     except Exception as e:
                         logging.getLogger().error(e)
-                    if not b:
-                        continue
+                if b:
                     for action in effect.get("actions", []):
+                        if "value" in action:
+                            try:
+                                action["value"] = simple_eval(action["value"], names=values)
+                            except:
+                                pass
                         actions.append(action)
 
 

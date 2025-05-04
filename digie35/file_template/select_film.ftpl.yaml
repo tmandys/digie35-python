@@ -5,28 +5,38 @@ parts:
     type: enum
     used_in_pattern: False
     values:
-      - value: bw_negative
+      - value: BW_negative
         name: "BW negative"
-      - value: color_negative
+      - value: Color_negative
         name: "Color negative"
       - value: any
         name: "Non specified"
+  autoinc:
+    name: a-Inc
+    type: bool
+    used_in_pattern: False
 effects:
   bw_negative:
-    if: "film_type == 'bw_negative'"
+    if: "film_type == 'BW_negative'"
     actions:
       - type: set
         entity: preset
-        value: BW_negative
+        value: "film_type"
       - type: set
         entity: led
         value: white
   color_negative:
-    if: "film_type == 'color_negative'"
+    if: "film_type == 'Color_negative'"
     actions:
       - type: set
         entity: preset
-        value: Color_negative
+        value: "film_type"
       - type: set
         entity: led
         value: white+red+green+blue
+  on_autoinc:
+    xif: "True"
+    actions:
+      - type: set
+        entity: autoinc
+        value: "autoinc"

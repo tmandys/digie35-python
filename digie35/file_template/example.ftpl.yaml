@@ -2,7 +2,8 @@ name: "Extended example"
 parts:
   project_film_id:
     name: ""
-    type: static
+    type: string
+    editable: false
     value: "{project_id}_{film_id}"
     suffix: "_"
 
@@ -22,6 +23,7 @@ parts:
     regex: '_NEG_(\d+)_'
     suffix: "_"
     digits: 4
+    editable: false
     if: "film_type == 'NEG'"
 
   pos_counter:
@@ -34,13 +36,16 @@ parts:
 
   orig_name:
     name: ""
-    type: static
+    type: string
+    editable: false
     value: "{camera_filename}"
     suffix: "_"
 
-  tiomestamp:
+  timestamp:
+    name: "Timestamp"
     type: datetime
     format: "%Y%m%d-%H%M%S"
+    required: false
 
   brand:
     name: "Film brand"
