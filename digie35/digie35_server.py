@@ -1094,6 +1094,8 @@ class CameraWrapper:
                 if part.get("enabled", True) and editable:
                     part_type = part.get("type")
                     part2 = {"type": part_type}
+                    if part.get("multi", False):
+                        part2["multi"] = True
                     if "name" in part:
                         part2["name"] = part["name"]
                     if part_type == "string":
@@ -1108,7 +1110,10 @@ class CameraWrapper:
                         if "max" in part:
                             part2["max"] = part["max"]
                     elif part_type == "bool":
-                        pass
+                        part2["values"] = {
+                            str(part.get("false_value", "0")): part.get("false_str", part.get("false_value", "0")),
+                            str(part.get("true_value", "1")): part.get("true_str", part.get("true_value", "1")),
+                        }
                     elif part_type == "counter":
                         pass
                     elif part_type == "datetime":
@@ -1116,12 +1121,14 @@ class CameraWrapper:
                     elif part_type == "enum":
                         values = []
                         for val in part.get("values", []):
-                            if4 val.get("enabled", True) and val.get("value") != None:
+                            if val.get("enabled", True) and val.get("value") != None:
                                 values.append({"id": val["value"], "name": val.get("name", val["value"])})
                         if values:
                             part2["values"] = values
                     else:
                         raise CameraControlError("Wrong template type: %s" % (part_type))
+                    if "description" in part:
+                        part2["description"] = part["description"]
                     if not editable is True:
                         if not editable in ["film", "capture"]:
                             raise CameraControlError("Wrong editable type: %s" % (editable))

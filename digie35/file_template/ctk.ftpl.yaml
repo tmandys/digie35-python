@@ -9,17 +9,23 @@ parts:
 
   je_nulka:
     name: "Nulka"
+    description: "Volba zda se jedná o nulku nebo lomeninu"
     type: bool
     used_in_pattern: False
     editable: capture
+    true_str: "0"
+    false_str: "/"
+    multi: True
 
   lomenina:
     name: Lomenina
+    description: "Počítadlo lomenin podle masky. Pokud číslo lomeniny už existuje, je přiřazeno nejbližší volné vyšší"
     type: counter
     suffix: "_"
     if: "je_nulka == 0"
     regex: '^[A-Za-z0-9]+_(\d+)_'
     editable: capture
+    multi: True
 
   nulka:
     type: string
@@ -88,6 +94,7 @@ parts:
 
   je_externi:
     name: "Externí"
+    description: "U externího zdroje se přidává přípona EX_ + název projektu"
     type: bool
     used_in_pattern: False
 

@@ -16,3 +16,9 @@
 [submodule "contrib/gphoto2"]
 	path = contrib/gphoto2
 	url = git@github.com:gphoto/gphoto2.git
+[submodule "contrib/tagify"]
+	path = contrib/tagify
+	url = https://github.com/yairEO/tagify.git
+[submodule "contrib/dragsort"]
+	path = contrib/dragsort
+	url = https://github.com/yairEO/dragsort.git

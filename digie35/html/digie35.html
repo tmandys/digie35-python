@@ -7,6 +7,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="icon" type="image/x-png" href="images/digie35-film-strip-96.png" />
 	<script type="text/javascript" src="qrcode.js"></script>
+	<script type="text/javascript" src="tagify.js"></script>
+    <script type="text/javascript" src="tagify.polyfills.min.js"></script>
+    <link href="tagify.css" rel="stylesheet" type="text/css" />
+	<script type="text/javascript" src="dragsort.js"></script>
+    <link href="dragsort.css" rel="stylesheet" type="text/css" />
     <title>Digie35</title>
 
     <style>
@@ -649,6 +654,43 @@
             100% { transform: rotate(0deg); }
         }
 
+        .right-button-column-container {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .right-button-column-container .tags-container {
+            flex: 1;
+            min-height: 40px;
+        }
+
+        .tagify {
+            width: 100%;
+        }
+
+        .tagify__input::before {   /* to display placeholder */
+            opacity: 1;
+            position: static;
+        }
+
+        .button-column {
+            display: flex;
+            flex-direction: column;
+            margin-left: 4px;
+        }
+
+        .button-column button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            line-height: 1;
+            padding: 0;
+            margin-bottom: 4px;
+            width: 1.0rem;
+            height: 1.0rem;
+        }
+
     </style>
 </head>
 
@@ -837,6 +879,17 @@
                             <input type="radio" name="capture-mode" id="capture-mode-multi-rb" value="multi" /><label for="capture-mode-multi-rb" accesskey="m" title="It will capture specific number of pictures. Auto move settings is essential"><u>M</u>ulti</label>
                         </div>
                         <div id="file-template-options-capture" class="centered-btn vertical-spacer horizontal-wrap-spacer">
+                        </div>
+                        <div id="file-template-options-capture-multi" class="vertical-spacer hidden">
+                            <div class="right-button-column-container">
+                                <div class="tags-container">
+                                    <input type="text" name="file-template--multi" class="tags-control" placeholder="frame queue..." />
+                                </div>
+                                <div class="button-column">
+                                    <button id="file-template--add" class="tags--addBtn" title="Add sequentially parameters for next film frames which will be automatically popped after capture">+</button>
+                                    <button id="file-template--remove" class="tags--removeAllBtn" title="Clear all">&times;</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="vertical-spacer centered-btn">
                             <button id="shoot-btn" title="Numpad0,X">Shoot!</button>
@@ -1686,6 +1739,7 @@
     }
 
     function picture_taken(payload) {
+
         if (window.capabilities.motorized) {
             if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
                 var x = Math.abs(window.last_capture_position - payload.film_position);
@@ -1709,6 +1763,15 @@
     }
 
     function file_transfer_finished(payload) {
+        if (window.multi_tags.has_multi) {
+            if (window.multi_tags.value.length > 0) {
+                set_file_template_values(JSON.parse(window.multi_tags.value[0].value));
+                const tag = window.multi_tags.getTagElms()[0];
+                window.multi_tags.removeTag(tag);
+            }
+        }
+        // we do not need wait for response as counters are finally evaluated at server side
+        sendCommand('VALIDATE_TEMPLATE', ['project_id', 'film_id'], get_file_template_values());
         sendCommand('GET_PROJECT', ['project_id', 'film_id']);
         if (typeof payload.error != "undefined") {
             window.stop_multicapture = true;
@@ -1716,6 +1779,9 @@
         }
         if (!window.capabilities.motorized) {
             window.automove_in_progress = false;
+        }
+        if (document.getElementById("notify-image-filename-cb").checked) {
+            screen_notification(payload.file_path.replace(/^.*[\\/]/, ''));
         }
     }
 
@@ -1877,9 +1943,6 @@
 
                             } else if (data.cmd == "DOWNLOAD") {
                                 file_transfer_finished(data.payload);
-                                if (document.getElementById("notify-image-filename-cb").checked) {
-                                    screen_notification(data.payload.file_path.replace(/^.*[\\/]/, ''));
-                                }
                                 window.download_in_progress = false;
                                 check_multicapture();
 
@@ -2252,6 +2315,46 @@
             element.addEventListener("click", function() {
                 close_modal();
             })
+        });
+
+        var multi_container = document.getElementById("file-template-options-capture-multi");
+        window.multi_tags = new Tagify(multi_container.querySelector(".tags-control"), {
+            "tagTextProp": "text",
+            "duplicates": true,
+            "editTags": false,
+            "focusable": false,
+            "userInput": false,
+            "mode": null,
+        });
+        window.multi_tags.on("click", e=>{
+            set_file_template_values(JSON.parse(e.detail.data.value));
+            sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
+        });
+        window.multi_tags.has_multi = false;
+
+        var dragsort = new DragSort(window.multi_tags.DOM.scope, {
+            selector: '.'+window.multi_tags.settings.classNames.tag,
+            callbacks: {
+                dragEnd: function() {
+                    window.multi_tags.updateValueByDOMTags();
+                }
+            }
+        });
+
+        document.getElementById("file-template--remove").addEventListener('click', window.multi_tags.removeAllTags.bind(window.multi_tags));
+        document.getElementById("file-template--add").addEventListener('click', function() {
+            var multi = {};
+            var values = get_file_template_values_ex();
+            var txt = [];
+            for (const [key, val] of Object.entries(values["values"])) {
+                if (val["multi"] && val["enabled"] && typeof val["value"] != "undefined") {
+                    multi[key] = val["value"];
+                    txt.push(val["text"]);
+                }
+            }
+            if (multi) {
+                window.multi_tags.addTags([{"value": JSON.stringify(multi), "text": txt.join(""), "title": txt.join(" ")}]);
+            }
         });
 
         window.access_keys = {};
@@ -2855,6 +2958,7 @@
             containers[name] = document.getElementById("file-template-options-"+name);
             containers[name].innerHTML = "";
         });
+        var is_multi = false;
         for (const [part_id, part] of Object.entries(tpl.parts)) {
             var input;
             var input_container = null;
@@ -2933,10 +3037,12 @@
                 input = document.createElement("input");
                 input.type = "checkbox";
                 input.value = "1";
+                input.id = "file-template--checkbox--"+part_id;
+                input.setAttribute("data-values", JSON.stringify(part.values));
                 add_event_listeners_for_input(input);
                 input_container.appendChild(input);
                 var label = document.createElement("label");
-                label.setAttribute("for", input);
+                label.setAttribute("for", input.id);
                 label.innerHTML = part.name;
                 input_container.appendChild(label);
                 len = 2;
@@ -2950,37 +3056,93 @@
             input.setAttribute("data-type", part.type);
             input_container.id = "file-template--"+part_id;
             input.name = part_id;
-            if (typeof part.name != "undefined")  {
+            if (typeof part.description != "undefined")  {
+                input.title = part.description;
+            } else if (typeof part.name != "undefined")  {
                 input.title = part.name;
             }
             input.style.width = String(len)+"ch";
+            if (typeof part.multi != "undefined" && part.multi) {
+                is_multi = true;
+                input.setAttribute("data-multi", part.multi);
+            }
 
             if (val != null) {
                 input.value = val;
             }
             input.addEventListener("change", function() {
                 localStorage.setItem("file_template."+this.name, this.value);
-                sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values())
+                sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
             });
 
             containers[typeof part.container != "undefined" ? part.container : "film"].appendChild(input_container);
         }
+        var multi_container = document.getElementById("file-template-options-capture-multi");
+        window.multi_tags.has_multi = is_multi;
+        if (is_multi) {
+            multi_container.classList.remove("hidden");
+        } else {
+            multi_container.classList.add("hidden");
+
+        }        
     }
 
-    function get_file_template_values() {
+    function set_file_template_values(values) {
+        var opts = [
+            ...document.getElementById("file-template-options-film").querySelectorAll("input, select"),
+            ...document.getElementById("file-template-options-capture").querySelectorAll("input, select")
+            ];
+        opts.forEach(elem=>{
+            if (typeof values[elem.name] != "undefined") {
+                if (elem.type == "checkbox") {
+                    elem.checked = values[elem.name];
+                } else {
+                    elem.value = values[elem.name];
+                }
+
+            }
+        });
+    }
+
+    function get_file_template_values_ex() {
         var values = {};
         var opts = [
             ...document.getElementById("file-template-options-film").querySelectorAll("input, select"),
             ...document.getElementById("file-template-options-capture").querySelectorAll("input, select")
             ];
         opts.forEach(elem=>{
+            var val = {};
+            val["multi"] = elem.getAttribute("data-multi") === "true";
+            val["enabled"] = !document.getElementById("file-template--"+elem.name).classList.contains("hidden");
             if (elem.type == "checkbox") {
-                values[elem.name] = elem.checked ? 1 : 0;
+                val["value"] = elem.checked ? 1 : 0;
+                var v = JSON.parse(elem.getAttribute("data-values"));
+                val["text"] = Object.values(v)[val["value"]];
             } else if (typeof elem.value != "undefined") {
-                values[elem.name] = elem.value;
+                val["value"] = elem.value;
+                if (elem.type == "enum") {
+                    if (elem.selectedIndex >= 0) {
+                        val["text"] = elem.options[elem.selectedIndex].text;
+                    }
+
+                } else {
+                    val["text"] = val["value"];
+                }
             }
+            values[elem.name] = val;
         });
         return {"template_id": document.getElementById("file-template-list").value, "values": values};
+    }
+
+    function get_file_template_values() {
+        var data = get_file_template_values_ex();
+        var values = {};
+        Object.keys(data["values"]).forEach(key=>{
+            if (typeof data["values"][key]["value"] != "undefined") {
+                values[key] = data["values"][key]["value"];
+            }
+        })
+        return {"template_id": data["template_id"], "values": values};
     }
 
     function adjust_file_template(tpl) {

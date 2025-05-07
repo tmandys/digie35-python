@@ -8,13 +8,15 @@ name: <human name as appears in GUI>
 parts:
   <id>:                   ; unique identifier (letters, digits, underscore), referenced as variable from "if"
                           ; common options
-    name: string          ; human friendly, appears in GUI
+    name: string          ; human friendly short name, appears in GUI
+    description: string   ; free text, appears as tooltip
     used_in_pattern: boolean  ; to use a part just for an action, default: true
     prefix: string        ; prefix to be added if value is not empty
     suffix: string        ; suffix to be added if value is not empty
-    editable: boolean     ; editable in GUI, default: true
+    editable: boolean     ; editable in GUI, default: true (=film), film/capture to place in particular tab
     enabled: boolean      ; disabled parts are skipped, default: true
     required: boolean     ; if a value must be entered to pass, default: true
+    multi: boolean        ; prepare template queue for multiple frames, default: false
     if: simple_eval       ; display/use conditionally, active when expression returns true, see https://pypi.org/project/simpleeval/
                           ; part values are passed as variables named by part id
 
@@ -54,8 +56,10 @@ parts:
 
   <id6>:
     type: "bool"
-    true_value: string    ; true value, default: "1"
-    false_value: string   ; false value, default: "0"
+    true_value: string    ; true value, for file part, default: "1"
+    false_value: string   ; false value, for file part, default: "0"
+    true_str: string      ; true value, used in GUI, default is true_value
+    false_str: string     ; false value, used in GUI, default false_value
     
 effects:
   <id>:                   ; unique identifier

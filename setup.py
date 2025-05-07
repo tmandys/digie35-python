@@ -11,7 +11,7 @@ with open('LICENSE') as f:
 url = "https://repos.digie35.com/python"
 setup(
     name='digie35_ctrl',
-    version='0.8.0',
+    version='0.8.1',
     description='Digie35 Control package',
     long_description=readme,
     author='Tomas Mandys',
@@ -30,6 +30,7 @@ setup(
     package_data={
         "digie35": [
             "html/*.html",
+            "html/*.css",
             "html/*.js",
             "html/images/*",
             "systemd/*.service",
