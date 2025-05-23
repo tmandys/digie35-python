@@ -464,6 +464,13 @@
             font-size: 14px;
         }
 
+        .error-message .close {
+            position: absolute;
+            top: 0;
+            right: 5px;
+            cursor: pointer;
+        }
+
         .error-message .icon {
             margin-right: 10px;
             font-size: 16px;
@@ -695,6 +702,11 @@
 </head>
 
 <body onload="do_onload()">
+    <div id="error-box" class="error-message hidden">
+        <span class="icon">&#x26a0;</span>
+        <span id="error-close" class="close">&times;</span>
+        <div id="error-content" class="content"></div>
+    </div>
     <div id="error-message" class="error-message hidden">
         <span class="icon">&#x26a0;</span>
         <span class="text"></span>
@@ -1601,10 +1613,21 @@
         list.value = sel2;
     }
 
-    function update_status_info(s) {
-        var elem = document.getElementById("error-message");
-        elem.querySelector(".text").innerHTML = s;
-        if (!s) {
+    function update_status_info(msg, clear = false) {
+        var content = document.getElementById("error-content");
+        if (clear) {
+            content.innerHTML = "";
+        }
+        if (msg != "") {
+            const last = content.LastElementChild;
+            if (!last || last.textContent !== msg) {
+                const line = document.createElement("div");
+                line.textContent = msg;
+                content.appendChild(line);
+            }
+        }
+        var elem = document.getElementById("error-box");
+        if (content.innerHTML == "") {
             elem.classList.add("hidden");
         } else {
             elem.classList.remove("hidden");
@@ -1942,10 +1965,9 @@
                                 update_battery(data.payload.battery);
 
                             } else if (data.cmd == "DOWNLOAD") {
-                                file_transfer_finished(data.payload);
                                 window.download_in_progress = false;
+                                file_transfer_finished(data.payload);
                                 check_multicapture();
-
                             } else if (data.cmd == "CREATE_FILM") {
                                 // add new film into select box as placeholder
                                 var elem = document.getElementById("film-list");
@@ -2090,6 +2112,7 @@
         document.onkeyup = function(event) {};
         document.getElementById("server-info").value = "";
         delete window.control_socket;
+        update_status_info("", true);
         adjust();
         adjust_adapter({});
     }
@@ -2355,6 +2378,9 @@
             if (multi) {
                 window.multi_tags.addTags([{"value": JSON.stringify(multi), "text": txt.join(""), "title": txt.join(" ")}]);
             }
+        });
+        document.getElementById("error-close").addEventListener('click', function() {
+            update_status_info("", true);
         });
 
         window.access_keys = {};
