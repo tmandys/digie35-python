@@ -1,12 +1,13 @@
 #!/bin/env bash
 
-
 MAKE_LIBGPHOTO2=1
 # Debian package is not the same as original, requires original DEBIAN/* stuff
 MAKE_LIBGPHOTO2_DIST=1
 MAKE_PYTHON_GPHOTO2=1
+MAKE_GPHOTO2=
 
 SAVE_DIR=$(cd `dirname $0`; pwd)
+GPHOTO2_DIR=$SAVE_DIR/gphoto2
 LIBGPHOTO2_DIR=$SAVE_DIR/libgphoto2
 CONFIGURE_PARAMS="--prefix=$HOME/.local --enable-static"
 
@@ -14,14 +15,34 @@ red_color='\033[0;31m'
 yellow_color='\033[1;33m'
 no_color='\033[0m'
 
-function get_libgphoto2_version() {
+function get_version_from_configure() {
     # looking for "        [2.5.31.2],"
-    VERSION=$(sed -n "s/^.*\[\(2\.5\.[0-9]\+\.[0-9]\+\)\],/\1/p" $LIBGPHOTO2_DIR/configure.ac)
-    if [ ! $VERSION ] ; then
+    version=$(sed -n "s/^.*\[\(2\.5\.[0-9]\+\.[0-9]\+\)\],/\1/p" $SAVE_DIR/$1/configure.ac)
+    if [ ! $version ] ; then
         echo "Cannot get version from configure.ac"
         exit 1
     fi
+    echo $version
+}
+
+function get_libgphoto2_version() {
+    VERSION=$(get_version_from_configure libgphoto2)
     echo "libgphoto2 version: $VERSION"
+}
+
+function patch_version_in_configure() {
+    dir=$1
+    version=$2
+    echo "Enter new version, unless already patched then recommended is rightmost digit increase by one or confirm [$version]"
+    read new_version
+    if [ $new_version ] ; then
+        if [ $new_version != $version ] ; then
+            echo "Patching $version -> $new_version"
+            sed -e "s/\[\(2\.5\.[0-9]\+\.[0-9]\+\)\]/[$new_version]/" -i $SAVE_DIR/$dir/configure.ac
+        fi
+    else
+        echo "Leaving $version"
+    fi
 }
 
 if [ $MAKE_LIBGPHOTO2 ] ; then
@@ -31,16 +52,8 @@ if [ $MAKE_LIBGPHOTO2 ] ; then
     # cannot use a dash delimited suffix as python-gphoto2 will complain. So increase last digit
     get_libgphoto2_version
 
-    echo "Enter new version, unless already patched then recommended is rightmost digit increase by one or confirm [$VERSION]"
-    read new_version
-    if [ $new_version ] ; then
-        if [ $new_version != $VERSION ] ; then
-            echo "Patching $VERSION -> $new_version"
-            sed -e "s/\[\(2\.5\.[0-9]\+\.[0-9]\+\)\]/[$new_version]/" -i $LIBGPHOTO2_DIR/configure.ac
-        fi
-    else
-        echo "Leaving $VERSION"
-    fi
+    patch_version_in_configure libgphoto2 $VERSION
+
     patch -u -N -p 1 -d $LIBGPHOTO2_DIR -i $SAVE_DIR/libgphoto2.diff
 
     cd $LIBGPHOTO2_DIR
@@ -84,10 +97,7 @@ if [ $MAKE_LIBGPHOTO2_DIST ] ; then
 	#sudo dpkg --install --prefix=$HOME/.local $LIBGPHOTO2_DIR/${PKG_FILEPATH}
 fi
 
-if [ $MAKE_PYTHON_GPHOTO2 ] ; then
-    echo -e "${yellow_color}Building python-gphoto2${no_color}"
-    TGT_DIR=python-gphoto2
-
+function check_libgphoto2_version() {
     get_libgphoto2_version
 
     libgphoto2_prefix=`PKG_CONFIG_PATH=$LIBGPHOTO2_DIR pkg-config --variable=libdir libgphoto2`
@@ -108,6 +118,14 @@ if [ $MAKE_PYTHON_GPHOTO2 ] ; then
             echo -e "${red_color}Using currently installed libgphoto2 library [$INSTALLED_VERSION]. It might be not intended!${no_color}"
         fi
     fi
+
+}
+
+if [ $MAKE_PYTHON_GPHOTO2 ] ; then
+    echo -e "${yellow_color}Building python-gphoto2${no_color}"
+    TGT_DIR=python-gphoto2
+
+    check_libgphoto2_version
 
     cd $SAVE_DIR/$TGT_DIR
     patch -u -N -p 1 -d . -i $SAVE_DIR/python-gphoto2.diff
@@ -138,4 +156,22 @@ if [ $MAKE_PYTHON_GPHOTO2 ] ; then
         eval $CMD
     fi
 
+fi
+
+if [ $MAKE_GPHOTO2 ] ; then
+
+    echo -e "${yellow_color}Building gphoto2${no_color}"
+
+    check_libgphoto2_version
+    GPHOTO2_VERSION=$(get_version_from_configure gphoto2)
+
+    patch_version_in_configure gphoto2 $GPHOTO2_VERSION
+
+    cd $GPHOTO2_DIR
+    autoreconf -is
+    ./configure PKG_CONFIG_PATH="$HOME/.local/lib/pkgconfig${PKG_CONFIG_PATH+":${PKG_CONFIG_PATH}"}" $CONFIGURE_PARAMS
+    make
+    make install
+
+	cd $SAVE_DIR
 fi
