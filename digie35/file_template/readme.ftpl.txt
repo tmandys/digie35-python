@@ -66,5 +66,5 @@ effects:
     if: simple_eval       ; see "if" above, does actions when expression returns true, default: True
     actions:
       - type: "set"       ; set value to an entity
-        entity: string    ; entities: preset, led, autoinc
+        entity: string    ; entities: preset, led, autoinc, invert, flip, rotate (0, 90, 180, 270)
         value: simple_eval; value to be assigned to entity, fallback of expression is expression itself

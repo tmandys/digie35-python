@@ -1136,6 +1136,20 @@ class CameraWrapper:
                     result["parts"][part_id] = part2
         return result
 
+    def _make_default_values(self, parts, values):
+        result = values.copy()   # to avoid undefined variables in expressions
+        for part_id in list(parts):
+            if not part_id in values:
+                part = parts[part_id]
+                part_type = part.get("type")
+                if part_type in ("number", "counter", "bool"):
+                    result[part_id] = 0
+                elif part_type == "enum":
+                    result[part_id] = ""  # None dislikes
+                else:
+                    result[part_id] = ""
+        return result
+
     def validate_file_template(self, template_id, values, project_id, film_id, camera_filename="capt0000"):
         parts2 = {}
         actions = []
@@ -1163,12 +1177,12 @@ class CameraWrapper:
                 if eval_str:
                     b = False
                     try:
-                        b = simple_eval(eval_str, names=values)
+                        b = simple_eval(eval_str, names=self._make_default_values(tpl.get("parts", {}), values))
                     except Exception as e:
                         logging.getLogger().error(e)
 
                     if editable:
-                        parts2[part_id] = {"enabled": b}
+                        parts2.setdefault(part_id, {})["enabled"] = b
                     if not b:
                         continue
 
@@ -1250,6 +1264,7 @@ class CameraWrapper:
                                     cnt += 1
 
                         values[part_id] = cnt
+                        parts2.setdefault(part_id, {})["value"] = cnt
                         part_str = str(cnt).zfill(part.get("digits", 0))
 
                 if part.get("used_in_pattern", True):
@@ -1273,7 +1288,7 @@ class CameraWrapper:
                 if eval_str:
                     b = False
                     try:
-                        b = simple_eval(eval_str, names=values)
+                        b = simple_eval(eval_str, names=self._make_default_values(tpl.get("parts", {}), values))
                     except Exception as e:
                         logging.getLogger().error(e)
                 if b:

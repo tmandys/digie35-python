@@ -124,3 +124,8 @@ effects:
       - type: set
         entity: led
         value: white+red+green+blue
+  negativ:
+    actions:
+      - type: set
+        entity: invert
+        value: "color != 'BP'"

@@ -671,6 +671,17 @@
             min-height: 40px;
         }
 
+        .file-template--counter .icon {
+            background-color: orange;
+            color: black;
+            border-radius: 50%;
+            padding: 1px 1px;
+            margin-left: 3px;
+            font-size: 1.0rem;
+            vertical-align: middle;
+            cursor: pointer;
+        }
+
         .tagify {
             width: 100%;
         }
@@ -706,10 +717,6 @@
         <span class="icon">&#x26a0;</span>
         <span id="error-close" class="close">&times;</span>
         <div id="error-content" class="content"></div>
-    </div>
-    <div id="error-message" class="error-message hidden">
-        <span class="icon">&#x26a0;</span>
-        <span class="text"></span>
     </div>
     <div class="wrapper">
         <div class="left-sidebar" id="controls">
@@ -1619,8 +1626,14 @@
             content.innerHTML = "";
         }
         if (msg != "") {
-            const last = content.LastElementChild;
-            if (!last || last.textContent !== msg) {
+            var found = false;
+            for (let child of content.children) {
+                if (child.textContent === msg) {
+                    content.appendChild(child);
+                    found = true;
+                }
+            }
+            if (!found) {
                 const line = document.createElement("div");
                 line.textContent = msg;
                 content.appendChild(line);
@@ -3045,16 +3058,24 @@
                 add_event_listeners_for_input(input);
 
             } else if (part.type == "counter") {
+                input_container = document.createElement("span");
                 input = document.createElement("input");
                 input.type = "number";
                 input.step = 1;
                 input.min = 1;
+                input.id = "file-template--input--"+part_id;
                 if (typeof part.max != "undefined") {
                     input.max = part.max;
                 } else {
                     input.max = 9999;
                 }
                 input.value = input.min;
+                input_container.appendChild(input);
+                var icon = document.createElement("span");
+                icon.classList.add("hidden");
+                icon.classList.add("icon");
+                icon.innerHTML = "&#9888;"
+                input_container.appendChild(icon);
                 len = String(input.max).length + 2;
                 add_event_listeners_for_input(input);
 
@@ -3081,6 +3102,7 @@
             };
             input.setAttribute("data-type", part.type);
             input_container.id = "file-template--"+part_id;
+            input_container.classList.add("file-template--"+part.type);
             input.name = part_id;
             if (typeof part.description != "undefined")  {
                 input.title = part.description;
@@ -3180,6 +3202,17 @@
                 } else if (part.enabled === false) {
                     elem.classList.add("hidden");
                 }
+                var icon = elem.querySelector(".icon");
+                if (icon) {
+                    var input = elem.querySelector("input");
+                    if ((typeof part.value == "undefined") || input.value === String(part.value)) {
+                        icon.classList.add("hidden");
+                        icon.setAttribute("title", "");
+                    } else {
+                        icon.classList.remove("hidden");
+                        icon.setAttribute("title", `Next value: ${part.value}`);
+                    }
+                }
             }
         }
         document.getElementById("header-capture-filename").innerHTML = tpl.filename;
@@ -3200,18 +3233,31 @@
                         var elem = document.getElementById("autoinc-cb");
                         elem.checked = action.value;
                         break;
+                    case "invert":
+                    case "flip":
+                        var elem = document.getElementById(action.entity+"-cb");
+                        elem.checked = action.value;
+                        adjust_preview();
+                        break;
+                    case "rotate":
+                        var elem = document.getElementById("rotate"+String(action.value)+"-rb");
+                        if (elem) {
+                            elem.checked = true;
+                        }
+                        adjust_preview();
+                        break;
                 }
             }
         });
 
         if (document.getElementById("film_id").value != "") {
-            var errs = "";
+            var errs = [];
             if (typeof tpl.errors != "undefined") {
                 for (const [part_id, err] of Object.entries(tpl.errors)) {
-                    errs += `${part_id}: ${err} `;
+                    errs.push(`${part_id}: ${err}`);
                 }
             }
-            update_status_info(errs);
+            update_status_info(errs.join("|"));
         }
     }
 
