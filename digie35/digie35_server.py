@@ -239,7 +239,7 @@ class CameraWrapper:
                     self._camera_id = "|".join([value, name])
                     return
             count += 1
-            if count > 10:
+            if count > 2:
                 raise CameraControlError(f"Cannot reinit camera: %s" % model)
             time.sleep(0.2*count)
 
@@ -417,212 +417,216 @@ class CameraWrapper:
 
     def _do_download(self, wire_trigger, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_data, **kwargs):
         try:
-            error = None
             try:
+                error = None
                 try:
-                    logging.getLogger().debug(f"Download thread started: %s, target: %s, download: %s, delete: %s" % (camera_filepath, target_filename, download, delete))
-                    fname, fext = os.path.splitext(camera_filepath.name)
-                    if not download and not wire_trigger:
-                        # heuristic to detect the file is in camera memory, capt0000 is likely in ram
-                        x = re.search("[0-9]+$", fname)
-                        if (x != None and int(x.group(0)) == 0) or re.match("capt[0-9]+", fname):
-                            logging.getLogger().debug("Forcing download as image is in RAM (%s)" % (fname))
-                            download = True
+                    try:
+                        logging.getLogger().debug(f"Download thread started: %s, target: %s, download: %s, delete: %s" % (camera_filepath, target_filename, download, delete))
+                        fname, fext = os.path.splitext(camera_filepath.name)
+                        if not download and not wire_trigger:
+                            # heuristic to detect the file is in camera memory, capt0000 is likely in ram
+                            x = re.search("[0-9]+$", fname)
+                            if (x != None and int(x.group(0)) == 0) or re.match("capt[0-9]+", fname):
+                                logging.getLogger().debug("Forcing download as image is in RAM (%s)" % (fname))
+                                download = True
 
-                    now = datetime.datetime.now()
-                    now_s = now.strftime("%Y%m%d%H%M%S")
+                        now = datetime.datetime.now()
+                        now_s = now.strftime("%Y%m%d%H%M%S")
 
-                    # find unique filenamwe not to overwrite file in case of ambiguous filename
-                    target_no_ext_1 = os.path.join(self._get_path(project_id, film_id), target_filename)
-                    target_no_ext = target_no_ext_1
-                    counter = 1
-                    fext2 = fext
-                    if not download:
-                        fext2 += self._LINK_EXTENSION
-                    while os.path.exists(target_no_ext + fext2):
-                        counter += 1
-                        target_no_ext = f"{target_no_ext_1} ({counter})"
-                    target = target_no_ext + fext
+                        # find unique filenamwe not to overwrite file in case of ambiguous filename
+                        target_no_ext_1 = os.path.join(self._get_path(project_id, film_id), target_filename)
+                        target_no_ext = target_no_ext_1
+                        counter = 1
+                        fext2 = fext
+                        if not download:
+                            fext2 += self._LINK_EXTENSION
+                        while os.path.exists(target_no_ext + fext2):
+                            counter += 1
+                            target_no_ext = f"{target_no_ext_1} ({counter})"
+                        target = target_no_ext + fext
 
-                    if download:
-                        logging.getLogger().info(f"Downloading image to '%s'", target)
-                        logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
-                        camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
-                        gp.check_result(gp.gp_file_save(camera_file, target))
-                        if delete:
-                            logging.getLogger().debug(f"Delete image '%s'", camera_filepath.name)
-                            gp.check_result(gp.gp_camera_file_delete(self._camera, camera_filepath.folder, camera_filepath.name))
-                    else:
-                        logging.getLogger().info(f"Image link for '%s'", target)
-                        with open(target + self._LINK_EXTENSION, "w") as file:
-                            file.write("%s\n%s\n%s\n%s" % (self._camera_id, camera_filepath.folder, camera_filepath.name, now_s))
-                    if kwargs["preset"]:
-                        # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
-                        # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
+                        if download:
+                            logging.getLogger().info(f"Downloading image to '%s'", target)
+                            logging.getLogger().debug("gp_camera_file_get(%s, %s, %s)" % (camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
+                            camera_file = gp.check_result(gp.gp_camera_file_get(self._camera, camera_filepath.folder, camera_filepath.name, gp.GP_FILE_TYPE_NORMAL))
+                            gp.check_result(gp.gp_file_save(camera_file, target))
+                            if delete:
+                                logging.getLogger().debug(f"Delete image '%s'", camera_filepath.name)
+                                gp.check_result(gp.gp_camera_file_delete(self._camera, camera_filepath.folder, camera_filepath.name))
+                        else:
+                            logging.getLogger().info(f"Image link for '%s'", target)
+                            with open(target + self._LINK_EXTENSION, "w") as file:
+                                file.write("%s\n%s\n%s\n%s" % (self._camera_id, camera_filepath.folder, camera_filepath.name, now_s))
+                        if kwargs["preset"]:
+                            # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
+                            # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
 
-                        namespaces = {
-                            "x": "adobe:ns:meta/",
-                            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-                            "xmp": "http://ns.adobe.com/xap/1.0/",
-                            "dc": "http://purl.org/dc/elements/1.1/",
-                            "tiff": "http://ns.adobe.com/tiff/1.0/",
-                            "photoshop": "http://ns.adobe.com/photoshop/1.0/",
-                        }
-                        custom_tree = etree.Element("{%s}xmpmeta" % (namespaces["x"]), nsmap={"x": namespaces["x"]})
-                        rdf = etree.SubElement(custom_tree, "{%s}RDF" % (namespaces["rdf"]), nsmap={"rdf": namespaces["rdf"]})
-                        now_s2 = now.strftime("%Y-%m-%dT%H:%M:%S")
-                        description = etree.SubElement(
-                            rdf,
-                            "{%s}Description" % (namespaces["rdf"]),
-                            attrib={
-                                "{%s}about" % (namespaces["rdf"]) : fname + fext,
-                                "{%s}CreateDate" % (namespaces["xmp"]): now_s2,
-                                "{%s}ModifyDate" % (namespaces["xmp"]): now_s2,
-                            },
-                            nsmap={
-                                "xmp": namespaces["xmp"],
-                                "dc": namespaces["dc"],
-                                "tiff": namespaces["tiff"],
-                                "photoshop": namespaces["photoshop"],
+                            namespaces = {
+                                "x": "adobe:ns:meta/",
+                                "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                                "xmp": "http://ns.adobe.com/xap/1.0/",
+                                "dc": "http://purl.org/dc/elements/1.1/",
+                                "tiff": "http://ns.adobe.com/tiff/1.0/",
+                                "photoshop": "http://ns.adobe.com/photoshop/1.0/",
                             }
-                        )
-                        orientation = None
-                        rotation = kwargs["rotation"]
-                        if kwargs["flipped"]:
-                            if rotation == 0:
-                                orientation = 2
-                            elif rotation == 90:
-                                orientation = 5
-                            elif rotation == 180:
-                                orientation = 4
-                            elif rotation == 270:
-                                orientation = 7
-                        else:
-                            if rotation == 0:
-                                orientation = 1
-                            elif rotation == 90:
-                                orientation = 6
-                            elif rotation == 180:
-                                orientation = 3
-                            elif rotation == 270:
-                                orientation = 8
-                        if orientation != None:
-                            description.set("{%s}Orientation" % (namespaces["tiff"]), "%s" % (orientation))
+                            custom_tree = etree.Element("{%s}xmpmeta" % (namespaces["x"]), nsmap={"x": namespaces["x"]})
+                            rdf = etree.SubElement(custom_tree, "{%s}RDF" % (namespaces["rdf"]), nsmap={"rdf": namespaces["rdf"]})
+                            now_s2 = now.strftime("%Y-%m-%dT%H:%M:%S")
+                            description = etree.SubElement(
+                                rdf,
+                                "{%s}Description" % (namespaces["rdf"]),
+                                attrib={
+                                    "{%s}about" % (namespaces["rdf"]) : fname + fext,
+                                    "{%s}CreateDate" % (namespaces["xmp"]): now_s2,
+                                    "{%s}ModifyDate" % (namespaces["xmp"]): now_s2,
+                                },
+                                nsmap={
+                                    "xmp": namespaces["xmp"],
+                                    "dc": namespaces["dc"],
+                                    "tiff": namespaces["tiff"],
+                                    "photoshop": namespaces["photoshop"],
+                                }
+                            )
+                            orientation = None
+                            rotation = kwargs["rotation"]
+                            if kwargs["flipped"]:
+                                if rotation == 0:
+                                    orientation = 2
+                                elif rotation == 90:
+                                    orientation = 5
+                                elif rotation == 180:
+                                    orientation = 4
+                                elif rotation == 270:
+                                    orientation = 7
+                            else:
+                                if rotation == 0:
+                                    orientation = 1
+                                elif rotation == 90:
+                                    orientation = 6
+                                elif rotation == 180:
+                                    orientation = 3
+                                elif rotation == 270:
+                                    orientation = 8
+                            if orientation != None:
+                                description.set("{%s}Orientation" % (namespaces["tiff"]), "%s" % (orientation))
 
-                        if "negative" in kwargs:
-                            etree.SubElement(description, "{%s}Source" % (namespaces["photoshop"])).text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
+                            if "negative" in kwargs:
+                                etree.SubElement(description, "{%s}Source" % (namespaces["photoshop"])).text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
 
-                        description.set("{%s}Identifier" % (namespaces["dc"]), "%s/%s" % (project_id, film_id))
+                            description.set("{%s}Identifier" % (namespaces["dc"]), "%s/%s" % (project_id, film_id))
 
-                        # add info about digie35
-                        dev_info = {}
-                        if digitizer_info != None:
-                            dev_info["device"] = "%s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"])
-                        else:
-                            dev_info["device"] = digitizer.__class__.__name__
-                        dev_info["adapters"] = ",".join(f"{value.ID}" for key, value in digitizer._adapters.items())
+                            # add info about digie35
+                            dev_info = {}
+                            if digitizer_info != None:
+                                dev_info["device"] = "%s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"])
+                            else:
+                                dev_info["device"] = digitizer.__class__.__name__
+                            dev_info["adapters"] = ",".join(f"{value.ID}" for key, value in digitizer._adapters.items())
 
-                        color = digitizer.get_current_backlight_color_and_intensity()
-                        if color[0] != None:
-                            dev_info["bl_color"] = color[0]
-                            dev_info["bl_intensity"] = color[1]
-                        dev_info["preset"] = kwargs["preset"]
-                        etree.SubElement(description, "{%s}Instructions" % (namespaces["photoshop"])).text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
+                            color = digitizer.get_current_backlight_color_and_intensity()
+                            if color[0] != None:
+                                dev_info["bl_color"] = color[0]
+                                dev_info["bl_intensity"] = color[1]
+                            dev_info["preset"] = kwargs["preset"]
+                            etree.SubElement(description, "{%s}Instructions" % (namespaces["photoshop"])).text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
 
-                        if isinstance(kwargs["preset"], str) and kwargs["preset"] != self._XMP_NO_PRESET:
-                            # data can be optionally in attribute or subelement
-                            preset_filepath = os.path.join(self._preset_dir, kwargs["preset"] + self._XMP_EXTENSION)
-                            #logging.getLogger().debug(f"XMP preset: '%s'", preset_filepath)
-                            preset_tree = etree.parse(preset_filepath).getroot()
-                            preset_descriptions = preset_tree.xpath(".//rdf:Description", namespaces=namespaces)
-                            if (preset_descriptions):
-                                preset_description = preset_descriptions[0]
-                                # logging.getLogger().debug("Preset Description:\n%s" % (etree.tostring(etree.ElementTree(preset_description), pretty_print=True).decode()))
+                            if isinstance(kwargs["preset"], str) and kwargs["preset"] != self._XMP_NO_PRESET:
+                                # data can be optionally in attribute or subelement
+                                preset_filepath = os.path.join(self._preset_dir, kwargs["preset"] + self._XMP_EXTENSION)
+                                #logging.getLogger().debug(f"XMP preset: '%s'", preset_filepath)
+                                preset_tree = etree.parse(preset_filepath).getroot()
+                                preset_descriptions = preset_tree.xpath(".//rdf:Description", namespaces=namespaces)
+                                if (preset_descriptions):
+                                    preset_description = preset_descriptions[0]
+                                    # logging.getLogger().debug("Preset Description:\n%s" % (etree.tostring(etree.ElementTree(preset_description), pretty_print=True).decode()))
 
-                                # merge namespaces, we need clone subelement as seems nsmap cannot be updated
-                                preset_nsmap = preset_description.nsmap
-                                for prefix, uri in description.nsmap.items():
-                                    if prefix not in preset_nsmap:
-                                        print(f"Add namespace: {prefix}=\"{uri}\"")
-                                        preset_nsmap[prefix] = uri
+                                    # merge namespaces, we need clone subelement as seems nsmap cannot be updated
+                                    preset_nsmap = preset_description.nsmap
+                                    for prefix, uri in description.nsmap.items():
+                                        if prefix not in preset_nsmap:
+                                            # print(f"Add namespace: {prefix}=\"{uri}\"")
+                                            preset_nsmap[prefix] = uri
 
-                                new_description = etree.SubElement(preset_description.getparent(), preset_description.tag, {}, preset_nsmap)
+                                    new_description = etree.SubElement(preset_description.getparent(), preset_description.tag, {}, preset_nsmap)
 
-                                # copy attributes
-                                for attr, value in description.attrib.items():
-                                    print("set attr: %s = %s" % (attr, value))
-                                    new_description.set(attr, value)
+                                    # copy attributes
+                                    for attr, value in description.attrib.items():
+                                        # print("set attr: %s = %s" % (attr, value))
+                                        new_description.set(attr, value)
 
-                                # copy subelements
-                                # merge elements
-                                elems = description.xpath("*")
-                                if elems:
-                                    for elem in elems:
-                                        elem_name = elem.tag
-                                        print("merging elem: %s" % (elem_name))
-                                        new_description.append(elem)
-
-                                # merge preset attributes
-                                for attr, value in preset_description.attrib.items():
-                                    if attr not in new_description.attrib:
-                                        print("merging preset attr: %s" % (attr))
-                                        elems = new_description.findall(f"{attr}")
-                                        if not elems:
-                                            new_description.set(attr, value)
-                                # merge preset elements
-                                elems = preset_description.xpath("*")
-                                if elems:
-                                    for elem in elems:
-                                        elem_name = elem.tag
-                                        print("merging elem: %s" % (elem_name))
-                                        if elem_name not in new_description.attrib and not new_description.findall(f"{elem_name}"):
+                                    # copy subelements
+                                    # merge elements
+                                    elems = description.xpath("*")
+                                    if elems:
+                                        for elem in elems:
+                                            elem_name = elem.tag
+                                            # print("merging elem: %s" % (elem_name))
                                             new_description.append(elem)
 
-                                #logging.getLogger().debug("New Description:\n%s" % (etree.tostring(etree.ElementTree(new_description), pretty_print=True).decode()))
-                                preset_description.getparent().append(new_description)
-                                preset_description.getparent().remove(preset_description)
+                                    # merge preset attributes
+                                    for attr, value in preset_description.attrib.items():
+                                        if attr not in new_description.attrib:
+                                            # print("merging preset attr: %s" % (attr))
+                                            elems = new_description.findall(f"{attr}")
+                                            if not elems:
+                                                new_description.set(attr, value)
+                                    # merge preset elements
+                                    elems = preset_description.xpath("*")
+                                    if elems:
+                                        for elem in elems:
+                                            elem_name = elem.tag
+                                            # print("merging elem: %s" % (elem_name))
+                                            if elem_name not in new_description.attrib and not new_description.findall(f"{elem_name}"):
+                                                new_description.append(elem)
 
-                                output_tree = preset_tree
+                                    #logging.getLogger().debug("New Description:\n%s" % (etree.tostring(etree.ElementTree(new_description), pretty_print=True).decode()))
+                                    preset_description.getparent().append(new_description)
+                                    preset_description.getparent().remove(preset_description)
+
+                                    output_tree = preset_tree
+                                else:
+                                    output_tree = custom_tree
                             else:
                                 output_tree = custom_tree
-                        else:
-                            output_tree = custom_tree
 
-                        target_xml = etree.tostring(output_tree, pretty_print=True, encoding="utf-8").decode("utf-8")
-                        target_xmp = target_no_ext + self._XMP_EXTENSION
-                        logging.getLogger().debug(f"XMP file: '%s'", target_xmp)
-                        with open(target_xmp, "w", encoding="utf-8") as f:
-                            f.write(target_xml)
+                            target_xml = etree.tostring(output_tree, pretty_print=True, encoding="utf-8").decode("utf-8")
+                            target_xmp = target_no_ext + self._XMP_EXTENSION
+                            logging.getLogger().debug(f"XMP file: '%s'", target_xmp)
+                            with open(target_xmp, "w", encoding="utf-8") as f:
+                                f.write(target_xml)
 
-                finally:
-                    if not wire_trigger:
-                        self._close_camera()
-            except Exception as e:
-                logging.getLogger().error(e, exc_info=True)
-                error = repr(e)
+                    finally:
+                        if not wire_trigger:
+                            self._close_camera()
+                except Exception as e:
+                    logging.getLogger().error(e, exc_info=True)
+                    error = repr(e)
 
-            msg = {
-                "cmd": "DOWNLOAD",
-                "payload": {
-                    "name": camera_filepath.name,
-                    "file_path": target,
-                    "volume": self.get_volume_info(),
-                }}
-            if client_data != None:
-                msg["payload"]["client_data"] = client_data
-            if error != None:
-                msg["payload"]["error"] = error
-            send_thread = Thread(target=run_send, kwargs={
-                "websocket": websocket,
-                "message": msg
-                })   # to avoid running event loop error, async/await pain
-            send_thread.name = "download_notify"
-            send_thread.start()
-            send_thread.join()
-        finally:
-            self._capture_in_progress = False
-            self._broadcast_capture_status_from_event()
-            self._release_capture_lock()
+                msg = {
+                    "cmd": "DOWNLOAD",
+                    "payload": {
+                        "name": camera_filepath.name,
+                        "file_path": target,
+                        "volume": self.get_volume_info(),
+                    }}
+                if client_data != None:
+                    msg["payload"]["client_data"] = client_data
+                if error != None:
+                    msg["payload"]["error"] = error
+                send_thread = Thread(target=run_send, kwargs={
+                    "websocket": websocket,
+                    "message": msg
+                    })   # to avoid running event loop error, async/await pain
+                send_thread.name = "download_notify"
+                send_thread.start()
+                send_thread.join()
+            finally:
+                self._capture_in_progress = False
+                self._broadcast_capture_status_from_event()
+                self._release_capture_lock()
+        except Exception as e:
+            # handle all unhandled exceptions
+            logging.getLogger().error(e, exc_info=True)
 
     def capture(self, websocket, wire_trigger, camera_id, project_id, film_id, client_data = None, **kwargs):
         if self._capture_in_progress:  # but not preview capture
@@ -800,66 +804,70 @@ class CameraWrapper:
         logging.getLogger().debug(f"Stopped capture view (retracted lens/released mirror) on camera (%s)" % (OK))
 
     def _do_preview(self, fifo):
-        self._camera_preview = True
         try:
-            self._broadcast_camera_status()
+            self._camera_preview = True
             try:
-                while not self._stop_preview_flag:
-                    # capture preview image
-                    self._acquire_capture_lock("", logging.DEBUG-1)
-                    try:
-                        logging.getLogger().log(logging.DEBUG-1, "gp.gp_camera_capture_preview()")
-                        OK, camera_file = gp.gp_camera_capture_preview(self._camera)  # in JPG
-                        if OK < gp.GP_OK:
-                            logging.getLogger().error(f"Failed to capture preview: %s: %s" % (OK, gp.gp_result_as_string(OK)))
-                            # Sony fails to preview without a obvious reason and USB reinit is required
-                            self._reinit_camera()
-                            continue
-                        logging.getLogger().log(logging.DEBUG-1, "camera_file.get_data_and_size()")
-                        file_data = camera_file.get_data_and_size()
-                        #logging.getLogger().debug(f"%s" % file_data)
-                    finally:
-                        self._release_capture_lock("", logging.DEBUG-1)
-
-
-                    data = memoryview(file_data)
-                    # logging.getLogger().debug(f"write fifo: %d" % data.nbytes)
-                    if fifo != None:
+                self._broadcast_camera_status()
+                try:
+                    while not self._stop_preview_flag:
+                        # capture preview image
+                        self._acquire_capture_lock("", logging.DEBUG-1)
                         try:
-                            os.write(fifo, data)
-                        except OSError as e:
-                            if e.errno == errno.EPIPE:
-                                break
-                            elif e.errno == errno.EWOULDBLOCK:
-                                pass
-                            else:
-                                logging.getLogger().error(f"Errno: %d" % e.errno)
-                                raise
-                    if self._frame_buffer != None:
-                        # logging.getLogger().debug(f"Write frame buffer: %s" % len(data))
-                        self._frame_buffer.write(data)
+                            logging.getLogger().log(logging.DEBUG-1, "gp.gp_camera_capture_preview()")
+                            OK, camera_file = gp.gp_camera_capture_preview(self._camera)  # in JPG
+                            if OK < gp.GP_OK:
+                                logging.getLogger().error(f"Failed to capture preview: %s: %s" % (OK, gp.gp_result_as_string(OK)))
+                                # Sony fails to preview without a obvious reason and USB reinit is required
+                                self._reinit_camera()
+                                continue
+                            logging.getLogger().log(logging.DEBUG-1, "camera_file.get_data_and_size()")
+                            file_data = camera_file.get_data_and_size()
+                            #logging.getLogger().debug(f"%s" % file_data)
+                        finally:
+                            self._release_capture_lock("", logging.DEBUG-1)
 
-                    time.sleep(self._preview_delay)
+
+                        data = memoryview(file_data)
+                        # logging.getLogger().debug(f"write fifo: %d" % data.nbytes)
+                        if fifo != None:
+                            try:
+                                os.write(fifo, data)
+                            except OSError as e:
+                                if e.errno == errno.EPIPE:
+                                    break
+                                elif e.errno == errno.EWOULDBLOCK:
+                                    pass
+                                else:
+                                    logging.getLogger().error(f"Errno: %d" % e.errno)
+                                    raise
+                        if self._frame_buffer != None:
+                            # logging.getLogger().debug(f"Write frame buffer: %s" % len(data))
+                            self._frame_buffer.write(data)
+
+                        time.sleep(self._preview_delay)
+
+                finally:
+                    if fifo != None:
+                        logging.getLogger().debug(f"close FIFO")
+                        os.close(fifo)
+
+                self._acquire_capture_lock("2")
+                try:
+                    self._switch_to_capture_mode()
+                finally:
+                    self._release_capture_lock("2")
 
             finally:
-                if fifo != None:
-                    logging.getLogger().debug(f"close FIFO")
-                    os.close(fifo)
-
-            self._acquire_capture_lock("2")
-            try:
-                self._switch_to_capture_mode()
-            finally:
-                self._release_capture_lock("2")
-
-        finally:
-            try:
-                self._close_camera()
-            except Exception as e:
-                logging.getLogger().error(e, exc_info=True)
-            self._camera_preview = False
-            self._broadcast_camera_status()
-            logging.getLogger().debug(f"Preview thread terminated")
+                try:
+                    self._close_camera()
+                except Exception as e:
+                    logging.getLogger().error(e, exc_info=True)
+                self._camera_preview = False
+                self._broadcast_camera_status()
+                logging.getLogger().debug(f"Preview thread terminated")
+        except Exception as e:
+            # handle all unhandled exceptions
+            logging.getLogger().error(e, exc_info=True)
 
     def start_preview(self, camera_id):
         if not self._camera_preview:
@@ -1381,7 +1389,7 @@ ws_control_clients = set()
 async def ws_control_handler(websocket, path):
     global VERSION_INFO
     global camera
-    print("ws_control_handler")
+    # print("ws_control_handler")
     ws_control_clients.add(websocket)
     try:
         PARAM_DELIMITER = ":"
@@ -1847,6 +1855,7 @@ def main():
         logging.basicConfig(filename=args.logFile, format=LOGGING_FORMAT)
     else:
         logging.basicConfig(format=LOGGING_FORMAT)
+    logging.raiseExceptions = False  # do not raise exceptions when already handling exception, see logging.handleError
     if not args.verbose:  # when specified action="count" then default > 0 is useless
         args.verbose = 2
     global logger_helper
@@ -1955,7 +1964,11 @@ def main():
     except KeyboardInterrupt:
         logging.getLogger().debug("Keyboard interrupt, shutdown")
         digitizer.reset()
-        camera.stop_preview("dummy")
+        try:
+            camera.stop_preview("dummy")
+        except Exception as e:
+            logging.getLogger().error(e, exc_info=True)
+
         if frame_buffer != None:
             frame_buffer.stop()
             httpd.shutdown()
