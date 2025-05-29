@@ -495,6 +495,8 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
         ("front_sensor_distance", "int", 2, "Front sensor distance", 4500),
         ("rear_sensor_distance", "int", 2, "Rear sensor distance", 4900),
         ("backlash_compensation", "int", 2, "Backlash compensation", -1),
+        ("selenoid", "number", 1, "Flattening press driven by selenoinds", 1),
+        ("reverse_dir", "number", 1, "Reverse sense of motor rotation", 0),
     ]
 
 class GulpStepperMotorAdapter(StepperMotorAdapter):
@@ -542,6 +544,8 @@ class GulpStepperMotorAdapter(StepperMotorAdapter):
         }
         self._SPEED_IN_MM_PER_SECS = (custom["speed1"]/100, custom["speed2"]/100, custom["speed3"]/100, custom["speed4"]/100)
         self._ACCELERATION_IN_MM_PER_SECS2 = custom["acceleration"]/100
+        self._SELENOID = custom["selenoid"] == 1
+        self._REVERSE_DIR = custom["reverse_dir"] == 1
 
         logging.getLogger().debug("driver: %s, ms: %s, steps_per_mm: %s, speed: %s, interval#0: %s" % (self._DRIVER, self._MICROSTEPPING, self.get_steps_per_mm(), self._SPEED_IN_MM_PER_SECS, self._get_stepper_params(1)))
 
@@ -570,7 +574,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter):
         else:
             self._xboard.set_io_state("stepper_ms0", (self._MICROSTEPPING & 0x1) != 0)
             self._xboard.set_io_state("stepper_ms1", (self._MICROSTEPPING & 0x2) != 0)
-        self._xboard.set_io_state("stepper_dir", direction <= 0)
+        self._xboard.set_io_state("stepper_dir", direction <= 0 if not self._REVERSE_DIR else direction > 0)
         # self._xboard._set_io_state("stepper_step", False)
         self._xboard.set_io_state("stepper_sleep", False)
         self._motor_home_pos = 0  # motor should be in home position
@@ -655,6 +659,7 @@ class GulpStepperMotorAdapter_0101(GulpStepperMotorAdapter):
 
     def reset(self):
         super().reset()
+        self._xboard.set_io_state("stepper_step", False)
         self._xboard.set_io_state("stepper_enable", False)
 
     def _do_on_start(self, direction):
@@ -664,6 +669,7 @@ class GulpStepperMotorAdapter_0101(GulpStepperMotorAdapter):
     def _do_on_stop(self, next_direction):
         super()._do_on_stop(next_direction)
         if next_direction == 0:
+            self._xboard.set_io_state("stepper_step", False)
             self._xboard.set_io_state("stepper_enable", False)
 
     def _get_io_configuration(self):
@@ -689,6 +695,44 @@ class GulpStepperMotorAdapter_0103(GulpStepperMotorAdapter_0101):
         result = super()._get_io_configuration()
         result["in_out_1"]["negative"] = False  # there is transistor which negates
         return result
+
+class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
+    def __init__(self, xboard):
+        super().__init__(xboard)
+        self._flattening_state = None
+
+    def flatten_plane(self, enable):
+        enable = int(enable) > 0
+        #logging.getLogger().debug("Flatten_plane(%s)" % enable)
+        if enable != self._flattening_state:
+            if enable and self._motor_current_dir != 0:
+                raise DigitizerError("Film transport is in progress")
+            self._do_pull_selenoid(enable)
+
+    def _do_on_start(self, direction):
+        if self._flattening_state:
+            self._do_pull_selenoid(False)
+        super()._do_on_start(direction)
+
+    def _do_pull_selenoid(self, down):
+        if self._SELENOID:
+            save_enable = self._xboard.get_io_state("stepper_enable")
+            save_step = self._xboard.get_io_state("stepper_step")
+            save_dir = self._xboard.get_io_state("stepper_dir")
+            self._xboard.set_io_state("stepper_dir", not down)
+            self._xboard.set_io_state("stepper_enable", False)
+            self._xboard.set_io_state("stepper_step", True)
+            time.sleep(0.10)   # short pulse to pull selenoid
+            self._xboard.set_io_state("stepper_dir", save_dir)
+            self._xboard.set_io_state("stepper_step", save_step)
+            self._xboard.set_io_state("stepper_enable", save_enable)
+        self._flattening_state = down
+
+    def get_capabilities(self):
+        result = super().get_capabilities()
+        result["flattening"] = self._SELENOID
+        return result
+
 
 ## Manual sledge adapter with own light box
 
@@ -963,7 +1007,9 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
             else:
                 res = GulpNikonStepperMotorAdapter
         elif id == "STEPPER":
-            if ver >= 103:
+            if ver >= 105:
+                res = GulpStepperMotorAdapter_0105
+            elif ver >= 103:
                 res = GulpStepperMotorAdapter_0103
             elif ver >= 101:
                 res = GulpStepperMotorAdapter_0101

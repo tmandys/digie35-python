@@ -855,10 +855,12 @@
                             <button id="move-2f-btn" title="Shift+ArrowRight, KeyJ">&gt;&gt;</button>
                         </div>
                         <div class="centered-btn vertical-spacer">
+                            <button id="flatten-1f-btn" title="Ctrl+ArrowUp, KeyC">&uarr;</button>
                             <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
                             <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
                             <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
                             <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
+                            <button id="flatten-2f-btn" title="Ctrl+ArrowDown, KeyV">&darr;</button>
                         </div>
                         <div class="centered-btn vertical-spacer">
                             <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
@@ -1180,6 +1182,19 @@
                         </div>
                         <small class="hint">Set <i>Frame correction</i> from consequent capture positions</small>
                     </div>
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="flattening-cb" accesskey="f" ><u>F</u>lattening press</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="flattening-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Move frame down and press against film plane to flatten surface</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1492,6 +1507,11 @@
         items[2].disabled = items[1].disabled;
         items[3].disabled = !window.capabilities.camera_remote_control;
         items[4].disabled = items[3].disabled;
+        [1, 2].forEach(idx => {
+            var elem = get_adapter_button("flatten", idx);
+            set_visible(elem, window.capabilities.flattening, "");
+            elem.disabled = !window.capabilities.flattening;
+        });
     }
 
     function adjust_camera_preview(force) {
@@ -2440,6 +2460,7 @@
             "control.file_template": "file-template-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
+            "control.flattening": "flattening-cb",
 			"control.backlight": "backlight-cb",
 			"control.backlight.color": "backlight-color-list",
 			"control.backlight.white": "backlight-white-rng",
@@ -2490,6 +2511,13 @@
                 },
             },
 
+            "flatten": {
+                "idx": [1, 2],
+                "action": function(dir) {
+                    sendCommand2("FLATTEN", {'enable': Math.abs(dir)-1});  // consider reverse which makes no sense
+                },
+            },
+
             "eject": {
                 "idx": [-1, 1],
                 "action": function(dir) {
@@ -2532,6 +2560,9 @@
                         if (val) {
                             params.rotation = Number(val.replace(/^rotate/, ""));
                         }
+                    }
+                    if (window.capabilities.flattening && document.getElementById("flattening-cb").checked) {
+                        params.flatten = 1;
                     }
                     params.file_template = get_file_template_values();
                     sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], params);
@@ -2827,6 +2858,12 @@
             case "KeyP":
                 document.getElementById("film_id-plus").click();
                 break;
+            case "KeyC":
+                btn = "flatten-1f";
+                break;
+            case "KeyV":
+                btn = "flatten-2f";
+                break;
             }
         } else if (shift_count == 1) {
             switch (event.code) {
@@ -2842,6 +2879,16 @@
                     btn = "frame-1b";
                 } else if (event.shiftKey) {
                     btn = "move-2b";
+                }
+                break;
+            case "ArrowUp":
+                if (event.ctrlKey) {
+                    btn = "flatten-1f";
+                }
+                break;
+            case "ArrowDown":
+                if (event.ctrlKey) {
+                    btn = "flatten-2f";
                 }
                 break;
             }
@@ -2904,9 +2951,15 @@
     function set_visible(elem, value, display_on="block") {
         if (value) {
             elem.classList.remove("hidden");  // unvisible when starting
-            elem.style.display = display_on;
+            if (display_on != "") {
+                elem.style.display = display_on;
+            }
         } else {
-            elem.style.display = "none";
+            if (display_on == "") {
+                elem.classList.add("hidden");
+            } else {
+                elem.style.display = "none";
+            }
         }
     }
 

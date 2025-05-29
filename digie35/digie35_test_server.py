@@ -162,6 +162,9 @@ async def ws_handler(websocket, path):
                             xboard.check_capability("motorized")
                             xboard.get_adapter().move_by(int(get_param(0, 1)), int(get_param(1, 3)))
                             reply_status = True
+                        elif cmd == "FLATTEN":
+                            xboard.check_capability("flattening")
+                            xboard.get_adapter().flatten_plane(int(get_param(0, 1)))
 
                         elif cmd == "SET_BACKLIGHT":
                             xboard.set_backlight(get_param(0, 1).lower(), int(get_param(1, 1)))

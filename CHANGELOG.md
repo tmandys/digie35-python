@@ -1,3 +1,9 @@
+v0.9 (2025-xx-xx)
+
+Features
+--------
+  - flattening press for motorized adapter
+
 v0.8 (2025-04-24)
 =================
 

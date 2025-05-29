@@ -409,6 +409,7 @@ class ExtensionBoard:
             # enumerate all supported capabilities
             "motorized": False,
             # "motorized": isinstance(self.get_adapter(), StepperMotorAdapter),
+            "flattening": False,
             "camera_remote_control": True,  # RC via jack
 
             "white_backlight": False,
@@ -1233,3 +1234,9 @@ class StepperMotorAdapter(Adapter):
             raise DigitizerError("Adapter is not in insert ready state")
         self._film_position = 0
         self.set_motor(999, {"cmd": "LEAD_IN", "phase": 0, })
+
+    def flatten_plane(self, enable):
+        """
+            Enable/disable mechanized flattening press
+        """
+        pass

@@ -457,7 +457,7 @@ class CameraWrapper:
                             logging.getLogger().info(f"Image link for '%s'", target)
                             with open(target + self._LINK_EXTENSION, "w") as file:
                                 file.write("%s\n%s\n%s\n%s" % (self._camera_id, camera_filepath.folder, camera_filepath.name, now_s))
-                        if kwargs["preset"]:
+                        if kwargs.get("preset", False):
                             # generate XMP file with the same name, see https://github.com/adobe/XMP-Toolkit-SDK/blob/main/docs/
                             # https://www.digitalgalen.net/Documents/External/XMP/XMPSpecificationPart2.pdf
 
@@ -488,8 +488,8 @@ class CameraWrapper:
                                 }
                             )
                             orientation = None
-                            rotation = kwargs["rotation"]
-                            if kwargs["flipped"]:
+                            rotation = kwargs.get("rotation", 0)
+                            if kwargs.get("flipped", False):
                                 if rotation == 0:
                                     orientation = 2
                                 elif rotation == 90:
@@ -510,7 +510,7 @@ class CameraWrapper:
                             if orientation != None:
                                 description.set("{%s}Orientation" % (namespaces["tiff"]), "%s" % (orientation))
 
-                            if "negative" in kwargs:
+                            if kwargs.get("negative", None) != None:
                                 etree.SubElement(description, "{%s}Source" % (namespaces["photoshop"])).text = "%s film 35mm" % ("negative" if kwargs["negative"] else "positive")
 
                             description.set("{%s}Identifier" % (namespaces["dc"]), "%s/%s" % (project_id, film_id))
@@ -641,6 +641,11 @@ class CameraWrapper:
             raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
 
         self._acquire_capture_lock()
+        if kwargs.get("flatten", False):
+            adapter = digitizer.get_adapter()
+            if issubclass(type(digitizer.get_adapter()), digie35core.StepperMotorAdapter):
+                adapter.flatten_plane(True)
+
         self._capture_in_progress = True
         self._broadcast_capture_status_from_event()
         try:
@@ -649,7 +654,7 @@ class CameraWrapper:
                 digitizer.set_io_states({"focus": 0, "shutter": 0})
                 digitizer.set_io_states({"focus": 1})
                 time.sleep(self._WIRE_FOCUS_TIMEOUT)
-                if not kwargs["focus+shutter"]:
+                if not kwargs.get("focus+shutter", False):
                     digitizer.set_io_states({"focus": 0, })
                 digitizer.set_io_states({"shutter": 1})
                 time.sleep(self._WIRE_SHUTTER_TIMEOUT)
@@ -664,7 +669,7 @@ class CameraWrapper:
                 tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name)
                 # prevalidated so error should not happen
 
-                time.sleep(kwargs["delay"]/1000)
+                time.sleep(kwargs.get("delay", 0)/1000)
                 download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
                 download_thread.name = "download"
                 download_thread.start()
@@ -688,7 +693,7 @@ class CameraWrapper:
                             save_capturetarget = gp.check_result(gp.gp_widget_get_value(capturetarget_cfg))
                             #save_capturetarget = capturetarget_cfg.get_value()
                             logging.getLogger().debug("savetarget: %s" % save_capturetarget)
-                            if kwargs["delete"]:
+                            if kwargs.get("delete", True):
                                 val = 0  # RAM
                             else:
                                 val = 1  # SD card
@@ -1496,6 +1501,10 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "MOVE_BY":
                         digitizer.check_capability("motorized")
                         digitizer.get_adapter().move_by(**params)
+                        reply_status = True
+                    elif cmd == "FLATTEN":
+                        digitizer.check_capability("flattening")
+                        digitizer.get_adapter().flatten_plane(**params)
                         reply_status = True
                     elif cmd == "GET":
                         reply_status = True
