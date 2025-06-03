@@ -1362,7 +1362,10 @@
             document.getElementById("header-film-name").textContent = film_id.value;
             document.getElementById("film_descr").value =
                 film_list.selectedIndex > 0 ? film_list.options[film_list.selectedIndex]._custom_data["descr"] : "";
-            sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
+            var vals = get_file_template_values();
+            if (Object.keys(vals.values).length !== 0) {  // avoid test when uninitialized
+                sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], vals);
+            }
         }
         var cnt = 0;
         var capture_list = document.getElementById("capture-list");
