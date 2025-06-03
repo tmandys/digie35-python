@@ -93,10 +93,18 @@ def main():
         "digie35.html": ["index.html", ],
         "digie35_test.html": [],
         "qrcode.js": [],
+        "dragsort.css": [],
+        "dragsort.js": [],
+        "tagify.css": [],
+        "tagify.js": [],
+        "tagify.polyfills.min.js": [],
     }
     www_images = {
         "digie35-scanner-96.png",
         "digie35-film-strip-96.png",
+        "digie35-crop.svg",
+        "digie35-crop-height.svg",
+        "digie35-crop-width.svg",
     }
 
     desktop_prefix = "digie35-"
