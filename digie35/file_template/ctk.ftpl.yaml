@@ -107,7 +107,7 @@ parts:
 
 effects:
   bw_negativ:
-    if: "color != 'BN'"
+    if: "color == 'CB'"
     actions:
       - type: set
         entity: preset
@@ -124,6 +124,15 @@ effects:
       - type: set
         entity: led
         value: white+red+green+blue
+  color_positive:
+    if: "color == 'BP'"
+    actions:
+      - type: set
+        entity: preset
+        value: ""
+      - type: set
+        entity: led
+        value: white
   negativ:
     actions:
       - type: set
