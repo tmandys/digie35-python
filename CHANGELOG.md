@@ -3,6 +3,8 @@ v0.9 (2025-xx-xx)
 Features
 --------
   - flattening press for motorized adapter
+  - still latest image from USB preview
+  - save capture preview on disk and display in browser
 
 v0.8 (2025-04-24)
 =================

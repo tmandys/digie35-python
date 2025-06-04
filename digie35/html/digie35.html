@@ -709,6 +709,21 @@
             height: 1.0rem;
         }
 
+        .capture-list {
+            border: 1px solid #ccc;
+            padding: 8px;
+            resize: vertical;
+            overflow: auto;
+            min-height: 100px;
+            max-height: 300px;
+        }
+
+        .capture-list ul {
+            margin: 0;
+            padding-left: 1em;
+            list-style: disc;
+        }
+
     </style>
 </head>
 
@@ -1046,7 +1061,10 @@
                 </div>
                 <div class="content">
                     <div class="vertical-spacer">
-                        <textarea id="capture-list" readonly placeholder="list of files..."></textarea>
+                        <div class="capture-list">
+                            <ul id="capture-list">
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1273,6 +1291,19 @@
                         </div>
                         <small class="hint">Create XMP file related to image, e.g. preview orientation is referenced. Alternatively info can be merged to a preset so e.g. negative can be automatically inverted when browsing gallery</small>
                     </div>
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="save-preview-cb" accesskey="v" >Save pre<u>v</u>iew</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="save-preview-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Save preview image to repository. It is supported obly when <i>USB preview</i> is active</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1369,6 +1400,7 @@
         }
         var cnt = 0;
         var capture_list = document.getElementById("capture-list");
+        capture_list.innerHTML = "";
 
         function shorten_bytes(n) {
             const k = n > 0 ? Math.floor((Math.log2(n)/10)) : 0;
@@ -1379,15 +1411,22 @@
 
         if (film_list.selectedIndex > 0) {
             var custom = film_list.options[film_list.selectedIndex]._custom_data;
+            custom.captured.forEach(capt=>{
+                const sz = capt.size ? shorten_bytes(capt.size) : "link";
+                const s = `${capt.name} (${sz})`
+                const line = document.createElement("li");
+                if (capt["preview"]) {
+                    const link = document.createElement("a");
+                    link.href = `http://${window._hostname}:8408/preview/${document.getElementById("project_id").value}/${document.getElementById("film_id").value}/${capt.name}`
+                    link.target = "digie35_preview";
+                    link.textContent = s;
+                    line.appendChild(link);
+                } else {
+                    line.textContent = s;
+                }
+                capture_list.appendChild(line);
+            });
             cnt = custom["captured"].length;
-            var f = [];
-            for (const i in custom["captured"]) {
-                var sz = custom["captured"][i]["size"] ? shorten_bytes(custom["captured"][i]["size"]) : "link";
-                f.push(custom["captured"][i]["name"] +" ("+ sz + ")");
-            }
-            capture_list.value = f.join("\n");
-        } else {
-            capture_list.value = "";
         }
         document.getElementById("capture-count").innerHTML = "Image count: " + cnt;
 
@@ -2460,6 +2499,7 @@
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
             "control.preset": "preset-list",
+            "control.save_preview": "save-preview-cb",
             "control.file_template": "file-template-list",
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
@@ -2556,7 +2596,8 @@
                         var params = {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"};
                     }
                     params.preset = document.getElementById("preset-list").value;
-                    if (params.preset) {
+                    params.save_preview = document.getElementById("save-preview-cb").checked;
+                    if (params.preset || params.save_preview) {
                         params.negative = document.getElementById("invert-cb").checked;
                         params.flipped = document.getElementById("flip-cb").checked;
                         var val = get_radio_button_value("rotate");

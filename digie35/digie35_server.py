@@ -79,6 +79,9 @@ class CameraWrapper:
     _FILE_TEMPLATE_EXTENSION = ".ftpl.yaml"
     _LINK_EXTENSION = ".lnk"
     _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
+    _PREVIEW_SUBDIR = "previews"
+    _PREVIEW_SUFFIX = ".preview.jpg"
+    _PREVIEW_SUFFIX_2 = ".preview.json"
 
     _WIRE_FOCUS_TIMEOUT = 0.500
     _WIRE_SHUTTER_TIMEOUT = 0.300
@@ -110,6 +113,7 @@ class CameraWrapper:
             if not os.path.isdir(proj_dir):
                 raise CameraControlError(f"Wrong directory path '%s'" % proj_dir)
             self._cur_proj_dir = proj_dir
+            mjpgserver.set_base_dir(proj_dir)
             logging.getLogger().debug("Projdir: %s" % self._cur_proj_dir)
         else:
             self._media_dir = l[0]
@@ -343,9 +347,12 @@ class CameraWrapper:
                 raise CameraControlError("Directory does not exists '%s'" % path)
             self._cur_volume = volume
             self._cur_proj_dir = path
+            mjpgserver.set_base_dir(path)
         else:
             self._cur_volume = None
             self._cur_proj_dir = None
+            mjpgserver.set_base_dir(None)
+
         return self.list_volumes()
 
     def _get_battery(self, camera_config):
@@ -594,6 +601,28 @@ class CameraWrapper:
                             logging.getLogger().debug(f"XMP file: '%s'", target_xmp)
                             with open(target_xmp, "w", encoding="utf-8") as f:
                                 f.write(target_xml)
+
+                        if kwargs.get("save_preview", False) and self._camera_preview and self._frame_buffer != None:
+                            preview_json =  {
+                                "rotation": kwargs.get("rotation", 0),
+                                "flipped": kwargs.get("flipped", False),
+                                "negative": kwargs.get("negative", None),
+                            }
+                            preview_path = os.path.join(self._get_path(project_id, film_id), self._PREVIEW_SUBDIR)
+                            if not os.path.isdir(preview_path):
+                                os.mkdir(preview_path)
+                            preview_target = os.path.join(preview_path, os.path.basename(target_no_ext)+fext)
+
+                            frame = self._frame_buffer.get_latest_frame()
+                            target_jpg = preview_target + self._PREVIEW_SUFFIX
+                            logging.getLogger().debug(f"Preview JPG file: '%s'", target_jpg)
+                            with open(target_jpg, "wb") as f:
+                                f.write(frame)
+
+                            target_json = preview_target + self._PREVIEW_SUFFIX_2
+                            logging.getLogger().debug(f"Preview JSON file: '%s'", target_json)
+                            with open(target_json, "w", encoding="utf-8") as f:
+                                f.write(json.dumps(preview_json))
 
                     finally:
                         if not wire_trigger:
@@ -1045,6 +1074,10 @@ class CameraWrapper:
                     picture_files[fname] = {"name": fname}
                     if not is_link:
                         picture_files[fname] |= {"size": os.path.getsize(filepath)}
+                preview_filepath = os.path.join(path, self._PREVIEW_SUBDIR, fname + self._PREVIEW_SUFFIX)
+                # logging.getLogger().debug("Preview filepath: %s" % (preview_filepath))
+                if os.path.isfile(preview_filepath):
+                    picture_files[fname] |= {"preview": True}
         pictures = []
         for key in list(picture_files):
             pictures.append(picture_files[key])
@@ -1845,7 +1878,7 @@ def main():
     argParser.add_argument("-T", "--file_template_directory", dest="file_template_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "file_template"), help=f"File template directory, e.g.$HOME/.digie35/file_template, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
     argParser.add_argument("-p", "--port", dest="wsControlPort", metavar="PORT", type=int, default=8400, help=f"Websocket control listener port, default: %(default)s")
-    argParser.add_argument("-u", "--preview-port", dest="previewPort", metavar="PORT", type=int, default=8408, help=f"HTTP server port for preview stream, default: %(default)s")
+    argParser.add_argument("-u", "--preview-port", dest="previewPort", metavar="PORT", type=int, default=8408, help=f"HTTP server port for life-stream and image preview, default: %(default)s")
     argParser.add_argument("-f", "--pipe", dest="fifopath", metavar="FIFOPATH", default=None, help="FIFO where preview pictures are written, FIFO must exist (mkfifo FIFOPATH) and reader must be running")
     argParser.add_argument("-e", "--preview-delay", dest="preview_delay", metavar="msec", type=int, default=100, help=f"Delay in ms when capturing preview from camera, default: %(default)s")
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="Logging file, default: stderr")
