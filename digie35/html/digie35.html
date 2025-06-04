@@ -572,6 +572,10 @@
             border-radius: 50%;
         }
 
+        #backlight-color-ranges input[type="number"] {
+            width: 5ch;
+        }
+
         .range-value {
             font-size: 12px;
         }
@@ -900,13 +904,34 @@
                             </div>
                             <div id="backlight-color-ranges" class="vertical-spacer">
                                 <!-- order a-w-b-g-r is important -->
-                                <div id="backlight-amber-container" class="hidden"><input type="range" id="backlight-amber-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" /><span id="backlight-amber-value" class="range-value" /></div>
-                                <div id="backlight-white-container" class="hidden"><input type="range" id="backlight-white-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: white" title="Backlight white LED intensity" /><span id="backlight-white-value" class="range-value" /></div>
-                                <div id="backlight-red-container" class="hidden"><input type="range" id="backlight-red-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: red" title="Backlight red LED intensity" /><span id="backlight-red-value" class="range-value" /></div>
-                                <div id="backlight-green-container" class="hidden"><input type="range" id="backlight-green-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: green" title="Backlight green LED intensity" /><span id="backlight-green-value" class="range-value" /></div>
-                                <div id="backlight-blue-container" class="hidden"><input type="range" id="backlight-blue-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" /><span id="backlight-blue-value" class="range-value" /></div>
-                                <div id="backlight-ir-container" class="hidden"><input type="range" id="backlight-ir-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight infrared LED intensity" /><span id="backlight-ir-value" class="range-value" /></div>
-                                <div id="backlight-external-container" class="hidden"><input type="range" id="backlight-external-rng" value="60" min="0" max="255" oninput="adjust_backlight()" class="color-range" title="Backlight manual adapter LED intensity" /><span id="backlight-external-value" class="range-value" /></div>
+                                <div id="backlight-amber-container" class="hidden">
+                                    <input type="range" id="backlight-amber-rng" value="60" min="0" max="255" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" />
+                                    <input type="number" id="backlight-amber-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-white-container" class="hidden">
+                                    <input type="range" id="backlight-white-rng" value="60" min="0" max="255" class="color-range" style="accent-color: white" title="Backlight white LED intensity" />
+                                    <input type="number" id="backlight-white-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-red-container" class="hidden">
+                                    <input type="range" id="backlight-red-rng" value="60" min="0" max="255" class="color-range" style="accent-color: red" title="Backlight red LED intensity" />
+                                    <input type="number" id="backlight-red-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-green-container" class="hidden">
+                                    <input type="range" id="backlight-green-rng" value="60" min="0" max="255" class="color-range" style="accent-color: green" title="Backlight green LED intensity" />
+                                    <input type="number" id="backlight-green-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-blue-container" class="hidden">
+                                    <input type="range" id="backlight-blue-rng" value="60" min="0" max="255" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" />
+                                    <input type="number" id="backlight-blue-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-ir-container" class="hidden">
+                                    <input type="range" id="backlight-ir-rng" value="60" min="0" max="255" class="color-range" title="Backlight infrared LED intensity" />
+                                    <input type="number" id="backlight-ir-num" min="0" max="255" />
+                                </div>
+                                <div id="backlight-external-container" class="hidden">
+                                    <input type="range" id="backlight-external-rng" value="60" min="0" max="255" class="color-range" title="Backlight manual adapter LED intensity" />
+                                    <input type="number" id="backlight-external-num" min="0" max="255" />
+                                </div>
                             </div>
                         </div>
                         <div class="centered-btn vertical-spacer">
@@ -2415,6 +2440,23 @@
             })
         });
 
+        document.querySelectorAll('#backlight-color-ranges input[type="range"]').forEach(element=> {
+            element.addEventListener("input", event => {
+                adjust_backlight();
+            });
+        });
+
+        document.querySelectorAll('#backlight-color-ranges input[type="number"]').forEach(element=> {
+            element.addEventListener("change", event => {
+                var num_elem = event.target;
+                var elem_color = num_elem.id.split("-")[1];
+                var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
+                range_elem.value = num_elem.value;
+                adjust_backlight();
+                localStorage.setItem("control.backlight."+elem_color, num_elem.value);  // registered is range
+            });
+        });
+
         var multi_container = document.getElementById("file-template-options-capture-multi");
         window.multi_tags = new Tagify(multi_container.querySelector(".tags-control"), {
             "tagTextProp": "text",
@@ -3060,7 +3102,7 @@
                 set_visible(elems[i], is_visible, "");
             }
             var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
-            document.getElementById("backlight-"+elem_color+"-value").innerHTML = range_elem.value;
+            document.getElementById("backlight-"+elem_color+"-num").value = range_elem.value;
             if (is_on && is_visible) {
                 val *= 256;  // bitwise operators are 32-bit only!
                 val += Number(range_elem.value);
