@@ -97,9 +97,12 @@
             position: relative;
         }
 
-        .inline-toggle {
+        .inline-buttons {
             position: absolute;
             display: inline-block;
+        }
+
+        .inline-button {
             padding: 4px;
             border: 1px solid black;
             background: lightgrey;
@@ -164,6 +167,21 @@
         .modal-active {
             display: flex !important;
             z-index: 1000;
+        }
+
+        .lightbox {
+            background: white;
+            border-radius: 8px;
+            box-sizing: border-box;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            max-width: 95vw;
+            max-height: 95vh;
+        }
+
+        .lightbox .media-container {
+            width: fit-content;
+            height: fit-content;
         }
 
         .form-group {
@@ -375,7 +393,7 @@
             left: -2px;
         }
 
-        .collapse-toggle {
+        .inline-buttons .inline-button, .inline-buttons.inline-button {
             background: #FEFEFE;
             cursor: pointer;
             align-items: center;
@@ -395,27 +413,27 @@
             display: none;
         }
 
-        #preview-fieldset legend {
+        .media-viewer fieldset legend {
             margin-left: 20px;
         }
 
-        #stream-control {
+        .media-viewer .control {
             max-height: 100px;
             transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
             overflow: hidden;
         }
 
-        #stream-control.collapsed {
+        .media-viewer .control.collapsed {
             max-height: 0px;
         }
 
-        .preview {
+        .media-viewer {
             /*margin-left: 42ch;*/
-            flex-grow: 1;
+            /*flex-grow: 1;*/
             margin-top: 4px;
         }
 
-        #stream-container {
+        .media-viewer .container {
             position: relative;
             display: inline-block;
             overflow: auto;
@@ -423,21 +441,24 @@
             height: 100%;
         }
 
-        #stream-container img {
+        .media-container img {
             display: block;
             max-width: 100%;
+            width: auto;
             height: auto;
+            object-fit: contain; /*cover;*/
         }
 
-        #stream-container canvas {
+        .lightbox .media-container img {
+            height: 90vh;
+        }
+
+        .media-container canvas {
             position: absolute;
             top: 0;
             left: 0;
             pointer-events: none;
         }
-        /*
-        .preview img {
-        }*/
 
         .wrapper {
             transform: scale(1);
@@ -507,11 +528,11 @@
         }
 
         .rotate90 {
-            transform: rotate(90deg) scale(0.55, 0.55);
+            transform: rotate(90deg) scale(0.66, 0.66);
         }
 
         .rotate270 {
-            transform: rotate(-90deg) scale(0.55, 0.55);
+            transform: rotate(-90deg) scale(0.66, 0.66);
         }
 
         .flip-rotate0 {
@@ -523,11 +544,11 @@
         }
 
         .flip-rotate90 {
-            transform: rotateY(180deg) rotate(90deg) scale(0.55, 0.55);
+            transform: rotateY(180deg) rotate(90deg) scale(0.66, 0.66);
         }
 
         .flip-rotate270 {
-            transform: rotateY(180deg) rotate(-90deg) scale(0.55, 0.55);
+            transform: rotateY(180deg) rotate(-90deg) scale(0.66, 0.66);
         }
 
         .grey-border {
@@ -552,8 +573,6 @@
 
         #stream {
             width: 1200px;
-            object-fit: cover;
-            /*object-position: 95px 0px;*/
         }
 
         input[type="range"].color-range {
@@ -614,26 +633,26 @@
             background-repeat: no-repeat;
         }
 
-        input#crop-x-rng::-webkit-slider-thumb {
+        input.crop-x-ctrl::-webkit-slider-thumb {
             background-image: url('images/digie35-crop-width.svg');
         }
-        input#crop-x-rng::-moz-range-thumb {
+        input.crop-x-ctrl::-moz-range-thumb {
             background-image: url('images/digie35-crop-width.svg');
         }
-        input#crop-y-rng::-webkit-slider-thumb {
+        input.crop-y-ctrl::-webkit-slider-thumb {
             background-image: url('images/digie35-crop-height.svg');
         }
-        input#crop-y-rng::-moz-range-thumb {
+        input.crop-y-ctrl::-moz-range-thumb {
             background-image: url('images/digie35-crop-height.svg');
         }
-        input#background-rng::-webkit-slider-thumb {
+        input.background-ctrl::-webkit-slider-thumb {
             background-image: url('images/digie35-crop.svg');
         }
-        input#background-rng::-moz-range-thumb {
+        input.background-ctrl::-moz-range-thumb {
             background-image: url('images/digie35-crop.svg');
         }
 
-        #preview-fieldset input[type="range"]#background-rng {
+        #preview-fieldset input[type="range"].background-ctrl {
             background: linear-gradient(90deg, black, gray, white)
         }
 
@@ -959,34 +978,34 @@
                 </fieldset>
             </div>
         </div>
-        <div id="preview" class="preview inline-container">
+        <div id="preview" class="media-viewer inline-container">
             <fieldset id="preview-fieldset">
                 <legend>Preview (<span id="preview-source"></span>)</legend>
                 <div id="stream-error" class="error-message"><span class="icon">&#x26a0;</span>Stream is not available</div>
-                <div id="stream-container" class="inline-container">
-                    <div id="stream-control">
-                        <input type="checkbox" id="invert-cb" value="invert" onchange="adjust_preview()" /><label for="invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
-                        <input type="radio" name="rotate" id="rotate0-rb" value="rotate0" onchange="adjust_preview()" checked /><label for="rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
-                        <input type="radio" name="rotate" id="rotate270-rb" value="rotate270" onchange="adjust_preview()" /><label for="rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
-                        <input type="radio" name="rotate" id="rotate180-rb" value="rotate180" onchange="adjust_preview()" /><label for="rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
-                        <input type="radio" name="rotate" id="rotate90-rb" value="rotate90" onchange="adjust_preview()" /><label for="rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
-                        <input type="checkbox" id="flip-cb" value="flip" onchange="adjust_preview()" /><label for="flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
-                        <input type="range" id="crop-x-rng" value="95" min="0" max="500" oninput="adjust_preview()" title="Width clipping" />
-                        <input type="range" id="crop-y-rng" value="0" min="0" max="300" oninput="adjust_preview()" title="Height clipping" />
-                        <input type="range" id="background-rng" value="200" min="0" max="255" oninput="adjust_preview()" title="Background color" />
+                <div class="inline-container">
+                    <div id="stream-control" class="control">
+                        <input type="checkbox" id="stream-invert-cb" value="invert" onchange="adjust_media_viewer()" /><label for="stream-invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
+                        <input type="radio" name="stream-rotate" id="stream-rotate0-rb" value="rotate0" onchange="adjust_media_viewer()" checked /><label for="stream-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                        <input type="radio" name="stream-rotate" id="stream-rotate270-rb" value="rotate270" onchange="adjust_media_viewer()" /><label for="stream-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
+                        <input type="radio" name="stream-rotate" id="stream-rotate180-rb" value="rotate180" onchange="adjust_media_viewer()" /><label for="stream-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
+                        <input type="radio" name="stream-rotate" id="stream-rotate90-rb" value="rotate90" onchange="adjust_media_viewer()" /><label for="stream-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
+                        <input type="checkbox" id="stream-flip-cb" value="flip" onchange="adjust_media_viewer()" /><label for="stream-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
+                        <input type="range" id="stream-crop-x-rng" class="crop-x-ctrl" value="95" min="0" max="500" oninput="adjust_media_viewer()" title="Width clipping" />
+                        <input type="range" id="stream-crop-y-rng" class="crop-y-ctrl" value="0" min="0" max="300" oninput="adjust_media_viewer()" title="Height clipping" />
+                        <input type="range" id="stream-background-rng" class="background-ctrl" value="200" min="0" max="255" oninput="adjust_media_viewer()" title="Background color" />
                     </div>
-                    <div id="stream-container" class="grey-border">
+                    <div id="stream-container" class="media-container grey-border">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
                         <canvas id="canvas"></canvas>
                     </div>
-                    <div class="collapse-toggle inline-toggle top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
+                    <div class="collapse-toggle inline-buttons inline-button top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
                         <span class="arrow">
                             &#9650;
                         </span>
                     </div>
                 </div>
             </fieldset>
-            <div class="collapse-toggle inline-toggle top-left-toggle" data-container_id="controls" title="Click to collapse/reveal control sidebar">
+            <div class="collapse-toggle inline-buttons inline-button top-left-toggle" data-container_id="controls" title="Click to collapse/reveal control sidebar">
                 <span class="arrow">
                     &#9664; <!-- left arrow -->
                 </span>
@@ -1319,7 +1338,7 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="save-preview-cb" accesskey="v" >Save pre<u>v</u>iew</label>
+                            <label for="save-preview-cb" accesskey="v" >Archive pre<u>v</u>iew</label>
                             <div class="switch-container">
                                 <label class="switch">
                                     <input type="checkbox" id="save-preview-cb" value="1" />
@@ -1327,12 +1346,45 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Save preview image to repository. It is supported obly when <i>USB preview</i> is active</small>
+                        <small class="hint">Save preview image in JPG to repository in <i>previews</i> subdir. It is supported only when <i>USB preview</i> is active</small>
                     </div>
                 </div>
             </div>
         </div>
 
+    </div>
+    <div class="modal-container">
+        <div id="lightbox-modal" class="modal-overlay">
+            <div class="media-viewer lightbox">
+                <fieldset>
+                    <legend>Image (<span id="archived-image-name"></span>)</legend>
+                    <div id="archived-image-error" class="error-message"><span class="icon">&#x26a0;</span>Image is not available</div>
+                    <div class="inline-container">
+                        <div id="archived-image-control" class="control">
+                            <input type="checkbox" id="archived-image-invert-cb" value="invert" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
+                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate0-rb" value="rotate0" onchange="adjust_media_viewer('archived-image')" checked /><label for="archived-image-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate270-rb" value="rotate270" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
+                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate180-rb" value="rotate180" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
+                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate90-rb" value="rotate90" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
+                            <input type="checkbox" id="archived-image-flip-cb" value="flip" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
+                        </div>
+                        <div id="archived-image-container" class="media-container grey-border">
+                            <img id="archived-image" onload="do_imgok('archived-image');" onerror="do_imgerror('archived-image');" />
+                        </div>
+                        <div class="inline-buttons top-right-toggle">
+                            <div class="inline-button close" title="Click to close viewer">
+                                <b>&times;</b>
+                            </div>
+                            <div class="collapse-toggle inline-button" data-container_id="archived-image-control" title="Click to collapse/reveal image controls">
+                                <span class="arrow">
+                                    &#9650;
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+        </div>
     </div>
     <div id="screen-notification" class="screen-notification"></div>
 </body>
@@ -1442,9 +1494,14 @@
                 const line = document.createElement("li");
                 if (capt["preview"]) {
                     const link = document.createElement("a");
-                    link.href = `http://${window._hostname}:8408/preview/${document.getElementById("project_id").value}/${document.getElementById("film_id").value}/${capt.name}`
-                    link.target = "digie35_preview";
+                    link.href = "#";
+                    // link.target = "digie35_preview";
                     link.textContent = s;
+                    link.setAttribute("data-image-name", `${document.getElementById("project_id").value}/${document.getElementById("film_id").value}/${capt.name}`);
+                    link.addEventListener("click", function(event) {
+                        show_lightbox(this.getAttribute("data-image-name"));
+                        event.preventDefault();
+                    });
                     line.appendChild(link);
                 } else {
                     line.textContent = s;
@@ -2315,7 +2372,12 @@
     }
 
     function show_modal(element_id) {
-        var elem = document.getElementById(element_id);
+        var elem = get_modal();
+        if (elem) {
+            elem.classList.remove("modal-active");
+            window.modal_stack.push(elem);
+        }
+        elem = document.getElementById(element_id);
         elem.classList.add("modal-active");
     }
 
@@ -2323,7 +2385,12 @@
         var elem = get_modal();
         if (elem) {
             elem.classList.remove("modal-active");
-            adjust();
+            if (window.modal_stack.length > 0) {
+                elem = window.modal_stack.pop();
+                elem.classList.add("modal-active");
+            } else {
+                adjust();
+            }
         }
     }
 
@@ -2390,6 +2457,47 @@
         });
     }
 
+    function show_lightbox(image_name) {
+        var elem = document.getElementById("archived-image-name");
+        elem.textContent = image_name;
+        var img = document.getElementById("archived-image");
+        img.src = `http://${window._hostname}:8408/preview/${image_name}`
+        const cb_names = {
+            "flipped": ["flip", "-cb", false],
+            "negative": ["invert", "-cb", false],
+            "rotation": ["rotate", "0-rb", true],
+        };
+        for (const key in cb_names) {
+            var elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
+            elem.checked = cb_names[key][2];
+        };
+        document.getElementById("archived-image-rotate0-rb").checked = true;
+        adjust_media_viewer("archived-image");
+
+        fetch(img.src+"?info=1")
+            .then(res=>res.json())
+            .then(data=>{
+                for (const key in cb_names) {
+                    if (data[key] != "undefined") {
+                        var elem;
+                        if (key == "rotation") {
+                            elem = document.getElementById("archived-image-"+cb_names[key][0]+String(data[key])+"-rb");
+                            if (elem) {
+                                elem.checked = true;
+                            }
+                        } else {
+                            elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
+                            elem.checked = data[key];
+                        }
+                    }
+                }
+                console.log(data);
+                adjust_media_viewer("archived-image");
+            })
+            .catch(error=>console.error(`Fetch (${img.src}) error: ${error}`));
+        show_modal("lightbox-modal");
+    }
+
     function do_onload() {
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
@@ -2404,6 +2512,7 @@
         window.last_project_list_idx = null;
         window.last_film_list_idx = null;
         window.last_backlight = null;
+        window.modal_stack = [];
 		do_onresize(undefined);
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", function() {
@@ -2434,7 +2543,7 @@
             })
         });
 
-        document.querySelectorAll(".modal .close").forEach(element=> {
+        document.querySelectorAll(".modal-container .close").forEach(element=> {
             element.addEventListener("click", function() {
                 close_modal();
             })
@@ -2528,12 +2637,12 @@
             "capture.capture.mode": "capture-mode",
             "film.notify.film_id": "notify-film-id-cb",
             "film.notify.filename": "notify-image-filename-cb",
-            "preview.rotate": "rotate",
-            "preview.invert": "invert-cb",
-            "preview.flip": "flip-cb",
-            "preview.crop.x": "crop-x-rng",
-            "preview.crop.y": "crop-y-rng",
-            "praview.background_color": "background-rng",
+            "preview.rotate": "stream-rotate",
+            "preview.invert": "stream-invert-cb",
+            "preview.flip": "stream-flip-cb",
+            "preview.crop.x": "stream-crop-x-rng",
+            "preview.crop.y": "stream-crop-y-rng",
+            "praview.background_color": "stream-background-rng",
             "preview.usb": "usb-preview-cb",
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
@@ -2640,9 +2749,9 @@
                     params.preset = document.getElementById("preset-list").value;
                     params.save_preview = document.getElementById("save-preview-cb").checked;
                     if (params.preset || params.save_preview) {
-                        params.negative = document.getElementById("invert-cb").checked;
-                        params.flipped = document.getElementById("flip-cb").checked;
-                        var val = get_radio_button_value("rotate");
+                        params.negative = document.getElementById("stream-invert-cb").checked;
+                        params.flipped = document.getElementById("stream-flip-cb").checked;
+                        var val = get_radio_button_value("stream-rotate");
                         if (val) {
                             params.rotation = Number(val.replace(/^rotate/, ""));
                         }
@@ -2814,7 +2923,7 @@
         adjust_delay_value(document.getElementById("trigger-delay-rng"));
         adjust_logger();
         connect();
-        adjust_preview();
+        adjust_media_viewer();
     }
 
     function do_onkeydown(event) {
@@ -3024,14 +3133,14 @@
         }
     }
 
-    function do_imgok() {
-        set_visible(document.getElementById("stream-error"), false);
-        set_visible(document.getElementById("stream-container"), true);
+    function do_imgok(viewer_name="stream") {
+        set_visible(document.getElementById(viewer_name+"-error"), false);
+        set_visible(document.getElementById(viewer_name+"-container"), true);
     }
 
-    function do_imgerror() {
-        set_visible(document.getElementById("stream-error"), true);
-        set_visible(document.getElementById("stream-container"), false);
+    function do_imgerror(viewer_name="stream") {
+        set_visible(document.getElementById(viewer_name+"-error"), true);
+        set_visible(document.getElementById(viewer_name+"-container"), false);
     }
 
     function set_visible(elem, value, display_on="block") {
@@ -3049,39 +3158,44 @@
         }
     }
 
-    function adjust_preview() {
-        var stream = document.getElementById("stream");
-        var stream_control = document.getElementById("stream-control");
-        var elems = stream_control.getElementsByTagName("input");
-        var flip = document.getElementById("flip-cb").checked;
+    function adjust_media_viewer(viewer_name="stream") {
+        var viewer = document.getElementById(viewer_name);
+        var viewer_control = document.getElementById(viewer_name+"-control");
+        var elems = viewer_control.getElementsByTagName("input");
+        var flip = document.getElementById(viewer_name+"-flip-cb").checked;
         for (var i = 0; i < elems.length; i++) {
             elem = elems[i];
             if (elem.type == "radio") {
                 if (elem.value != "") {
                     var flip_class = "flip-" + elem.value;
                     if (!elem.checked) {
-                        stream.classList.remove(elem.value, flip_class);
+                        viewer.classList.remove(elem.value, flip_class);
                     } else {
                         if (flip) {
-                            stream.classList.add(flip_class);
-                            stream.classList.remove(elem.value);
+                            viewer.classList.add(flip_class);
+                            viewer.classList.remove(elem.value);
                         } else {
-                            stream.classList.remove(flip_class);
-                            stream.classList.add(elem.value);
+                            viewer.classList.remove(flip_class);
+                            viewer.classList.add(elem.value);
                         }
                     }
                 }
             } else if (elem.type == "checkbox") {
-                if (elem.checked != stream.classList.contains(elem.value)) {
-                    stream.classList.toggle(elem.value);
+                if (elem.checked != viewer.classList.contains(elem.value)) {
+                    viewer.classList.toggle(elem.value);
                 }
             }
         }
-        var hc = document.getElementById("crop-x-rng").value;
-        var vc = document.getElementById("crop-y-rng").value;
-        stream.style["clip-path"] = "inset("+vc+"px "+hc+"px "+vc+"px "+hc+"px)";
-        var x = ("0"+Number(document.getElementById("background-rng").value).toString(16)).slice(-2);
-        stream.parentNode.style["background-color"] = "#"+x+x+x;
+        var hc = document.getElementById(viewer_name+"-crop-x-rng");
+        var vc = document.getElementById(viewer_name+"-crop-y-rng");
+        if (vc && hc) {
+            viewer.style["clip-path"] = "inset("+vc.value+"px "+hc.value+"px "+vc.value+"px "+hc.value+"px)";
+        }
+        var bck = document.getElementById(viewer_name+"-background-rng");
+        if (bck) {
+            var x = ("0"+Number(bck.value).toString(16)).slice(-2);
+            viewer.parentNode.style["background-color"] = "#"+x+x+x;
+        }
     }
 
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
@@ -3374,16 +3488,16 @@
                         break;
                     case "invert":
                     case "flip":
-                        var elem = document.getElementById(action.entity+"-cb");
+                        var elem = document.getElementById("stream-"+action.entity+"-cb");
                         elem.checked = action.value;
-                        adjust_preview();
+                        adjust_media_viewer();
                         break;
                     case "rotate":
-                        var elem = document.getElementById("rotate"+String(action.value)+"-rb");
+                        var elem = document.getElementById("stream-rotate"+String(action.value)+"-rb");
                         if (elem) {
                             elem.checked = true;
                         }
-                        adjust_preview();
+                        adjust_media_viewer();
                         break;
                 }
             }
