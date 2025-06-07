@@ -6,6 +6,7 @@ Features
   - still latest image from USB preview
   - save capture preview on disk and display later in browser
   - manual backlight intensity input
+  - max.motor run time
 
 v0.8 (2025-04-24)
 =================

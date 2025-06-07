@@ -179,19 +179,27 @@ class ExtensionBoard:
     def _pulse_off_handler(self, *args, **kwargs):
         name = kwargs["name"]
         self.set_io_state(name, 1)
-        self._timers[name] = Timer(kwargs["on_secs"], self._pulse_on_handler, kwargs={"name": name})
-        self._timers[name].start()
+        self._add_and_start_timer(name, Timer(kwargs["on_secs"], self._pulse_on_handler, kwargs={"name": name}))
 
     def _pulse_on_handler(self, *args, **kwargs):
         name = kwargs["name"]
         self.set_io_state(name, 0)
-        del self._timers[name]
+        self._finalize_timer(name)
+
+    def _add_and_start_timer(self, name, timer):
+        self._cancel_timer(name)
+        self._timers[name] = timer
+        self._timers[name].start()
+
+    def _finalize_timer(self, name):
+        if self._timers.__contains__(name):
+            del self._timers[name]
 
     def _cancel_timer(self, name):
         if self._timers.__contains__(name):
             self._timers[name].cancel()
             self._timers[name].join()
-            del self._timers[name]
+            self._finalize_timer(name)
 
     def _merge_io_configuration(self):
         io_map = self._get_io_configuration()
@@ -432,12 +440,13 @@ class ExtensionBoard:
             result |= self.get_adapter(adapter_type).get_capabilities()
         return result
 
-    def check_capability(self, cap):
+    def get_capability(self, cap):
         caps = self.get_capabilities()
-        logging.getLogger().debug("%s(%s): %s %s  %s" % (__name__, cap, caps, caps[cap], cap in caps and caps[cap]))
-        if cap in caps and caps[cap]:
-            return
-        raise DigitizerError("Capability %s not supported" % cap)
+        return caps.get(cap, False)
+
+    def check_capability(self, cap):
+        if not self.get_capability(cap):
+            raise DigitizerError("Capability %s not supported" % cap)
 
     def reset(self):
         """
@@ -567,11 +576,10 @@ class ExtensionBoard:
         self._cancel_timer(name)
         if off_secs > 0:
             self.set_io_state(name, 0)
-            self._timers[name] = Timer(off_secs, self._pulse_off_handler, kwargs={"name":name, "on_secs":on_secs})
+            self._add_and_start_timer(name, Timer(off_secs, self._pulse_off_handler, kwargs={"name":name, "on_secs":on_secs}))
         else:
             self.set_io_state(name, 1)
-            self._timers[name] = Timer(on_secs, self._pulse_on_handler, kwargs={"name":name})
-        self._timers[name].start()
+            self._add_and_start_timer(name, Timer(on_secs, self._pulse_on_handler, kwargs={"name":name}))
 
     def set_backlight(self, color = None, intensity = None):
         if color != None and intensity == -1:
@@ -797,6 +805,7 @@ class Adapter:
     ID = "_abstract_"
     def __init__(self, xboard):
         self._xboard = xboard
+        self._props = {}
 
     def __del__(self):
         pass
@@ -824,6 +833,13 @@ class Adapter:
     def get_capabilities(self):
         # logging.getLogger().debug("%s::get_capabilities" % self.__class__.__name__)
         return {}
+
+    # support custom properties
+    def set_property(self, name, value):
+        self._props[name] = value
+
+    def get_property(self, name, default = None):
+        return self._props.get(name, default)
 
     def on_gpio_change(self, source):
         pass
@@ -880,6 +896,7 @@ class StepperMotorAdapter(Adapter):
                 "positions": {},
                 "pending": {},
             }
+        self.set_propery("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
 
     def __del__(self):
         super().__del__()
@@ -988,7 +1005,8 @@ class StepperMotorAdapter(Adapter):
                     params = self._get_stepper_params(direction)
                     logging.getLogger().debug("Stepper params: %s", params)
                     freq = params[0]
-                    self._start_ramping_time = default_timer()
+                    self._start_timestamp = default_timer()
+                    self._start_ramping_time = self._start_timestamp
                     self._start_freq = 0
                     self._ramping_time = (freq / params[1]) if params[1] > 0 else 0
                     interval = timedelta(seconds=0)  # first step immediately regardless speed/acceleration
@@ -1116,6 +1134,11 @@ class StepperMotorAdapter(Adapter):
                 #if abs(self._motor_position - kwargs["start_position"]["motor"]) >= action["step_count"]:
                 #    logging.getLogger().debug("MOVE_BY emergency stopped:abs(%d-%d) >= %d", self._motor_position, kwargs["start_position"]["motor"], action["step_count"])
                 #    stop = True
+            if not stop:
+                interval = default_timer() - self._start_timestamp
+                if interval > self.get_property("MAX_MOTOR_RUN"):
+                    stop = True
+                    logging.getLogger().debug("Motor autostopped (%s)", interval)
             if stop:
                 self._motor_job.stopped.set()
                 self._do_on_stop(0)

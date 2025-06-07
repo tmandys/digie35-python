@@ -1250,7 +1250,7 @@
                             <label for="flattening-cb" accesskey="f" ><u>F</u>lattening press</label>
                             <div class="switch-container">
                                 <label class="switch">
-                                    <input type="checkbox" id="flattening-cb" value="1" />
+                                    <input type="checkbox" id="flattening-cb" name="flattening" value="1" />
                                     <span class="slider round"></span>
                                 </label>
                             </div>
@@ -2240,6 +2240,13 @@
         }
     }
 
+    function sendCommandM(cmd, obj = {}) {
+        if (window.capabilities.flattening && document.getElementById("flattening-cb").checked) {
+            obj.flattening = 1;
+        }
+        sendCommand2(cmd, obj);
+    }
+
     function sendCommand2(cmd, obj) {
         if (typeof window.control_socket != "undefined" && window.control_socket.readyState == window.control_socket.OPEN) {
             if (typeof obj != "undefined") {
@@ -2679,13 +2686,13 @@
                 "idx": [-4, -3, -2, -1, 1, 2, 3, 4],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommand2('MOVE', {'direction': dir});
+                    sendCommandM('MOVE', {'direction': dir});
                 },
             },
             "stop": {
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommand2('STOP');
+                    sendCommandM('STOP');
                 },
             },
 
@@ -2693,7 +2700,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommand2("MOVE_BY", {'mm': dir*window.move_by_in_mm, 'speed': window.move_by_speed});
+                    sendCommandM("MOVE_BY", {'mm': dir*window.move_by_in_mm, 'speed': window.move_by_speed});
                 },
             },
 
@@ -2701,7 +2708,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommand2("MOVE_BY", {'mm': dir*(window.frame_width_in_mm + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': window.frame_speed});
+                    sendCommandM("MOVE_BY", {'mm': dir*(window.frame_width_in_mm + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': window.frame_speed});
                 },
             },
 
@@ -2716,7 +2723,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommand2("EJECT", {'forward': dir});
+                    sendCommandM("EJECT", {'forward': dir});
                 },
             },
 
@@ -2729,14 +2736,14 @@
 							create_next_film_id();
 						}
 					}
-                    sendCommand2('INSERT');
+                    sendCommandM('INSERT');
                 },
             },
 
             "shoot": {
                 "action": function(dir) {
                     if (window.capabilities.motorized) {
-						sendCommand2("STOP");
+						sendCommandM("STOP");
 					}
                     window.stop_multicapture = false;
                     var shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
@@ -2757,7 +2764,7 @@
                         }
                     }
                     if (window.capabilities.flattening && document.getElementById("flattening-cb").checked) {
-                        params.flatten = 1;
+                        params.flattening = 1;
                     }
                     params.file_template = get_file_template_values();
                     sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], params);
@@ -2769,7 +2776,7 @@
         function do_adapter_onclick(obj) {
             if (window.sticky_mouse == event.currentTarget.id) {
                 // if mousedown and mouseup are invoked from the same button then unconditionally follows onclick event
-                sendCommand2("STOP");
+                sendCommandM("STOP");
                 delete window.sticky_mouse;
                 return;
             }
@@ -2801,7 +2808,7 @@
             if (typeof window.sticky_mouse != "undefined") {
                 // if mousedown and mouseup are invoked from the same button then uncoditionally follows onclick event
                 if (window.sticky_mouse != event.currentTarget.id) {
-                    sendCommand2("STOP");
+                    sendCommandM("STOP");
                     delete window.sticky_mouse;
                 }
                 consume_event_propagation(event);   // to consume event to avoid page scroll
@@ -2823,7 +2830,7 @@
         function do_adapter_ontouchend(event) {
             console.log("[ontouchend]: "+event.currentTarget.id);
             if (typeof window.sticky_touch != "undefined") {
-                sendCommand2("STOP");
+                sendCommandM("STOP");
                 delete window.sticky_touch;
             }
         }
@@ -2831,7 +2838,7 @@
         function do_adapter_ontouchcancel(event) {
             console.log("[ontouchcancel]: "+event.currentTarget.id);
             if (typeof window.sticky_touch != "undefined") {
-                sendCommand2("STOP");
+                sendCommandM("STOP");
                 delete window.sticky_touch;
             }
         }
@@ -3120,7 +3127,7 @@
     function do_onkeyup(event) {
         console.log("[keyup]: "+JSON.stringify(event));
         if (window.sticky_key == event.code) {
-            sendCommand2("STOP");
+            sendCommandM("STOP");
             delete window.sticky_key;
         }
     }

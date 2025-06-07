@@ -83,6 +83,7 @@ class CameraWrapper:
     _PREVIEW_SUFFIX = ".preview.jpg"
     _PREVIEW_SUFFIX_2 = ".preview.json"
 
+    _FLATTEN_TIMEOUT = 0.2
     _WIRE_FOCUS_TIMEOUT = 0.500
     _WIRE_SHUTTER_TIMEOUT = 0.300
 
@@ -670,10 +671,11 @@ class CameraWrapper:
             raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
 
         self._acquire_capture_lock()
-        if kwargs.get("flatten", False):
-            adapter = digitizer.get_adapter()
-            if issubclass(type(digitizer.get_adapter()), digie35core.StepperMotorAdapter):
+        adapter = digitizer.get_adapter()
+        if issubclass(type(adapter), digie35core.StepperMotorAdapter):
+            if adapter.get_property("FP_AUTO", False):
                 adapter.flatten_plane(True)
+                time.sleep(self._FLATTEN_TIMEOUT)
 
         self._capture_in_progress = True
         self._broadcast_capture_status_from_event()
@@ -1421,6 +1423,12 @@ VERSION_INFO = {
     "python-libphoto2": gp.__version__,
 }
 
+def check_motorized_command(self, params):
+    digitizer.check_capability("motorized")
+    if issubclass(type(digitizer.get_adapter()), digie35core.StepperMotorAdapter):
+        if digitizer.get_capability("flattening"):
+            digitizer.get_adapter().set_property("FP_AUTO", params.get("flattening", False))
+
 global ws_control_clients
 ws_control_clients = set()
 
@@ -1486,6 +1494,8 @@ async def ws_control_handler(websocket, path):
                         reply = camera.validate_file_template(**params)
 
                     elif cmd == "CAPTURE":
+                        if digitizer.get_capability("motorized"):
+                            check_motorized_command(**params)
                         reply = camera.capture(websocket, **params)
                         status = digitizer.get_state()
                         if "film_position" in list(status):
@@ -1516,23 +1526,23 @@ async def ws_control_handler(websocket, path):
                         digitizer.set_io_state(**params)
                         reply_status = True
                     elif cmd == "MOVE":
-                        digitizer.check_capability("motorized")
+                        check_motorized_command(**params)
                         digitizer.get_adapter().set_motor(**params)
                         reply_status = True
                     elif cmd == "STOP":
-                        digitizer.check_capability("motorized")
+                        check_motorized_command(**params)
                         digitizer.get_adapter().set_motor(0)
                         reply_status = True
                     elif cmd == "EJECT":
-                        digitizer.check_capability("motorized")
+                        check_motorized_command(**params)
                         digitizer.get_adapter().eject(**params)
                         reply_status = True
                     elif cmd == "INSERT":
-                        digitizer.check_capability("motorized")
+                        check_motorized_command(**params)
                         digitizer.get_adapter().lead_in()
                         reply_status = True
                     elif cmd == "MOVE_BY":
-                        digitizer.check_capability("motorized")
+                        check_motorized_command(**params)
                         digitizer.get_adapter().move_by(**params)
                         reply_status = True
                     elif cmd == "FLATTEN":

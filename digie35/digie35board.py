@@ -31,6 +31,8 @@ import logging
 import time
 import time
 import datetime
+from timeit import default_timer
+from threading import Timer
 
 ## @package digie35board
 # Board and adapter Support
@@ -697,24 +699,54 @@ class GulpStepperMotorAdapter_0103(GulpStepperMotorAdapter_0101):
         return result
 
 class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
+    _FLATTENING_TIMER = "stepper.flattening"
+
     def __init__(self, xboard):
         super().__init__(xboard)
         self._flattening_state = None
+        self._last_flattening_change = None
+        self.set_property("FP_AUTO", False)  # control press
+        self.set_property("FP_TRUST_INTERVAL", 5.0)  # do not believe flattening state forever
+        self.set_property("FP_PRESS_DELAY", 2.0)   # wait some time till press down when stopped
+        self.set_property("FP_PULSE_WIDTH", 0.10)   # short pulse to pull selenoid
+
+    def __del__(self):
+        self._xboard._cancel_timer(self._FLATTENING_TIMER)
+        super.__del__()
 
     def flatten_plane(self, enable):
         enable = int(enable) > 0
-        #logging.getLogger().debug("Flatten_plane(%s)" % enable)
+        #logging.getLogger().debug("Flatten_plane(%s)" % (enable))
+        self._xboard._cancel_timer(self._FLATTENING_TIMER)
         if enable != self._flattening_state:
             if enable and self._motor_current_dir != 0:
                 raise DigitizerError("Film transport is in progress")
             self._do_pull_selenoid(enable)
 
     def _do_on_start(self, direction):
-        if self._flattening_state:
-            self._do_pull_selenoid(False)
+        if self.get_property("FP_AUTO"):
+            if self._last_flattening_change == None or default_timer() - self._last_flattening_change > self.get_property("FP_TRUST_INTERVAL"):
+                self._xboard._cancel_timer(self._FLATTENING_TIMER)
+                self._do_pull_selenoid(False)
         super()._do_on_start(direction)
 
+    def _do_on_stop(self, next_direction):
+        super()._do_on_stop(next_direction)
+        if next_direction == 0:
+            if self.get_property("FP_AUTO"):
+                delay = self.get_property("FP_PRESS_DELAY")
+                if delay == 0:
+                    self._xboard._cancel_timer(self._FLATTENING_TIMER)
+                    self._do_pull_selenoid(True)
+                elif delay > 0:
+                    self._xboard._add_and_start_timer(self._FLATTENING_TIMER, Timer(delay, self._flatten_on_handler))
+
+    def _flatten_on_handler(self, *args, **kwargs):
+        self._do_pull_selenoid(True)
+        self._xboard._finalize_timer(name)
+
     def _do_pull_selenoid(self, down):
+        # logging.getLogger().debug("pull_selenoid(%s / %s)" % (down, self._SELENOID))
         if self._SELENOID:
             save_enable = self._xboard.get_io_state("stepper_enable")
             save_step = self._xboard.get_io_state("stepper_step")
@@ -722,10 +754,12 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
             self._xboard.set_io_state("stepper_dir", not down)
             self._xboard.set_io_state("stepper_enable", False)
             self._xboard.set_io_state("stepper_step", True)
-            time.sleep(0.10)   # short pulse to pull selenoid
+            time.sleep(self.get_property("FP_PULSE_WIDTH"))   # short pulse to limit heating
+            # logging.getLogger().debug("end pulse")
             self._xboard.set_io_state("stepper_dir", save_dir)
             self._xboard.set_io_state("stepper_step", save_step)
             self._xboard.set_io_state("stepper_enable", save_enable)
+            self._last_flattening_change = default_timer()
         self._flattening_state = down
 
     def get_capabilities(self):
