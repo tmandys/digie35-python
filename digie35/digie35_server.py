@@ -1423,11 +1423,11 @@ VERSION_INFO = {
     "python-libphoto2": gp.__version__,
 }
 
-def check_motorized_command(self, params):
+def check_motorized_command(**kwargs):
     digitizer.check_capability("motorized")
     if issubclass(type(digitizer.get_adapter()), digie35core.StepperMotorAdapter):
         if digitizer.get_capability("flattening"):
-            digitizer.get_adapter().set_property("FP_AUTO", params.get("flattening", False))
+            digitizer.get_adapter().set_property("FP_AUTO", kwargs.get("flattening", False))
 
 global ws_control_clients
 ws_control_clients = set()

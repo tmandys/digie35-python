@@ -896,7 +896,7 @@ class StepperMotorAdapter(Adapter):
                 "positions": {},
                 "pending": {},
             }
-        self.set_propery("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
+        self.set_property("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
 
     def __del__(self):
         super().__del__()
