@@ -2468,7 +2468,7 @@
         var elem = document.getElementById("archived-image-name");
         elem.textContent = image_name;
         var img = document.getElementById("archived-image");
-        img.src = `http://${window._hostname}:8408/preview/${image_name}`
+        img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`
         const cb_names = {
             "flipped": ["flip", "-cb", false],
             "negative": ["invert", "-cb", false],

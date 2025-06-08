@@ -80,7 +80,7 @@ class CameraWrapper:
     _FILE_TEMPLATE_EXTENSION = ".ftpl.yaml"
     _LINK_EXTENSION = ".lnk"
     _MAX_TRIGGER_TIMEOUT = 5000 # ms (int!), max.timeout to wait for event where trigger
-    _PREVIEW_SUBDIR = "previews"
+    _PREVIEW_SUBDIR = ".previews"
     _PREVIEW_SUFFIX = ".preview.jpg"
     _PREVIEW_SUFFIX_2 = ".preview.json"
 
@@ -88,7 +88,7 @@ class CameraWrapper:
     _WIRE_FOCUS_TIMEOUT = 0.500
     _WIRE_SHUTTER_TIMEOUT = 0.300
 
-    def __init__(self, frame_buffer, **kwargs):
+    def __init__(self, frame_buffer, snapshot_list, **kwargs):
         #logging.getLogger().debug("CameraWrapper(%s)" % (kwargs))
         self._capture_lock = Lock()
         self._capture_lock_release_clock = 0
@@ -104,6 +104,7 @@ class CameraWrapper:
             self._fifopath = None
         self._preview_delay = float(kwargs["preview_delay"])/1000
         self._frame_buffer = frame_buffer
+        self._snapshot_list = snapshot_list
         self._template_id = ""
 
         proj_dir = os.path.abspath(os.path.expandvars(kwargs["proj_dir"]))
@@ -604,27 +605,35 @@ class CameraWrapper:
                             with open(target_xmp, "w", encoding="utf-8") as f:
                                 f.write(target_xml)
 
-                        if kwargs.get("save_preview", False) and self._camera_preview and self._frame_buffer != None:
+                        if self._camera_preview and self._frame_buffer != None:
+                            save_preview = kwargs.get("save_preview", False)
                             preview_json =  {
                                 "rotation": kwargs.get("rotation", 0),
                                 "flipped": kwargs.get("flipped", False),
                                 "negative": kwargs.get("negative", None),
                             }
-                            preview_path = os.path.join(self._get_path(project_id, film_id), self._PREVIEW_SUBDIR)
-                            if not os.path.isdir(preview_path):
-                                os.mkdir(preview_path)
-                            preview_target = os.path.join(preview_path, os.path.basename(target_no_ext)+fext)
-
+                            if save_preview:
+                                preview_json["filename"] = os.path.join(project_id, film_id, os.path.basename(target_no_ext)+fext)
                             frame = self._frame_buffer.get_latest_frame()
-                            target_jpg = preview_target + self._PREVIEW_SUFFIX
-                            logging.getLogger().debug(f"Preview JPG file: '%s'", target_jpg)
-                            with open(target_jpg, "wb") as f:
-                                f.write(frame)
+                            self._snapshot_list.add({
+                                "json": preview_json,
+                                "frame": frame,
+                            })
+                            if save_preview:
+                                preview_path = self._get_path(project_id, film_id, True)
+                                if not os.path.isdir(preview_path):
+                                    os.makedirs(preview_path)
+                                preview_target = os.path.join(preview_path, os.path.basename(target_no_ext)+fext)
 
-                            target_json = preview_target + self._PREVIEW_SUFFIX_2
-                            logging.getLogger().debug(f"Preview JSON file: '%s'", target_json)
-                            with open(target_json, "w", encoding="utf-8") as f:
-                                f.write(json.dumps(preview_json))
+                                target_jpg = preview_target + self._PREVIEW_SUFFIX
+                                logging.getLogger().debug(f"Preview JPG file: '%s'", target_jpg)
+                                with open(target_jpg, "wb") as f:
+                                    f.write(frame)
+
+                                target_json = preview_target + self._PREVIEW_SUFFIX_2
+                                logging.getLogger().debug(f"Preview JSON file: '%s'", target_json)
+                                with open(target_json, "w", encoding="utf-8") as f:
+                                    f.write(json.dumps(preview_json))
 
                     finally:
                         if not wire_trigger:
@@ -1077,7 +1086,7 @@ class CameraWrapper:
                     picture_files[fname] = {"name": fname}
                     if not is_link:
                         picture_files[fname] |= {"size": os.path.getsize(filepath)}
-                preview_filepath = os.path.join(path, self._PREVIEW_SUBDIR, fname + self._PREVIEW_SUFFIX)
+                preview_filepath = os.path.join(self._get_path(project_id, film_id, True), fname + self._PREVIEW_SUFFIX)
                 # logging.getLogger().debug("Preview filepath: %s" % (preview_filepath))
                 if os.path.isfile(preview_filepath):
                     picture_files[fname] |= {"preview": True}
@@ -1361,10 +1370,13 @@ class CameraWrapper:
         return result
 
 
-    def _get_path(self, project_id, film_id = ""):
+    def _get_path(self, project_id, film_id = "", preview = False):
         if self._cur_proj_dir == None:
             raise CameraControlError("Target directory is not specified")
         path = self._cur_proj_dir
+        if preview:
+            path = os.path.join(path, self._PREVIEW_SUBDIR)
+
         if project_id != "":
             path = os.path.join(path, project_id)
             if film_id:
@@ -1945,12 +1957,13 @@ def main():
     logging.getLogger().debug("Parsed args: %s", args)
 
     if args.previewPort != 0:
-        http_thread, frame_buffer, httpd = mjpgserver.start_http_server(args.wsAddr, args.previewPort)
+        http_thread, frame_buffer, snapshot_list, httpd = mjpgserver.start_http_server(args.wsAddr, args.previewPort)
     else:
         frame_buffer = None
+        snapshot_list = None
 
     global camera
-    camera = CameraWrapper(frame_buffer, **args.__dict__)
+    camera = CameraWrapper(frame_buffer, snapshot_list, **args.__dict__)
 
     board = args.board.upper()
     extra_io_map = {}

@@ -50,12 +50,50 @@ class FrameBuffer(object):
         with self.condition:
             self.condition.notify_all()
 
+class RingBuffer(object):
+
+    def __init__(self, size = 10):
+        self._data = [None] * size
+        self._full = False
+        self._index = 0
+        self.condition = Condition()
+
+    def get_count(self):
+        with self.condition:
+            return len(self._data) if self._full else self._index
+
+    def add(self, val):
+        # logging.getLogger().debug("RingBuffer.add()")
+        with self.condition:
+            self._data[self._index] = val
+            self._index = (self._index + 1) % len(self._data)
+            self._full = self._full or self._index == 0
+
+    def get(self, idx):
+        # logging.getLogger().debug("RingBuffer.get(%s)" % (idx))
+        with self.condition:
+            if idx >= 0 and idx < len(self._data):
+                return self._data[(self._index - idx - 1) % len(self._data)]
+            else:
+                return None
+
+    def foreach(self, callback):
+        with self.condition:
+            cnt = len(self._data) if self._full else self._index
+            idx = 0
+            result = []
+            while idx < cnt:
+                result.append(callback(self._data[(self._index - idx - 1) % len(self._data)]))
+                idx += 1
+            return result
+
 """
 StreamingHandler extent http.server.SimpleHTTPRequestHandler class to handle mjpg file for live stream
 """
 class StreamingHandler(SimpleHTTPRequestHandler):
-    def __init__(self, frames_buffer, *args):
+    def __init__(self, frames_buffer, snapshot_list, *args):
         self.frames_buffer = frames_buffer
+        self.snapshot_list = snapshot_list
         logging.getLogger().debug("new StreamingHandler")
         super().__init__(*args)
 
@@ -133,40 +171,68 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(stats).encode("utf-8"))
 
-        elif path.startswith("preview/") and base_directory != None:
+        elif path.startswith("preview/"):
             parts = unquote(path).split("/")
-            if len(parts) < 3:
-                self.send_error(404, "File not found 1")
-            else:
-                info = query_params.get("info", 0)
-                abs_path = Path(os.path.join(base_directory, parts[1], parts[2], "previews", parts[3] + ".preview." + ("json" if info else "jpg") )).resolve()
-                logging.getLogger().log(logging.DEBUG, f"abs_path: %s, parts: %s" % (abs_path, parts))
-                if str(abs_path).startswith(str(base_directory)) and os.path.isfile(abs_path):
-                    if info:
-                        response = None
-                        with open(abs_path, "r", encoding="utf-8") as f:
-                            try:
-                                data = json.load(f)
-                                response = json.dumps(data).encode("utf-8")
-                            except:
-                                self.send_error(500, "Parsing error")
-                        if response != None:
-                            self.send_response(200)
-                            self.send_header('Content-Type', 'application/json')
-                            self.send_header('Content-Length', str(len(response)))
-                            self.send_header('Access-Control-Allow-Origin', '*')
-                            self.end_headers()
-                            self.wfile.write(response)
-                    else:
-                        with open(abs_path, "rb") as f:
-                            data = f.read()
-                            self.send_response(200)
-                            self.send_header('Content-Type', 'image/jpeg')
-                            self.send_header('Content-Length', str(len(data)))
-                            self.end_headers()
-                            self.wfile.write(data)
+            parts.pop(0)
+            src = parts.pop(0) if parts else None
+            logging.getLogger().debug("src: %s, parts: %s" % (src, parts))
+            if src == "archive" and base_directory != None:
+                if len(parts) < 3:
+                    self.send_error(404, "File not found 1")
                 else:
-                    self.send_error(404, "File not found 2")
+                    info = query_params.get("info", 0)
+                    abs_path = Path(os.path.join(base_directory, ".previews", parts[0], parts[1], parts[2] + ".preview." + ("json" if info else "jpg") )).resolve()
+                    logging.getLogger().debug("abs_path: %s, parts: %s" % (abs_path, parts))
+                    if str(abs_path).startswith(str(base_directory)) and os.path.isfile(abs_path):
+                        if info:
+                            response = None
+                            with open(abs_path, "r", encoding="utf-8") as f:
+                                try:
+                                    data = json.load(f)
+                                    response = json.dumps(data).encode("utf-8")
+                                except:
+                                    self.send_error(500, "Parsing error")
+                            if response != None:
+                                self.send_response(200)
+                                self.send_header('Content-Type', 'application/json')
+                                self.send_header('Content-Length', str(len(response)))
+                                self.send_header('Access-Control-Allow-Origin', '*')
+                                self.end_headers()
+                                self.wfile.write(response)
+                        else:
+                            with open(abs_path, "rb") as f:
+                                data = f.read()
+                                self.send_response(200)
+                                self.send_header('Content-Type', 'image/jpeg')
+                                self.send_header('Content-Length', str(len(data)))
+                                self.end_headers()
+                                self.wfile.write(data)
+                    else:
+                        self.send_error(404, "File not found 2")
+            elif src == "latest":
+                if not parts:
+                    def get_json(item):
+                        return item["json"]
+
+                    response = json.dumps(self.snapshot_list.foreach(get_json)).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(response)))
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(response)
+
+                elif parts[0].isdigit():
+                    snapshot = self.snapshot_list.get(int(parts[0]))
+                    if snapshot != None:
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'image/jpeg')
+                        self.send_header('Content-Length', str(len(snapshot["frame"])))
+                        self.end_headers()
+                        self.wfile.write(snapshot["frame"])
+                        return
+                self.send_error(404, "Preview not found")
+
         else:
             self.send_error(404, "Not found")
             # fallback to default handler
@@ -189,14 +255,15 @@ def run_httpd(httpd):
 
 def start_http_server(addr, port):
     frame_buffer = FrameBuffer()
+    snapshot_list = RingBuffer()
     address = (addr, port)
     logging.getLogger().debug(f"HTTP server listening on %s:%s" % address)
-    httpd = ThreadingHTTPServer(address, lambda *args: StreamingHandler(frame_buffer, *args))
+    httpd = ThreadingHTTPServer(address, lambda *args: StreamingHandler(frame_buffer, snapshot_list, *args))
     httpd_thread = Thread(target=run_httpd, kwargs={
         "httpd": httpd,
         })
     httpd_thread.start()
-    return (httpd_thread, frame_buffer, httpd)
+    return (httpd_thread, frame_buffer, snapshot_list, httpd)
 
 def stop_http_server():
     global stop_flag
