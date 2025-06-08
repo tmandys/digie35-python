@@ -725,7 +725,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 
     def _do_on_start(self, direction):
         if self.get_property("FP_AUTO"):
-            if self._last_flattening_change == None or default_timer() - self._last_flattening_change > self.get_property("FP_TRUST_INTERVAL"):
+            if self._flattening_state or self._last_flattening_change == None or default_timer() - self._last_flattening_change > self.get_property("FP_TRUST_INTERVAL"):
                 self._xboard._cancel_timer(self._FLATTENING_TIMER)
                 self._do_pull_selenoid(False)
         super()._do_on_start(direction)
@@ -743,7 +743,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 
     def _flatten_on_handler(self, *args, **kwargs):
         self._do_pull_selenoid(True)
-        self._xboard._finalize_timer(name)
+        self._xboard._finalize_timer(self._FLATTENING_TIMER)
 
     def _do_pull_selenoid(self, down):
         # logging.getLogger().debug("pull_selenoid(%s / %s)" % (down, self._SELENOID))

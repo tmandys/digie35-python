@@ -39,6 +39,7 @@ import locale
 import os
 import datetime
 import re
+import inspect
 
 import websockets.legacy
 import websockets.legacy.framing
@@ -1429,6 +1430,17 @@ def check_motorized_command(**kwargs):
         if digitizer.get_capability("flattening"):
             digitizer.get_adapter().set_property("FP_AUTO", kwargs.get("flattening", False))
 
+def safe_call(func, **kwargs):
+    # pass as many params as func have to avoid "got an unexpected keyword argument" error
+    sig = inspect.signature(func)
+    accepted_params = {
+        name for name, param in sig.parameters.items() if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
+    }
+    logging.getLogger().debug("safe_call(%s), accepted: %s" % (kwargs, accepted_params))
+    filtered_args = {key: value for key, value in kwargs.items() if key in accepted_params}
+    logging.getLogger().debug("filtered: %s" % (filtered_args))
+    return func(**filtered_args)
+
 global ws_control_clients
 ws_control_clients = set()
 
@@ -1467,31 +1479,31 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "LIST_VOLUMES":
                         reply = camera.list_volumes()
                     elif cmd == "SET_VOLUME":
-                        reply = camera.set_volume(**params)
+                        reply = safe_call(camera.set_volume, **params)
                     elif cmd == "LIST_PROJECTS":
                         reply = camera.list_projects()
                     elif cmd == "CREATE_PROJECT":
-                        reply = camera.create_project(**params)
+                        reply = safe_call(camera.create_project, **params)
                     elif cmd == "UPDATE_PROJECT":
-                        reply = camera.update_project(**params)
+                        reply = safe_call(camera.update_project, **params)
                     elif cmd == "DELETE_PROJECT":
-                        reply = camera.delete_project(**params)
+                        reply = safe_call(camera.delete_project, **params)
                     elif cmd == "GET_PROJECT":
-                        reply = camera.get_project(**params)
+                        reply = safe_call(camera.get_project, **params)
 
                     elif cmd == "CREATE_FILM":
-                        reply = camera.create_film(**params)
+                        reply = safe_call(camera.create_film, **params)
                     elif cmd == "UPDATE_FILM":
-                        reply = camera.update_film(**params)
+                        reply = safe_call(camera.update_film, **params)
                     elif cmd == "DELETE_FILM":
-                        reply = camera.delete_film(**params)
+                        reply = safe_call(camera.delete_film, **params)
                     elif cmd == "GET_FILM":
-                        reply = camera.get_film(**params)
+                        reply = safe_call(camera.get_film, **params)
 
                     elif cmd == "GET_TEMPLATE":
-                        reply = camera.get_file_template_options(**params)
+                        reply = safe_call(camera.get_file_template_options, **params)
                     elif cmd == "VALIDATE_TEMPLATE":
-                        reply = camera.validate_file_template(**params)
+                        reply = safe_call(camera.validate_file_template, **params)
 
                     elif cmd == "CAPTURE":
                         if digitizer.get_capability("motorized"):
@@ -1503,31 +1515,31 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "LIST_CAMERAS":
                         reply = camera.list_cameras()
                     elif cmd == "SET_CAMERA":
-                        reply = camera.set_camera(**params)
+                        reply = safe_call(camera.set_camera, **params)
 
                     elif cmd == "START_PREVIEW":
-                        reply = camera.start_preview(**params)
+                        reply = safe_call(camera.start_preview, **params)
                     elif cmd == "STOP_PREVIEW":
-                        reply = camera.stop_preview(**params)
+                        reply = safe_call(camera.stop_preview, **params)
 
                     elif cmd == "SET_BACKLIGHT":
-                        digitizer.set_backlight(**params)
+                        safe_call(digitizer.set_backlight, **params)
                         reply_status = True
                     elif cmd == "LEVEL":
-                        digitizer.set_io_state(**params)
+                        safe_call(digitizer.set_io_state, **params)
                         reply_status = True
                     elif cmd == "WAIT":
                         time.sleep(float(params.sed))
                         reply_status = True
                     elif cmd == "PULSE":
-                        digitizer.pulse_output(**params)
+                        safe_call(digitizer.pulse_output, **params)
                         reply_status = True
                     elif cmd == "SENSOR":
-                        digitizer.set_io_state(**params)
+                        safe_call(digitizer.set_io_state, **params)
                         reply_status = True
                     elif cmd == "MOVE":
                         check_motorized_command(**params)
-                        digitizer.get_adapter().set_motor(**params)
+                        safe_call(digitizer.get_adapter().set_motor, **params)
                         reply_status = True
                     elif cmd == "STOP":
                         check_motorized_command(**params)
@@ -1535,7 +1547,7 @@ async def ws_control_handler(websocket, path):
                         reply_status = True
                     elif cmd == "EJECT":
                         check_motorized_command(**params)
-                        digitizer.get_adapter().eject(**params)
+                        safe_call(digitizer.get_adapter().eject, **params)
                         reply_status = True
                     elif cmd == "INSERT":
                         check_motorized_command(**params)
@@ -1543,11 +1555,11 @@ async def ws_control_handler(websocket, path):
                         reply_status = True
                     elif cmd == "MOVE_BY":
                         check_motorized_command(**params)
-                        digitizer.get_adapter().move_by(**params)
+                        safe_call(digitizer.get_adapter().move_by, **params)
                         reply_status = True
                     elif cmd == "FLATTEN":
                         digitizer.check_capability("flattening")
-                        digitizer.get_adapter().flatten_plane(**params)
+                        safe_call(digitizer.get_adapter().flatten_plane, **params)
                         reply_status = True
                     elif cmd == "GET":
                         reply_status = True

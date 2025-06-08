@@ -25,8 +25,8 @@ if VERSION==100:
     PDN_UART_PIN = -1
 else:
     # v1.1
-    MS0_PIN = 19
-    MS1_PIN = 15
+    MS0_PIN = 19   # XIO4
+    MS1_PIN = 15   # XIO5
     ENABLE_PIN = 21
     if DRIVER == DRV_TMC:
         RESET_PIN = -1
@@ -42,6 +42,10 @@ else:
 MICROSTEPPING = 3
 DIR = 1
 
+if DRIVER == DRV_TMC and MICROSTEPPING == 0:
+    # TMC has no full steps in legacy mode ?
+    MICROSTEPPING = 1
+ 
 if RESET_PIN > 0:
     reset_pin = OutputDevice(RESET_PIN, initial_value=0, active_high=True)
     reset_pin.value = 0
@@ -55,9 +59,9 @@ if ENABLE_PIN > 0:
     enable_pin = OutputDevice(ENABLE_PIN, initial_value=enable_active, active_high=True)
 
 if DRIVER == DRV_TMC:
-    # MS1 MS0 ... 00=1/8, 01=1/2, 10=1/4, 11=1/16
-    ms0_pin = OutputDevice(MS0_PIN, initial_value = MICROSTEPPING in (0,3))
-    ms1_pin = OutputDevice(MS1_PIN, initial_value = MICROSTEPPING in (1,3))
+    # MS1 MS0 (datasheet MS2, MS1) ... 00=1/8, 01=1/2, 10=1/4, 11=1/16
+    ms0_pin = OutputDevice(MS0_PIN, initial_value = MICROSTEPPING in (1,4))
+    ms1_pin = OutputDevice(MS1_PIN, initial_value = MICROSTEPPING in (2,4))
 else:
     ms0_pin = OutputDevice(MS0_PIN, initial_value = (MICROSTEPPING & 1) != 0)
     ms1_pin = OutputDevice(MS1_PIN, initial_value = (MICROSTEPPING & 2) != 0)
@@ -82,7 +86,7 @@ try:
 
 except KeyboardInterrupt:
     print("\nCtrl+C aborting");
+    step_pin.value = 0
     if ENABLE_PIN > 0:
         enable_pin.value = enable_active ^ 1
-    step_pin.value = 0
 
