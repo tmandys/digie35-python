@@ -714,7 +714,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 
     def __del__(self):
         self._xboard._cancel_timer(self._FLATTENING_TIMER)
-        super.__del__()
+        super().__del__()
 
     def flatten_plane(self, enable):
         enable = int(enable) > 0
