@@ -34,6 +34,20 @@ effects:
       - type: set
         entity: led
         value: white+red+green+blue
+  any_film:
+    if: "film_type == 'any'"
+    actions:
+      - type: set
+        entity: preset
+        value: ""
+      - type: set
+        entity: led
+        value: white
+  preview:
+    actions:
+      - type: set
+        entity: invert
+        value: "film_type != 'any'"
   on_autoinc:
     xif: "True"
     actions:
