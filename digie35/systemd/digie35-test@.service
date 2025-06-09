@@ -1,12 +1,14 @@
 [Unit]
 Description=Digie35 Test, board %I
 After=network.target
+Before=shutdown.target
 
 [Service]
 Type=simple
 ExecStart=<<FILEPATH>> -b %I --addr 0.0.0.0
 Environment=PYTHONUNBUFFERED=1
 #ExecStartPre=
+KillSignal=SIGTERM
 Restart=always
 User=pi
 

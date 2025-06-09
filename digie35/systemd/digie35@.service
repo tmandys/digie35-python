@@ -1,6 +1,7 @@
 [Unit]
 Description=Digie35 %I board
 After=network.target
+Before=shutdown.target
 
 [Service]
 Type=simple
@@ -8,6 +9,8 @@ ExecStart=<<FILEPATH>> -b %I -s HELPER --addr 0.0.0.0
 #ExecStartPre=killall gvfsd-gphoto2
 Environment=PYTHONUNBUFFERED=1
 Restart=always
+KillSignal=SIGTERM
+TimeoutStopSec=3
 #User=pi
 
 [Install]

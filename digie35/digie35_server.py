@@ -2001,10 +2001,12 @@ def main():
                 logging.getLogger().debug(f"Starting shutdown helper: %s" % (fake_process_name))
                 shutdown_helper_process = subprocess.Popen([fake_process_name])
                 logging.getLogger().debug(f"subprocess pid: %d" % (shutdown_helper_process.pid))
-                signal.signal(signal.SIGTERM, on_terminate)
+                # signal.signal(signal.SIGTERM, on_terminate)  # we have global handler
             else:
                 logging.getLogger().error(f"Shutdown helper not found: %s" % (fake_process_name))
 
+    # systemd kill service via SIGTERM
+    signal.signal(signal.SIGTERM, on_terminate)
 
     global SHUTDOWN_OPTION
     SHUTDOWN_OPTION = args.shutdown
