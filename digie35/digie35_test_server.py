@@ -38,6 +38,8 @@ import time
 import importlib
 import digie35.digie35core as digie35core
 import datetime
+import os
+import signal
 
 class Digie35ServerError(Exception):
     pass
@@ -305,6 +307,11 @@ def broadcast(message):
     for websocket in ws_clients.copy():
         asyncio.run(send(websocket, message))
 
+def on_terminate(signal_no, dummy):
+    logging.getLogger().debug(f"Terminate shutdown helper, signal: %d" % (signal_no))
+    # force KeyboardInterrupt
+    os.kill(os.getpid(), signal.SIGINT)
+
 def main():
     VERSION = "0.1.0"
     argParser = argparse.ArgumentParser(
@@ -365,6 +372,8 @@ def main():
     log.debug("film_xboard_class: %s", film_xboard_class.__name__)
     global xboard
     xboard = film_xboard_class(mainboard, broadcast)
+
+    signal.signal(signal.SIGTERM, on_terminate)
 
     async def ws_run():
         async with websockets.serve(ws_handler, host=args.wsAddr, port=args.wsPort):
