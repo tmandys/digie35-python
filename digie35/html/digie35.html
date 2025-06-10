@@ -393,6 +393,11 @@
             left: -2px;
         }
 
+        .bottom-right-toggle {
+            bottom: -4px;
+            right: -4px;
+        }
+
         .inline-buttons .inline-button, .inline-buttons.inline-button {
             background: #FEFEFE;
             cursor: pointer;
@@ -423,7 +428,7 @@
             overflow: hidden;
         }
 
-        .media-viewer .control.collapsed {
+        .media-viewer .control.collapsed, .media-viewer .filmstrip.collapsed {
             max-height: 0px;
         }
 
@@ -449,6 +454,10 @@
             object-fit: contain; /*cover;*/
         }
 
+        .media-viewer .filmstrip {
+            margin-top: 4px;
+        }
+
         .lightbox .media-container img {
             height: 90vh;
         }
@@ -458,6 +467,38 @@
             top: 0;
             left: 0;
             pointer-events: none;
+        }
+
+        .filmstrip {
+            display: flex;
+            overflow-x: auto;
+            gap: 0.5rem;
+            /* padding: 0.5rem; */
+            background: #111;
+            flex-wrap: nowrap;
+            justify-content: space-evenly;
+        }
+
+        .filmstrip .frame {
+            position: relative;
+            width: 150px;
+            height: 100px;
+            flex-shrink: 0;
+            border: 2px solid #222;
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .filmstrip .frame img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transform-origin: center center;
+            transition: transform 0.3s ease;
         }
 
         .wrapper {
@@ -994,11 +1035,19 @@
                         <input type="range" id="stream-crop-y-rng" class="crop-y-ctrl" value="0" min="0" max="300" oninput="adjust_media_viewer()" title="Height clipping" />
                         <input type="range" id="stream-background-rng" class="background-ctrl" value="200" min="0" max="255" oninput="adjust_media_viewer()" title="Background color" />
                     </div>
-                    <div id="stream-container" class="media-container grey-border">
+                    <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
                         <canvas id="canvas"></canvas>
                     </div>
+                    <div id="stream-strip-container" class="filmstrip collapsed">
+                        <div class="frame"><a href="#" data-image-name="" onclick="show_lightbox(this.getAttribute('data-image-name'))"><img id="filmstrip-frame-0" src="" /></a></div>
+                    </div>
                     <div class="collapse-toggle inline-buttons inline-button top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
+                        <span class="arrow">
+                            &#9650;
+                        </span>
+                    </div>
+                    <div class="collapse-toggle inline-buttons inline-button bottom-right-toggle" data-container_id="stream-strip-container" title="Click to collapse/reveal film strip">
                         <span class="arrow">
                             &#9650;
                         </span>
@@ -2124,6 +2173,9 @@
                             } else if (data.cmd == "DOWNLOAD") {
                                 window.download_in_progress = false;
                                 file_transfer_finished(data.payload);
+                                if (typeof data.payload.preview_image_name != "undefined") {
+                                    add_frame_to_filmstrip(data.payload.preview_image_name);
+                                }
                                 check_multicapture();
                             } else if (data.cmd == "CREATE_FILM") {
                                 // add new film into select box as placeholder
@@ -2465,10 +2517,13 @@
     }
 
     function show_lightbox(image_name) {
+        if (!image_name) {
+            return;
+        }
         var elem = document.getElementById("archived-image-name");
         elem.textContent = image_name;
         var img = document.getElementById("archived-image");
-        img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`
+        img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`;
         const cb_names = {
             "flipped": ["flip", "-cb", false],
             "negative": ["invert", "-cb", false],
@@ -2503,6 +2558,23 @@
             })
             .catch(error=>console.error(`Fetch (${img.src}) error: ${error}`));
         show_modal("lightbox-modal");
+    }
+
+    function add_frame_to_filmstrip(image_name) {
+        const container = document.getElementById("stream-strip-container");
+        // move last element at the top
+        const last = container.lastElementChild;
+
+        if (last) {
+            const link = last.querySelector("a");
+            link.setAttribute("data-image-name", image_name);
+            const img = last.querySelector("img");
+            img.src = "";
+            img.setAttribute("title", image_name);
+            container.insertBefore(last, container.firstElementChild);
+            img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`
+            adjust_media_viewer(img.id, "stream", true);
+        }
     }
 
     function do_onload() {
@@ -2615,6 +2687,16 @@
         document.getElementById("error-close").addEventListener('click', function() {
             update_status_info("", true);
         });
+        const filmstrip = document.getElementById("stream-strip-container");
+        const frame_template = filmstrip.querySelector(".frame");
+        var frame_count = 5;
+        while (frame_count > 0) {
+            var cloned = frame_template.cloneNode(true);
+            const link = cloned.querySelector("img");
+            link.id = `filmstrip-frame-0${frame_count}`; // just unique id;
+            filmstrip.appendChild(cloned);
+            frame_count -= 1;
+        }
 
         window.access_keys = {};
         /* get rid of accesskeys which does not work in browser as expected, they ignores unvisibility etc. */
@@ -2758,13 +2840,11 @@
                     }
                     params.preset = document.getElementById("preset-list").value;
                     params.save_preview = document.getElementById("save-preview-cb").checked;
-                    if (params.preset || params.save_preview) {
-                        params.negative = document.getElementById("stream-invert-cb").checked;
-                        params.flipped = document.getElementById("stream-flip-cb").checked;
-                        var val = get_radio_button_value("stream-rotate");
-                        if (val) {
-                            params.rotation = Number(val.replace(/^rotate/, ""));
-                        }
+                    params.negative = document.getElementById("stream-invert-cb").checked;
+                    params.flipped = document.getElementById("stream-flip-cb").checked;
+                    var val = get_radio_button_value("stream-rotate");
+                    if (val) {
+                        params.rotation = Number(val.replace(/^rotate/, ""));
                     }
                     if (window.capabilities.flattening && document.getElementById("flattening-cb").checked) {
                         params.flattening = 1;
@@ -3172,13 +3252,16 @@
         }
     }
 
-    function adjust_media_viewer(viewer_name="stream") {
+    function adjust_media_viewer(viewer_name = "stream", control_name = "", skip_crop = false) {
+        if (control_name == "") {
+            control_name = viewer_name;
+        }
         var viewer = document.getElementById(viewer_name);
-        var viewer_control = document.getElementById(viewer_name+"-control");
+        var viewer_control = document.getElementById(control_name+"-control");
         var elems = viewer_control.getElementsByTagName("input");
-        var flip = document.getElementById(viewer_name+"-flip-cb").checked;
+        var flip = document.getElementById(control_name+"-flip-cb").checked;
         for (var i = 0; i < elems.length; i++) {
-            elem = elems[i];
+            var elem = elems[i];
             if (elem.type == "radio") {
                 if (elem.value != "") {
                     var flip_class = "flip-" + elem.value;
@@ -3200,15 +3283,22 @@
                 }
             }
         }
-        var hc = document.getElementById(viewer_name+"-crop-x-rng");
-        var vc = document.getElementById(viewer_name+"-crop-y-rng");
+        if (skip_crop) {
+            return;
+        }
+        var hc = document.getElementById(control_name+"-crop-x-rng");
+        var vc = document.getElementById(control_name+"-crop-y-rng");
         if (vc && hc) {
             viewer.style["clip-path"] = "inset("+vc.value+"px "+hc.value+"px "+vc.value+"px "+hc.value+"px)";
         }
-        var bck = document.getElementById(viewer_name+"-background-rng");
+        var bck = document.getElementById(control_name+"-background-rng");
         if (bck) {
             var x = ("0"+Number(bck.value).toString(16)).slice(-2);
-            viewer.parentNode.style["background-color"] = "#"+x+x+x;
+            var elem = viewer.parentNode;
+            while (elem) {
+                elem.style["background-color"] = "#"+x+x+x;
+                elem = document.getElementById(elem.getAttribute("data-sibling"));
+            }
         }
     }
 

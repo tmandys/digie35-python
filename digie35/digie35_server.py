@@ -605,17 +605,22 @@ class CameraWrapper:
                             with open(target_xmp, "w", encoding="utf-8") as f:
                                 f.write(target_xml)
 
+                        preview_image_name = None
                         if self._camera_preview and self._frame_buffer != None:
                             save_preview = kwargs.get("save_preview", False)
+                            frame = self._frame_buffer.get_latest_frame()
+                            preview_image_name = os.path.join(project_id, film_id, os.path.basename(target_no_ext)+fext)
                             preview_json =  {
                                 "rotation": kwargs.get("rotation", 0),
                                 "flipped": kwargs.get("flipped", False),
-                                "negative": kwargs.get("negative", None),
+                                "negative": kwargs.get("negative", False),
+                                "size": len(frame) if frame != None else 0,
+                                "stamp": now_s,
+                                "image_name": preview_image_name,
                             }
-                            if save_preview:
-                                preview_json["filename"] = os.path.join(project_id, film_id, os.path.basename(target_no_ext)+fext)
-                            frame = self._frame_buffer.get_latest_frame()
-                            self._snapshot_list.add({
+                            if not save_preview:
+                                preview_json["cache_only"] = not save_preview
+                            self._snapshot_list.add(preview_json["image_name"], {
                                 "json": preview_json,
                                 "frame": frame,
                             })
@@ -649,6 +654,8 @@ class CameraWrapper:
                         "file_path": target,
                         "volume": self.get_volume_info(),
                     }}
+                if preview_image_name != None:
+                    msg["payload"]["preview_image_name"] = preview_image_name
                 if client_data != None:
                     msg["payload"]["client_data"] = client_data
                 if error != None:

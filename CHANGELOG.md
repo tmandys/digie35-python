@@ -8,6 +8,7 @@ Features
   - manual backlight intensity input
   - max.motor run time
   - backlight auto off
+  - filmstrip preview
 
 Fixes
 -----

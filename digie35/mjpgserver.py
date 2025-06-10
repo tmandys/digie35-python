@@ -26,6 +26,7 @@ class FrameBuffer(object):
         self.stop_flag = False
 
     def write(self, buf):
+        # logging.getLogger().debug("FrameBuffer.write(%s, %s ..)" % (buf.nbytes, buf[0:2].hex()))
         if buf.nbytes > 2 and buf[0:2] == b'\xff\xd8':
             # New frame
             with self.condition:
@@ -62,20 +63,33 @@ class RingBuffer(object):
         with self.condition:
             return len(self._data) if self._full else self._index
 
-    def add(self, val):
-        # logging.getLogger().debug("RingBuffer.add()")
+    def add(self, id, val):
+        # logging.getLogger().debug("RingBuffer.add(%s)" % (id))
         with self.condition:
-            self._data[self._index] = val
+            self._data[self._index] = (id, val)
             self._index = (self._index + 1) % len(self._data)
             self._full = self._full or self._index == 0
 
-    def get(self, idx):
-        # logging.getLogger().debug("RingBuffer.get(%s)" % (idx))
+    def get(self, id):
+        # logging.getLogger().debug("RingBuffer.get(%s)" % (id))
         with self.condition:
-            if idx >= 0 and idx < len(self._data):
-                return self._data[(self._index - idx - 1) % len(self._data)]
+            if isinstance(id, int):
+                idx = id
+                if idx >= 0 and idx < len(self._data):
+                    item = self._data[(self._index - idx - 1) % len(self._data)]
+                    if item:
+                        return item[1]
             else:
-                return None
+                cnt = len(self._data) if self._full else self._index
+                idx = 0
+                while idx < cnt:
+                    item = self._data[(self._index - idx - 1) % len(self._data)]
+                    #logging.getLogger().debug("RingBuffer.get(%s), %s, %s" % (id, idx, item[0]))
+                    if item[0] == id:
+                        #logging.getLogger().debug("RingBuffer.get(%s) found" % id)
+                        return item[1]
+                    idx += 1
+            return None
 
     def foreach(self, callback):
         with self.condition:
@@ -83,7 +97,8 @@ class RingBuffer(object):
             idx = 0
             result = []
             while idx < cnt:
-                result.append(callback(self._data[(self._index - idx - 1) % len(self._data)]))
+                item = self._data[(self._index - idx - 1) % len(self._data)]
+                result.append(callback(item[0], item[1]))
                 idx += 1
             return result
 
@@ -176,60 +191,55 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             parts.pop(0)
             src = parts.pop(0) if parts else None
             logging.getLogger().debug("src: %s, parts: %s" % (src, parts))
+            info = query_params.get("info", 0)
             if src == "archive" and base_directory != None:
                 if len(parts) < 3:
                     self.send_error(404, "File not found 1")
                 else:
-                    info = query_params.get("info", 0)
-                    abs_path = Path(os.path.join(base_directory, ".previews", parts[0], parts[1], parts[2] + ".preview." + ("json" if info else "jpg") )).resolve()
-                    logging.getLogger().debug("abs_path: %s, parts: %s" % (abs_path, parts))
-                    if str(abs_path).startswith(str(base_directory)) and os.path.isfile(abs_path):
+                    id = os.path.join(parts[0], parts[1], parts[2])
+                    abs_path = Path(os.path.join(base_directory, ".previews", id + ".preview." + ("json" if info else "jpg") )).resolve()
+                    cached = self.snapshot_list.get(id)
+                    logging.getLogger().debug("id: %s, abs_path: %s, parts: %s, incache: %s" % (id, abs_path, parts, cached != None))
+                    payload = None
+                    if cached != None:
                         if info:
-                            response = None
+                            payload = cached["json"]
+                        else:
+                            payload = cached["frame"]
+                    elif str(abs_path).startswith(str(base_directory)) and os.path.isfile(abs_path):
+                        if info:
                             with open(abs_path, "r", encoding="utf-8") as f:
                                 try:
-                                    data = json.load(f)
-                                    response = json.dumps(data).encode("utf-8")
+                                    payload = json.load(f)
                                 except:
                                     self.send_error(500, "Parsing error")
-                            if response != None:
-                                self.send_response(200)
-                                self.send_header('Content-Type', 'application/json')
-                                self.send_header('Content-Length', str(len(response)))
-                                self.send_header('Access-Control-Allow-Origin', '*')
-                                self.end_headers()
-                                self.wfile.write(response)
                         else:
                             with open(abs_path, "rb") as f:
-                                data = f.read()
-                                self.send_response(200)
-                                self.send_header('Content-Type', 'image/jpeg')
-                                self.send_header('Content-Length', str(len(data)))
-                                self.end_headers()
-                                self.wfile.write(data)
+                                payload = f.read()
+
+                    if payload:
+                        if info:
+                            payload["from_cache"] = cached != None
+
+                        self._send_response_200(info, payload)
                     else:
                         self.send_error(404, "File not found 2")
             elif src == "latest":
-                if not parts:
-                    def get_json(item):
+                if not parts or parts[0] == "":
+                    def get_json(id, item):
                         return item["json"]
 
-                    response = json.dumps(self.snapshot_list.foreach(get_json)).encode("utf-8")
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Content-Length', str(len(response)))
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(response)
+                    self._send_response_200(True, self.snapshot_list.foreach(get_json))
+                    return
 
                 elif parts[0].isdigit():
-                    snapshot = self.snapshot_list.get(int(parts[0]))
-                    if snapshot != None:
-                        self.send_response(200)
-                        self.send_header('Content-Type', 'image/jpeg')
-                        self.send_header('Content-Length', str(len(snapshot["frame"])))
-                        self.end_headers()
-                        self.wfile.write(snapshot["frame"])
+                    item = self.snapshot_list.get(int(parts[0]))
+                    if item != None:
+                        if info:
+                            payload = item["json"] | {"from_cache": True}
+                        else:
+                            payload = item["frame"] if item["frame"] != None else ""
+                        self._send_response_200(info, payload)
                         return
                 self.send_error(404, "Preview not found")
 
@@ -237,6 +247,18 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Not found")
             # fallback to default handler
             # super().do_GET()
+
+    def _send_response_200(self, json_type, payload):
+        if json_type:
+            payload = json.dumps(payload).encode("utf-8")
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json' if json_type else 'image/jpeg')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(payload)
+
 
 def set_base_dir(dir):
     global base_directory
