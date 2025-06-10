@@ -7,6 +7,11 @@ Features
   - save capture preview on disk and display later in browser
   - manual backlight intensity input
   - max.motor run time
+  - backlight auto off
+
+Fixes
+-----
+  - cleanup on SIGTERM
 
 v0.8 (2025-04-24)
 =================
