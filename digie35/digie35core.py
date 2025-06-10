@@ -40,25 +40,51 @@ class Job(Thread):
     def __init__(self, interval, execute, *args, **kwargs):
         Thread.__init__(self)
         self.daemon = False
-        self.stopped = Event()
-        self.interval = interval
-        self.execute = execute
-        self.args = args
-        self.kwargs = kwargs
+        self._stopped = Event()
+        self._interval = interval
+        self._execute = execute
+        self._args = args
+        self._kwargs = kwargs
+        self._state = 0
 
-    def stop(self):
-        self.stopped.set()
-        self.join()
+    def stop(self, join=True):
+        self._state = -1
+        self._stopped.set()
+        if join:
+            try:
+                self.join()
+            except RuntimeError:
+                pass
 
+    def pause(self):
+        if self._state == 0:
+            self._state = 1
+
+    def restart(self):
+        if self._state == 1:
+            self._state = 0
+        self._stopped.set()
 
     def run(self):
-        # logging.getLogger().debug("job interval: %s s, %s Hz" %(self.interval, 1/self.interval.total_seconds() if self.interval.total_seconds() > 0 else 0))
-        while not self.stopped.wait(timeout=self.interval.total_seconds()):
-            new_interval = self.execute(*self.args, **self.kwargs)
-            if new_interval != None and new_interval != self.interval:
-                self.interval = new_interval
-                # logging.getLogger().debug("job new interval: %s s, %s Hz" %(self.interval, 1/self.interval.total_seconds() if self.interval.total_seconds() > 0 else 0))
+        # logging.getLogger().debug("job interval: %s s, %s Hz" %(self._interval, 1/self._interval.total_seconds() if self._interval.total_seconds() > 0 else 0))
+        while self._state >= 0:
+            while not self._stopped.wait(timeout=self._interval.total_seconds() if self._state <= 0 else None):
+                new_interval = self._execute(*self._args, **self._kwargs)
+                if new_interval != None and new_interval != self._interval:
+                    self._interval = new_interval
+                    # logging.getLogger().debug("job new interval: %s s, %s Hz" %(self._interval, 1/self._interval.total_seconds() if self._interval.total_seconds() > 0 else 0))
+            self._stopped.clear()
 
+## Custom properties
+class Properties:
+    def __init__(self):
+        self._values = {}
+
+    def set(self, name, value):
+        self._values[name] = value
+
+    def get(self, name, default = None):
+        return self._values.get(name, default)
 
 
 ## General error
@@ -118,6 +144,7 @@ class ExtensionBoard:
         # logging.getLogger().debug("ExtensionBoard.__init__(%s)" % (mainboard))
         self._mainboard = mainboard
         self._mainboard.assign_extension_board(self)
+        self.props = Properties()
         self._is_xio = False
         self._initialized = False
         self._timers = {}
@@ -136,13 +163,22 @@ class ExtensionBoard:
         self._merge_io_configuration()
         self._initialize_io_map(False)
         self._pending_notification = Event()
+        self._backlight_lock = Lock()
+        self._backlight_job = None   # use job instead of timer to simplify implementation
+
+        self.props.set("BL_AUTO_OFF_ENABLE", True)   # auto off backlight 
+        self.props.set("BL_AUTO_OFF_TIMEOUT", 300)   # when is already on at least secs
+        self.props.set("BL_AUTO_OFF_INTERVAL", 10)   # and test it in interval
 
         self.check_connected_adapter()
         self.reset()
         self._initialized = True
 
     def __del__(self):
-        pass
+        for key in list(self._timers):
+            self._cancel_timer(key)
+        if self._backlight_job:
+            self._backlight_job.stop()
 
     def get_adapter(self, name = AOT_NAME):
         if name in list(self._adapters):
@@ -195,10 +231,22 @@ class ExtensionBoard:
         if self._timers.__contains__(name):
             del self._timers[name]
 
+    def _reset_timer(self, name):
+        if self._timers.__contains__(name):
+            self._timers[name].cancel()
+            try:
+                self._timers[name].join()
+            except RuntimeError:
+                pass
+            self._timers[name].start()
+
     def _cancel_timer(self, name):
         if self._timers.__contains__(name):
             self._timers[name].cancel()
-            self._timers[name].join()
+            try:
+                self._timers[name].join()
+            except RuntimeError:
+                pass
             self._finalize_timer(name)
 
     def _merge_io_configuration(self):
@@ -466,6 +514,13 @@ class ExtensionBoard:
         for key in list(self._timers):
             self._cancel_timer(key)
         self._get_xio(True)
+        if self._backlight_job != None:
+            self._backlight_job.stop()
+            self._backlight_job = None
+        interval = self.props.get("BL_AUTO_OFF_INTERVAL")
+        if interval > 0:
+            self._backlight_on_timestamp = None
+            self._backlight_job = Job(interval=timedelta(seconds=interval), execute=self._backlight_auto_off_handler)
 
     def get_state(self, force=False):
         """
@@ -581,18 +636,33 @@ class ExtensionBoard:
             self.set_io_state(name, 1)
             self._add_and_start_timer(name, Timer(on_secs, self._pulse_on_handler, kwargs={"name":name}))
 
+    def _backlight_auto_off_handler(self, *args, **kwargs):
+        # logging.getLogger().debug("Backlight auto off handler (%s, %s, %s, %s)" % (self.props.get("BL_AUTO_OFF_ENABLE"), default_timer(), self._backlight_on_timestamp, self.props.get("BL_AUTO_OFF_TIMEOUT")))
+        if self.props.get("BL_AUTO_OFF_ENABLE"):
+            color = self._current_backlight_color
+            if color != None and self._save_backlight_intensity[color] > 0:
+                diff = default_timer() - self._backlight_on_timestamp
+                if diff >= self.props.get("BL_AUTO_OFF_TIMEOUT"):
+                    logging.getLogger().debug("Backlight auto off (%s)" % (diff))
+                    self.set_backlight()
+
     def set_backlight(self, color = None, intensity = None):
-        if color != None and intensity == -1:
-            if color in self._save_backlight_intensity:
-                intensity = self._save_backlight_intensity[color]
-            else:
-                intensity = 50
-        self._set_backlight_impl(color, intensity)
-        change_flag = self._current_backlight_color != color
-        self._current_backlight_color = color
-        if color != None:
-            change_flag |= not color in self._save_backlight_intensity or self._save_backlight_intensity[color] != intensity
-            self._save_backlight_intensity[color] = intensity
+        with self._backlight_lock:
+            if color != None and intensity == -1:
+                if color in self._save_backlight_intensity:
+                    intensity = self._save_backlight_intensity[color]
+                else:
+                    intensity = 50
+            self._set_backlight_impl(color, intensity)
+            change_flag = self._current_backlight_color != color
+            self._current_backlight_color = color
+            if color != None:
+                change_flag |= not color in self._save_backlight_intensity or self._save_backlight_intensity[color] != intensity
+                self._save_backlight_intensity[color] = intensity
+                if change_flag and intensity > 0 and self.props.get("BL_AUTO_OFF_ENABLE"):
+                    if self._backlight_job and not self._backlight_job.is_alive():
+                        self._backlight_job.start()
+                    self._backlight_on_timestamp = default_timer()
         if change_flag:
             self._call_notify_callback("backlight", True, 0.2)
 
@@ -805,7 +875,7 @@ class Adapter:
     ID = "_abstract_"
     def __init__(self, xboard):
         self._xboard = xboard
-        self._props = {}
+        self.props = Properties()
 
     def __del__(self):
         pass
@@ -833,13 +903,6 @@ class Adapter:
     def get_capabilities(self):
         # logging.getLogger().debug("%s::get_capabilities" % self.__class__.__name__)
         return {}
-
-    # support custom properties
-    def set_property(self, name, value):
-        self._props[name] = value
-
-    def get_property(self, name, default = None):
-        return self._props.get(name, default)
 
     def on_gpio_change(self, source):
         pass
@@ -896,7 +959,7 @@ class StepperMotorAdapter(Adapter):
                 "positions": {},
                 "pending": {},
             }
-        self.set_property("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
+        self.props.set("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
 
     def __del__(self):
         super().__del__()
@@ -985,8 +1048,7 @@ class StepperMotorAdapter(Adapter):
         """
             Control transport speed and direction
         """
-        self._motor_lock.acquire()
-        try:
+        with self._motor_lock:
             direction = min(self._MAX_GEAR, max(-self._MAX_GEAR, direction))
             if action == None:
                 action = {"cmd": "MOVE"}
@@ -1018,8 +1080,6 @@ class StepperMotorAdapter(Adapter):
                     self._motor_job = Job(interval=interval, execute=self._motor_handler, start_position={"motor": self._motor_position, "film": self._film_position, }, start_frame_counters=frame_counters, action=action, req_freq=freq)
                     self._do_on_start(direction)
                     self._motor_job.start()
-        finally:
-            self._motor_lock.release()
 
     def _adjust_motor_position(self, forward):
         if forward:
@@ -1136,11 +1196,11 @@ class StepperMotorAdapter(Adapter):
                 #    stop = True
             if not stop:
                 interval = default_timer() - self._start_timestamp
-                if interval > self.get_property("MAX_MOTOR_RUN"):
+                if interval > self.props.get("MAX_MOTOR_RUN"):
                     stop = True
                     logging.getLogger().debug("Motor autostopped (%s)", interval)
             if stop:
-                self._motor_job.stopped.set()
+                self._motor_job.stop(False)
                 self._do_on_stop(0)
                 self._motor_current_dir = 0
                 self._motor_current_action = None

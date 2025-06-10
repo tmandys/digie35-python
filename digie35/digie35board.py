@@ -705,12 +705,12 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         super().__init__(xboard)
         self._flattening_state = None
         self._last_flattening_change = None
-        self.set_property("FP_AUTO", False)  # control press
-        self.set_property("FP_TRUST_INTERVAL", 5.0)  # do not believe flattening state forever
-        self.set_property("FP_PRESS_DELAY", 2.0)   # wait some time till press down when stopped
-        self.set_property("FP_BACKLIGHT_OFF", True)  # switch off light to reduce power load at 24V
-        self.set_property("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
-        self.set_property("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
+        self.props.set("FP_AUTO", False)  # control press
+        self.props.set("FP_TRUST_INTERVAL", 5.0)  # do not believe flattening state forever
+        self.props.set("FP_PRESS_DELAY", 2.0)   # wait some time till press down when stopped
+        self.props.set("FP_BACKLIGHT_OFF", True)  # switch off light to reduce power load at 24V
+        self.props.set("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
+        self.props.set("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
 
     def __del__(self):
         self._xboard._cancel_timer(self._FLATTENING_TIMER)
@@ -726,8 +726,8 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
             self._do_pull_selenoid(enable)
 
     def _do_on_start(self, direction):
-        if self.get_property("FP_AUTO"):
-            if self._flattening_state or self._last_flattening_change == None or default_timer() - self._last_flattening_change > self.get_property("FP_TRUST_INTERVAL"):
+        if self.props.get("FP_AUTO"):
+            if self._flattening_state or self._last_flattening_change == None or default_timer() - self._last_flattening_change > self.props.get("FP_TRUST_INTERVAL"):
                 self._xboard._cancel_timer(self._FLATTENING_TIMER)
                 self._do_pull_selenoid(False)
         super()._do_on_start(direction)
@@ -735,8 +735,8 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
     def _do_on_stop(self, next_direction):
         super()._do_on_stop(next_direction)
         if next_direction == 0:
-            if self.get_property("FP_AUTO"):
-                delay = self.get_property("FP_PRESS_DELAY")
+            if self.props.get("FP_AUTO"):
+                delay = self.props.get("FP_PRESS_DELAY")
                 if delay == 0:
                     self._xboard._cancel_timer(self._FLATTENING_TIMER)
                     self._do_pull_selenoid(True)
@@ -754,26 +754,33 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
             save_step = self._xboard.get_io_state("stepper_step")
             save_dir = self._xboard.get_io_state("stepper_dir")
 
-            color = self._xboard.get_current_backlight_color()
-            if self.get_property("FP_BACKLIGHT_OFF"):
-                self._xboard.set_backlight(None)
+            color = self._xboard.get_current_backlight_color() if self.props.get("FP_BACKLIGHT_OFF") else None
+            try:
+                if color != None:
+                    self._xboard.set_backlight(None)
 
-            self._xboard.set_io_state("stepper_dir", not down)
-            self._xboard.set_io_state("stepper_enable", False)
-            cnt = self.get_property("FP_PULSE_COUNT")
-            width = self.get_property("FP_PULSE_WIDTH")
-            while cnt > 0:
-                cnt -= 1
-                self._xboard.set_io_state("stepper_step", True)
-                time.sleep(width)   # short pulse to limit heating
-                self._xboard.set_io_state("stepper_step", False)
-                time.sleep(width)
-            # logging.getLogger().debug("end pulse")
-            self._xboard.set_io_state("stepper_dir", save_dir)
-            self._xboard.set_io_state("stepper_step", save_step)
-            self._xboard.set_io_state("stepper_enable", save_enable)
-
-            self._xboard.set_backlight(color, -1)
+                self._xboard.set_io_state("stepper_dir", not down)
+                self._xboard.set_io_state("stepper_enable", False)
+                cnt = self.props.get("FP_PULSE_COUNT")
+                width = self.props.get("FP_PULSE_WIDTH")
+                while cnt > 0:
+                    cnt -= 1
+                    self._xboard.set_io_state("stepper_step", True)
+                    time.sleep(width)   # short pulse to limit heating
+                    self._xboard.set_io_state("stepper_step", False)
+                    time.sleep(width)
+                # logging.getLogger().debug("end pulse")
+                self._xboard.set_io_state("stepper_dir", save_dir)
+                self._xboard.set_io_state("stepper_step", save_step)
+                self._xboard.set_io_state("stepper_enable", save_enable)
+            finally:
+                if color != None:
+                    save_bl_auto_off = self._xboard.props.get("BL_AUTO_OFF_ENABLE")
+                    self._xboard.props.set("BL_AUTO_OFF_ENABLE", False)
+                    try:
+                        self._xboard.set_backlight(color, -1)
+                    finally:
+                        self._xboard.props.set("BL_AUTO_OFF_ENABLE", save_bl_auto_off)
 
             self._last_flattening_change = default_timer()
         self._flattening_state = down

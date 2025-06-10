@@ -671,135 +671,142 @@ class CameraWrapper:
     def capture(self, websocket, wire_trigger, camera_id, project_id, film_id, client_data = None, **kwargs):
         if self._capture_in_progress:  # but not preview capture
             raise CameraControlError("Capture in progress")
-        color = digitizer.get_current_backlight_color()
-        if color == None or color == "external":
-            raise CameraControlError("Backlight is switched off")
-        file_template = kwargs.get("file_template", {"template_id": "", "values": {}})
-        # prevalidate template values
-        tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id)
-        if tpl2.get("errors", None):
-            raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
-
-        self._acquire_capture_lock()
-        adapter = digitizer.get_adapter()
-        if issubclass(type(adapter), digie35core.StepperMotorAdapter):
-            if adapter.get_property("FP_AUTO", False):
-                adapter.flatten_plane(True)
-                time.sleep(self._FLATTEN_TIMEOUT)
-
-        self._capture_in_progress = True
-        self._broadcast_capture_status_from_event()
+        # do not switch off backlight in timer when capturing
+        save_bl_auto_off = digitizer.props.get("BL_AUTO_OFF_ENABLE")
+        digitizer.props.set("BL_AUTO_OFF_ENABLE", False)
         try:
-            logging.getLogger().debug("CameraId: %s, wire_trigger: %s" % (camera_id, wire_trigger))
-            if wire_trigger:
-                digitizer.set_io_states({"focus": 0, "shutter": 0})
-                digitizer.set_io_states({"focus": 1})
-                time.sleep(self._WIRE_FOCUS_TIMEOUT)
-                if not kwargs.get("focus+shutter", False):
-                    digitizer.set_io_states({"focus": 0, })
-                digitizer.set_io_states({"shutter": 1})
-                time.sleep(self._WIRE_SHUTTER_TIMEOUT)
-                digitizer.set_io_states({"focus": 0, "shutter": 0})
+            color = digitizer.get_current_backlight_color()
+            if color == None or color == "external":
+                raise CameraControlError("Backlight is switched off")
+            file_template = kwargs.get("file_template", {"template_id": "", "values": {}})
+            # prevalidate template values
+            tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id)
+            if tpl2.get("errors", None):
+                raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
 
-                fake_name = "captbywire"
-                class FilePath(object):
-                    name = fake_name + ".zzz"  # we need a fake 3 char extension for various places in code
-                    folder = ""
+            self._acquire_capture_lock()
+            adapter = digitizer.get_adapter()
+            if issubclass(type(adapter), digie35core.StepperMotorAdapter):
+                if adapter.props.get("FP_AUTO", False):
+                    adapter.flatten_plane(True)
+                    time.sleep(self._FLATTEN_TIMEOUT)
 
-                camera_filepath = FilePath()
-                tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name)
-                # prevalidated so error should not happen
+            self._capture_in_progress = True
+            self._broadcast_capture_status_from_event()
+            try:
+                logging.getLogger().debug("CameraId: %s, wire_trigger: %s" % (camera_id, wire_trigger))
+                if wire_trigger:
+                    digitizer.set_io_states({"focus": 0, "shutter": 0})
+                    digitizer.set_io_states({"focus": 1})
+                    time.sleep(self._WIRE_FOCUS_TIMEOUT)
+                    if not kwargs.get("focus+shutter", False):
+                        digitizer.set_io_states({"focus": 0, })
+                    digitizer.set_io_states({"shutter": 1})
+                    time.sleep(self._WIRE_SHUTTER_TIMEOUT)
+                    digitizer.set_io_states({"focus": 0, "shutter": 0})
 
-                time.sleep(kwargs.get("delay", 0)/1000)
-                download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
-                download_thread.name = "download"
-                download_thread.start()
+                    fake_name = "captbywire"
+                    class FilePath(object):
+                        name = fake_name + ".zzz"  # we need a fake 3 char extension for various places in code
+                        folder = ""
 
-            else:
-                self._open_camera(camera_id)
-                try:
-                    count = 0
-                    capturetarget = None
-                    while True:
-                        camera_config = self._camera.get_config()
-                        if 'capturetarget' in self._camera_config_list:
-                            # not supported on Sony, which always captures to memory
-                            # capturetarget options 
-                            # Choice: 0 Internal RAM
-                            # Choice: 1 Memory card
-                            logging.getLogger().debug("gp_widget_get_child_by_name('capturetarget')")
-                            capturetarget_cfg = gp.check_result(gp.gp_widget_get_child_by_name(camera_config, 'capturetarget'))
-                            #OK, capturetarget_cfg = camera_config.get_child_by_name("capturetarget")
-                            #logging.getLogger().debug("target: %s/%s" % (OK, self._dump(capturetarget_cfg)))
-                            save_capturetarget = gp.check_result(gp.gp_widget_get_value(capturetarget_cfg))
-                            #save_capturetarget = capturetarget_cfg.get_value()
-                            logging.getLogger().debug("savetarget: %s" % save_capturetarget)
-                            if kwargs.get("delete", True):
-                                val = 0  # RAM
-                            else:
-                                val = 1  # SD card
-                            logging.getLogger().debug("get choice: %s" % val)
-                            val_s = gp.check_result(gp.gp_widget_get_choice(capturetarget_cfg, val))
-                            if val_s != save_capturetarget:
-                                logging.getLogger().debug("setvalue: %s" % val_s)
-                                capturetarget_cfg.set_value(val_s)
-                                self._camera.set_config(camera_config)
-                            else:
-                                save_capturetarget = None
-                        else:
-                            save_capturetarget = None
-                        # self._get_battery(camera_config)
-
-                        try:
-                            if (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_IMAGE) != 0:
-                                # first try capture (= trigger+wait_for_event)
-                                logging.getLogger().debug("camera.capture()")
-                                camera_filepath = self._camera.capture(gp.GP_CAPTURE_IMAGE)
-
-                            elif (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0:
-                                logging.getLogger().debug("camera.trigger()")
-                                self._camera.trigger_capture()
-                                ts = time.monotonic()
-                                while True:
-                                    event_type, camera_filepath = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
-                                    if event_type == gp.GP_EVENT_FILE_ADDED:
-                                        break
-                                    if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT:
-                                        raise CameraControlError("No response from camera")
-                            break
-                        except Exception as e:
-                            count += 1
-                            if count > 1:
-                                raise e
-                            logging.getLogger().error(e, exc_info=True)
-                            # self._reinit_camera()
-
-                    logging.getLogger().debug('Camera file path: {0}/{1}'.format(camera_filepath.folder, camera_filepath.name))
-
-                    if save_capturetarget != None:
-                        logging.getLogger().debug("restore target: %s" % save_capturetarget)
-                        capturetarget_cfg.set_value(save_capturetarget)
-                        self._camera.set_config(camera_config)
-
-                    fname, fext = os.path.splitext(camera_filepath.name)
-                    tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname)
+                    camera_filepath = FilePath()
+                    tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name)
                     # prevalidated so error should not happen
 
-                    time.sleep(0.2)   # sometimes when from unknown reason is not stored more file in Sony buffer and we start moving before capture is processed even camera says that is ok
-
-                    # leave asap to allow move commands
-                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
+                    time.sleep(kwargs.get("delay", 0)/1000)
+                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
                     download_thread.name = "download"
                     download_thread.start()
-                except Exception as e:
-                    logging.getLogger().error(e, exc_info=True)
-                    self._close_camera()
-                    raise e
-        except Exception as e:
-            self._capture_in_progress = False
-            self._broadcast_capture_status_from_event()
-            self._release_capture_lock("error")
-            raise e
+
+                else:
+                    self._open_camera(camera_id)
+                    try:
+                        count = 0
+                        capturetarget = None
+                        while True:
+                            camera_config = self._camera.get_config()
+                            if 'capturetarget' in self._camera_config_list:
+                                # not supported on Sony, which always captures to memory
+                                # capturetarget options 
+                                # Choice: 0 Internal RAM
+                                # Choice: 1 Memory card
+                                logging.getLogger().debug("gp_widget_get_child_by_name('capturetarget')")
+                                capturetarget_cfg = gp.check_result(gp.gp_widget_get_child_by_name(camera_config, 'capturetarget'))
+                                #OK, capturetarget_cfg = camera_config.get_child_by_name("capturetarget")
+                                #logging.getLogger().debug("target: %s/%s" % (OK, self._dump(capturetarget_cfg)))
+                                save_capturetarget = gp.check_result(gp.gp_widget_get_value(capturetarget_cfg))
+                                #save_capturetarget = capturetarget_cfg.get_value()
+                                logging.getLogger().debug("savetarget: %s" % save_capturetarget)
+                                if kwargs.get("delete", True):
+                                    val = 0  # RAM
+                                else:
+                                    val = 1  # SD card
+                                logging.getLogger().debug("get choice: %s" % val)
+                                val_s = gp.check_result(gp.gp_widget_get_choice(capturetarget_cfg, val))
+                                if val_s != save_capturetarget:
+                                    logging.getLogger().debug("setvalue: %s" % val_s)
+                                    capturetarget_cfg.set_value(val_s)
+                                    self._camera.set_config(camera_config)
+                                else:
+                                    save_capturetarget = None
+                            else:
+                                save_capturetarget = None
+                            # self._get_battery(camera_config)
+
+                            try:
+                                if (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_IMAGE) != 0:
+                                    # first try capture (= trigger+wait_for_event)
+                                    logging.getLogger().debug("camera.capture()")
+                                    camera_filepath = self._camera.capture(gp.GP_CAPTURE_IMAGE)
+
+                                elif (self._camera_abilities.operations & gp.GP_OPERATION_TRIGGER_CAPTURE) != 0:
+                                    logging.getLogger().debug("camera.trigger()")
+                                    self._camera.trigger_capture()
+                                    ts = time.monotonic()
+                                    while True:
+                                        event_type, camera_filepath = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
+                                        if event_type == gp.GP_EVENT_FILE_ADDED:
+                                            break
+                                        if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT:
+                                            raise CameraControlError("No response from camera")
+                                break
+                            except Exception as e:
+                                count += 1
+                                if count > 1:
+                                    raise e
+                                logging.getLogger().error(e, exc_info=True)
+                                # self._reinit_camera()
+
+                        logging.getLogger().debug('Camera file path: {0}/{1}'.format(camera_filepath.folder, camera_filepath.name))
+
+                        if save_capturetarget != None:
+                            logging.getLogger().debug("restore target: %s" % save_capturetarget)
+                            capturetarget_cfg.set_value(save_capturetarget)
+                            self._camera.set_config(camera_config)
+
+                        fname, fext = os.path.splitext(camera_filepath.name)
+                        tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname)
+                        # prevalidated so error should not happen
+
+                        time.sleep(0.2)   # sometimes when from unknown reason is not stored more file in Sony buffer and we start moving before capture is processed even camera says that is ok
+
+                        # leave asap to allow move commands
+                        download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
+                        download_thread.name = "download"
+                        download_thread.start()
+                    except Exception as e:
+                        logging.getLogger().error(e, exc_info=True)
+                        self._close_camera()
+                        raise e
+            except Exception as e:
+                self._capture_in_progress = False
+                self._broadcast_capture_status_from_event()
+                self._release_capture_lock("error")
+                raise e
+        finally:
+            digitizer.props.set("BL_AUTO_OFF_ENABLE", save_bl_auto_off)
+
         return {
             "camera": self._camera_model,
             "name": camera_filepath.name,
@@ -1440,7 +1447,7 @@ def check_motorized_command(**kwargs):
     digitizer.check_capability("motorized")
     if issubclass(type(digitizer.get_adapter()), digie35core.StepperMotorAdapter):
         if digitizer.get_capability("flattening"):
-            digitizer.get_adapter().set_property("FP_AUTO", kwargs.get("flattening", False))
+            digitizer.get_adapter().props.set("FP_AUTO", kwargs.get("flattening", False))
 
 def safe_call(func, **kwargs):
     # pass as many params as func have to avoid "got an unexpected keyword argument" error
