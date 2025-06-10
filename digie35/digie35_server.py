@@ -2061,7 +2061,9 @@ def main():
         if shutdown_helper_process != None:
             logging.getLogger().debug(f"Terminate shutdown helper, pid: %d" % (shutdown_helper_process.pid))
             shutdown_helper_process.terminate()
-
+        del camera
+        del digitizer
+        del mainboard
 
 if __name__ == "__main__":
    main()

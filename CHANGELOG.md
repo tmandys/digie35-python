@@ -12,6 +12,7 @@ Features
 Fixes
 -----
   - cleanup on SIGTERM
+  - RPI4 GPIO21 issue when INPUT
 
 v0.8 (2025-04-24)
 =================

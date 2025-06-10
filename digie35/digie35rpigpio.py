@@ -67,7 +67,7 @@ class RpiGpioMainboard(RpiMainboard):
         self._gpio_output_mask &= ~ (1 << num)
 
     def set_gpio_event_handler(self, num, edge, name = None, handler = None):
-        logging.getLogger().debug("GPIO event callback: %s(%s)" % (num, edge))
+        # logging.getLogger().debug("GPIO event callback 1: %s(%s)" % (num, edge))
         if edge == "falling":
             edge = GPIO.FALLING
         elif edge == "raising":
@@ -80,11 +80,14 @@ class RpiGpioMainboard(RpiMainboard):
             return
         else:
             DigitizerError("Unknown edge type '%s'" % edge)
-        logging.getLogger().debug("GPIO event callback: %s(%s)" % (num, edge))
+        # logging.getLogger().debug("GPIO event callback 2: %s(%s)" % (num, edge))
         self._channel_to_name[str(num)] = name
         if handler != None:
             self._callback_per_gpio[str(num)] = handler
-        GPIO.add_event_detect(num, edge, callback=self._gpio_callback)
+        try:
+            GPIO.add_event_detect(num, edge, callback=self._gpio_callback)
+        except Exception as e:
+            logging.getLogger().error(e, exc_info=True)
 
     def set_gpio_as_output(self, num, init_hi):
         if init_hi == True:

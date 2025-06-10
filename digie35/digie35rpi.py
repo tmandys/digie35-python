@@ -65,6 +65,11 @@ class RpiMainboard(Mainboard):
 
     def __del__(self):
         super().__del__()
+        if not self._is_rpi5:
+            # RPI4: GPIO20,21 have voltage in ipput state between 1.6-1.8V depending on internal pullup/down which enables stepper @IO1 so force 0V
+            params = ['raspi-gpio', 'set', '21', 'op', 'dl']
+            logging.getLogger().debug("exec: %s" % params)
+            subprocess.call(params, shell=False)
 
     def is_rpi5(self):
         return self._is_rpi5

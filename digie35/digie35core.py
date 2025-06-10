@@ -160,11 +160,11 @@ class ExtensionBoard:
         self._callback_per_gpio = {}
         self._save_backlight_intensity = {}
         self._current_backlight_color = None
+        self._pending_notification = Event()
+        self._backlight_job = None   # use job instead of timer to simplify implementation
+        self._backlight_lock = Lock()
         self._merge_io_configuration()
         self._initialize_io_map(False)
-        self._pending_notification = Event()
-        self._backlight_lock = Lock()
-        self._backlight_job = None   # use job instead of timer to simplify implementation
 
         self.props.set("BL_AUTO_OFF_ENABLE", True)   # auto off backlight 
         self.props.set("BL_AUTO_OFF_TIMEOUT", 300)   # when is already on at least secs
@@ -962,8 +962,8 @@ class StepperMotorAdapter(Adapter):
         self.props.set("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
 
     def __del__(self):
-        super().__del__()
         self.set_motor(0)
+        super().__del__()
 
     def _initialize_io_map(self):
         super()._initialize_io_map()
