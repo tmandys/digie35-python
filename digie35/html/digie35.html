@@ -2715,6 +2715,9 @@
             "flatten": {
                 "idx": [1, 2],
                 "action": function(dir) {
+                    if (!window.capabilities.flattening) {
+                        return;
+                    }
                     sendCommand2("FLATTEN", {'enable': Math.abs(dir)-1});  // consider reverse which makes no sense
                 },
             },
@@ -3115,7 +3118,9 @@
                     delete window.sticky_mouse;
                     delete window.sticky_touch;
                 }
-                document.getElementById(btn+"-btn").click();
+                if (btn == "shoot" || window.capabilities.motorized) {
+                    document.getElementById(btn+"-btn").click();
+                }
             }
             event = event || window.event;
             consume_event_propagation(event);    // to consume event to avoid page scroll
@@ -3127,7 +3132,9 @@
     function do_onkeyup(event) {
         console.log("[keyup]: "+JSON.stringify(event));
         if (window.sticky_key == event.code) {
-            sendCommandM("STOP");
+            if (window.capabilities.motorized) {
+                sendCommandM("STOP");
+            }
             delete window.sticky_key;
         }
     }
