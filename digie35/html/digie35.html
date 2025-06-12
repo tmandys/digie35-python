@@ -792,7 +792,7 @@
 </head>
 
 <body onload="do_onload()">
-    <div id="error-box" class="error-message hidden">
+    <div id="error-box" class="error-message hidden" title="Ctrl+C to clear errors">
         <span class="icon">&#x26a0;</span>
         <span id="error-close" class="close">&times;</span>
         <div id="error-content" class="content"></div>
@@ -1049,7 +1049,7 @@
                     </div>
                     <div class="collapse-toggle inline-buttons inline-button bottom-right-toggle" data-container_id="stream-strip-container" title="Click to collapse/reveal film strip">
                         <span class="arrow">
-                            &#9650;
+                            &#9660;
                         </span>
                     </div>
                 </div>
@@ -1395,7 +1395,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Save preview image in JPG to repository in <i>previews</i> subdir. It is supported only when <i>USB preview</i> is active</small>
+                        <small class="hint">Save preview JPG image to volume repository in <i>.previews</i> directory, i.e. separated from (RAW) images not to interfere when processing archive.</small>
                     </div>
                 </div>
             </div>
@@ -1444,6 +1444,11 @@
     window.move_by_speed = 3;
     window.frame_speed = 4;
 
+    function get_stream_url(usbpreview, path) {
+        const port = usbpreview ? "8408" : "8409";
+        return `http://${window._hostname}:${port}/${path}`;
+
+    }
     function adjust() {
         var connected = document.getElementById("server-info").value != "";
         var volume = window.current_volume;
@@ -1464,7 +1469,7 @@
         }
         var usbpreview = connected && abilities && usb_preview_checkbox.checked && window.current_camera.capture_preview;
         if (usbpreview != window.current_usbpreview) {
-            document.getElementById("stream").src = "http://"+window._hostname+ ":" + (usbpreview ? "8408" : "8409") + "/stream";
+            document.getElementById("stream").src = get_stream_url(usbpreview, "stream");
             document.getElementById("preview-source").innerHTML = usbpreview ? "USB" : "HDMI";
             if (connected) {
             }
@@ -2523,7 +2528,7 @@
         var elem = document.getElementById("archived-image-name");
         elem.textContent = image_name;
         var img = document.getElementById("archived-image");
-        img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`;
+        img.src = get_stream_url(true, `preview/archive/${image_name}`);
         const cb_names = {
             "flipped": ["flip", "-cb", false],
             "negative": ["invert", "-cb", false],
@@ -2572,7 +2577,7 @@
             img.src = "";
             img.setAttribute("title", image_name);
             container.insertBefore(last, container.firstElementChild);
-            img.src = `http://${window._hostname}:8408/preview/archive/${image_name}`
+            img.src = get_stream_url(true, `preview/archive/${image_name}`);
             adjust_media_viewer(img.id, "stream", true);
         }
     }
@@ -2850,6 +2855,9 @@
                         params.flattening = 1;
                     }
                     params.file_template = get_file_template_values();
+                    if (!document.getElementById("usb-preview-cb").checked) {
+                        params.snapshot_url = get_stream_url(false, "snapshot");
+                    }
                     sendCommand("CAPTURE", ['camera-list', 'project_id', 'film_id'], params);
                 },
             },
@@ -3174,6 +3182,11 @@
             case "ArrowDown":
                 if (event.ctrlKey) {
                     btn = "flatten-2f";
+                }
+                break;
+            case "KeyC":
+                if (event.ctrlKey) {
+                    update_status_info("", true);
                 }
                 break;
             }

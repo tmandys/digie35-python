@@ -25,9 +25,10 @@ class FrameBuffer(object):
         self.condition = Condition()
         self.stop_flag = False
 
+    ## buff is momoryview object
     def write(self, buf):
         # logging.getLogger().debug("FrameBuffer.write(%s, %s ..)" % (buf.nbytes, buf[0:2].hex()))
-        if buf.nbytes > 2 and buf[0:2] == b'\xff\xd8':
+        if buf.nbytes > 2 and buf[0:2] == b'\xff\xd8':   # JPG header
             # New frame
             with self.condition:
                 # write to buffer
@@ -38,13 +39,16 @@ class FrameBuffer(object):
                 # save the frame
                 self.frame = self.buffer.getvalue()
                 self.latest_frame = self.frame
-                self.latest_timestamp = datetime.datetime.utcnow()
+                self.latest_timestamp = datetime.datetime.now(datetime.timezone.utc)
                 # notify all other threads
                 self.condition.notify_all()
 
-    def get_latest_frame(self):
+    def get_latest_frame(self, not_older = None):
         with self.condition:
-            return self.latest_frame
+            if not_older != None and self.latest_timestamp < not_older:
+                return None
+            else:
+                return self.latest_frame
 
     def stop(self):
         self.stop_flag = True
@@ -127,6 +131,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-cache, no-store, private')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
+            self._send_cors_headers()
             self.end_headers()
             try:
                 # tracking serving time
@@ -158,7 +163,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                             start_time = time.time()
             except Exception as e:
                 print(f'Removed streaming client {self.client_address}, {str(e)}')
-        elif path == 'latest.jpg':
+        elif path == 'snapshot':
             frame = self.frames_buffer.get_latest_frame()
             if frame != None:
                 self.send_response(200)
@@ -169,6 +174,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'image/jpeg')
                 self.send_header('Content-Length', str(len(frame)))
                 self.send_header('X-Timestamp', self.frames_buffer.latest_timestamp.isoformat() + "Z")
+                self._send_cors_headers()
                 self.end_headers()
                 self.wfile.write(frame)
 
@@ -183,6 +189,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             self.send_header('Pragma', 'no-cache')
             self.send_header('Expires', '0')
             self.send_header('Content-Type', 'application/json')
+            self._send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps(stats).encode("utf-8"))
 
@@ -255,10 +262,14 @@ class StreamingHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'application/json' if json_type else 'image/jpeg')
         self.send_header('Content-Length', str(len(payload)))
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(payload)
 
+    def _send_cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', '*')
+        self.send_header('Access-Control-Allow-Method', 'GET, OPTIONS')
 
 def set_base_dir(dir):
     global base_directory

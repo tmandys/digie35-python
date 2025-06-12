@@ -40,6 +40,7 @@ import os
 import datetime
 import re
 import inspect
+import requests
 
 import websockets.legacy
 import websockets.legacy.framing
@@ -425,7 +426,7 @@ class CameraWrapper:
             self._close_camera()
         return result
 
-    def _do_download(self, wire_trigger, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_data, **kwargs):
+    def _do_download(self, wire_trigger, started_timestamp, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_data, **kwargs):
         try:
             try:
                 error = None
@@ -440,7 +441,7 @@ class CameraWrapper:
                                 logging.getLogger().debug("Forcing download as image is in RAM (%s)" % (fname))
                                 download = True
 
-                        now = datetime.datetime.now()
+                        now = started_timestamp.astimezone()
                         now_s = now.strftime("%Y%m%d%H%M%S")
 
                         # find unique filenamwe not to overwrite file in case of ambiguous filename
@@ -606,39 +607,40 @@ class CameraWrapper:
                                 f.write(target_xml)
 
                         preview_image_name = None
-                        if self._camera_preview and self._frame_buffer != None:
-                            save_preview = kwargs.get("save_preview", False)
-                            frame = self._frame_buffer.get_latest_frame()
-                            preview_image_name = os.path.join(project_id, film_id, os.path.basename(target_no_ext)+fext)
-                            preview_json =  {
-                                "rotation": kwargs.get("rotation", 0),
-                                "flipped": kwargs.get("flipped", False),
-                                "negative": kwargs.get("negative", False),
-                                "size": len(frame) if frame != None else 0,
-                                "stamp": now_s,
-                                "image_name": preview_image_name,
-                            }
-                            if not save_preview:
-                                preview_json["cache_only"] = not save_preview
-                            self._snapshot_list.add(preview_json["image_name"], {
-                                "json": preview_json,
-                                "frame": frame,
-                            })
-                            if save_preview:
-                                preview_path = self._get_path(project_id, film_id, True)
-                                if not os.path.isdir(preview_path):
-                                    os.makedirs(preview_path)
-                                preview_target = os.path.join(preview_path, os.path.basename(target_no_ext)+fext)
+                        if self._frame_buffer != None:
+                            frame = self._frame_buffer.get_latest_frame(started_timestamp - datetime.timedelta(seconds=2))
+                            if frame != None:
+                                save_preview = kwargs.get("save_preview", False)
+                                preview_image_name = os.path.join(project_id, film_id, os.path.basename(target_no_ext)+fext)
+                                preview_json =  {
+                                    "rotation": kwargs.get("rotation", 0),
+                                    "flipped": kwargs.get("flipped", False),
+                                    "negative": kwargs.get("negative", False),
+                                    "size": len(frame) if frame != None else 0,
+                                    "stamp": now_s,
+                                    "image_name": preview_image_name,
+                                }
+                                if not save_preview:
+                                    preview_json["cache_only"] = not save_preview
+                                self._snapshot_list.add(preview_json["image_name"], {
+                                    "json": preview_json,
+                                    "frame": frame,
+                                })
+                                if save_preview:
+                                    preview_path = self._get_path(project_id, film_id, True)
+                                    if not os.path.isdir(preview_path):
+                                        os.makedirs(preview_path)
+                                    preview_target = os.path.join(preview_path, os.path.basename(target_no_ext)+fext)
 
-                                target_jpg = preview_target + self._PREVIEW_SUFFIX
-                                logging.getLogger().debug(f"Preview JPG file: '%s'", target_jpg)
-                                with open(target_jpg, "wb") as f:
-                                    f.write(frame)
+                                    target_jpg = preview_target + self._PREVIEW_SUFFIX
+                                    logging.getLogger().debug(f"Preview JPG file: '%s'", target_jpg)
+                                    with open(target_jpg, "wb") as f:
+                                        f.write(frame)
 
-                                target_json = preview_target + self._PREVIEW_SUFFIX_2
-                                logging.getLogger().debug(f"Preview JSON file: '%s'", target_json)
-                                with open(target_json, "w", encoding="utf-8") as f:
-                                    f.write(json.dumps(preview_json))
+                                    target_json = preview_target + self._PREVIEW_SUFFIX_2
+                                    logging.getLogger().debug(f"Preview JSON file: '%s'", target_json)
+                                    with open(target_json, "w", encoding="utf-8") as f:
+                                        f.write(json.dumps(preview_json))
 
                     finally:
                         if not wire_trigger:
@@ -701,7 +703,26 @@ class CameraWrapper:
             self._capture_in_progress = True
             self._broadcast_capture_status_from_event()
             try:
-                logging.getLogger().debug("CameraId: %s, wire_trigger: %s" % (camera_id, wire_trigger))
+                started_timestamp = datetime.datetime.now(datetime.timezone.utc)
+                logging.getLogger().debug("External snapshot: camera preview: %s, framebuffer: %s, url: %s" % (self._camera_preview, self._frame_buffer != None, kwargs.get("snapshot_url", False)))
+                if not self._camera_preview and self._frame_buffer != None:
+                    # take snapshot from external url, i.e. from USB stick video grabber
+                    url = kwargs.get("snapshot_url", False)
+                    if url:
+                        logging.getLogger().debug("Snapshot from: %s" % (url))
+                        try:
+                            response = requests.get(url, timeout=1.5)
+                            if response.status_code == 200:
+                                # logging.getLogger().debug("Write frame buffer: %s" % len(response.content))
+                                self._frame_buffer.write(memoryview(response.content))
+                            else:
+                                logging.getLogger().error(f"HTTP error: {response.status_code}")
+
+                        except Exception as e:
+                            logging.getLogger().error(e, exc_info=True)
+
+
+                logging.getLogger().debug(f"CameraId: {camera_id}, wire_trigger: {wire_trigger}")
                 if wire_trigger:
                     digitizer.set_io_states({"focus": 0, "shutter": 0})
                     digitizer.set_io_states({"focus": 1})
@@ -718,11 +739,11 @@ class CameraWrapper:
                         folder = ""
 
                     camera_filepath = FilePath()
-                    tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name)
+                    tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fake_name, started_timestamp.astimezone())
                     # prevalidated so error should not happen
 
                     time.sleep(kwargs.get("delay", 0)/1000)
-                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False})
+                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False, "started_timestamp": started_timestamp})
                     download_thread.name = "download"
                     download_thread.start()
 
@@ -793,13 +814,13 @@ class CameraWrapper:
                             self._camera.set_config(camera_config)
 
                         fname, fext = os.path.splitext(camera_filepath.name)
-                        tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname)
+                        tpl2 = self.validate_file_template(file_template["template_id"], file_template["values"], project_id, film_id, fname, started_timestamp.astimezone())
                         # prevalidated so error should not happen
 
                         time.sleep(0.2)   # sometimes when from unknown reason is not stored more file in Sony buffer and we start moving before capture is processed even camera says that is ok
 
                         # leave asap to allow move commands
-                        download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger})
+                        download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "started_timestamp": started_timestamp})
                         download_thread.name = "download"
                         download_thread.start()
                     except Exception as e:
@@ -1222,12 +1243,11 @@ class CameraWrapper:
                     result[part_id] = ""
         return result
 
-    def validate_file_template(self, template_id, values, project_id, film_id, camera_filename="capt0000"):
+    def validate_file_template(self, template_id, values, project_id, film_id, camera_filename="capt0000", now = datetime.datetime.now()):
         parts2 = {}
         actions = []
         errors = {}
         result = {"template_id": template_id}
-        now = datetime.datetime.now()
         use_default = True
 
         if template_id != "":

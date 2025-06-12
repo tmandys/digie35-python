@@ -3,12 +3,13 @@ v0.9 (2025-xx-xx)
 Features
 --------
   - flattening press for motorized adapter
-  - still latest image from USB preview
+  - still latest image from both USB preview and external stream
   - save capture preview on disk and display later in browser
   - manual backlight intensity input
   - max.motor run time
   - backlight auto off
   - filmstrip preview
+  - hot key to clear error
 
 Fixes
 -----
