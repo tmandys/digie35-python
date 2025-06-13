@@ -89,6 +89,11 @@ def main():
         "gvfsd-gphoto2",
     ]
 
+    nginx_configs = [
+        "digie35.conf",
+        "ustreamer.conf",
+    ]
+
     www_pages = {
         "digie35.html": ["index.html", ],
         "digie35_test.html": [],
@@ -192,8 +197,9 @@ def main():
                 run(["sudo", "ln", "-s", f, f2])
         elif args.httpd == NGINX_CONF_DIR:
             log("Installing nginx stuff")
-            run(["sudo", "cp", PROJ_DIR + "/nginx/digie35.conf", NGINX_CONF_DIR + "/conf.d/"])
-            sed_cmd = ["sudo", "sed", "-i", "s#\\$DIGIE35_DIRECTORY#" + PROJ_DIR + "#g", NGINX_CONF_DIR + "/conf.d/digie35.conf"]
+            for cfg in nginx_configs:
+                run(["sudo", "cp", PROJ_DIR + "/nginx/" + cfg, NGINX_CONF_DIR + "/conf.d/"])
+                sed_cmd = ["sudo", "sed", "-i", "s#\\$DIGIE35_DIRECTORY#" + PROJ_DIR + "#g", NGINX_CONF_DIR + "/conf.d/" + cfg]
             log(" ".join(sed_cmd))
             run(sed_cmd)
             run(["sudo", "rm", "-f", NGINX_CONF_DIR+"/sites-enabled/default"])

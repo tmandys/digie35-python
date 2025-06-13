@@ -462,11 +462,35 @@
             height: 90vh;
         }
 
+        #preview .media-container {
+            position: relative;
+        }
+
         .media-container canvas {
             position: absolute;
             top: 0;
             left: 0;
-            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .inline-block {
+            display: inline-block;
+        }
+
+        .media-viewer .color-box {
+            width: 40px;
+            height: 15px;
+            border: 1px solid #000;
+            margin-left: 5px;
+            margin-right: 5px;
+        }
+
+        .media-viewer .color-value {
+            font-family: monospace;
+            min-width: 20ch;
+            white-space: pre;
         }
 
         .filmstrip {
@@ -558,6 +582,10 @@
 
         .hidden {
             display: none;
+        }
+
+        .invisible {
+            visibility: hidden;  /* still be considered in page rendering */
         }
 
         .invert {
@@ -866,7 +894,7 @@
                         <select id="project-list" onchange="update_project_selection(false);adjust()">
                             <option value="" selected>select project...</option>
                         </select>
-                        <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project repository">Refresh&#x21bb;</button>                        
+                        <button onclick="sendCommand('LIST_PROJECTS')" title="Reload project repository">Refresh&#x21bb;</button>
                         <div class="vertical-spacer"><input type="text" id="project_id" class="id" placeholder="enter project id..." maxlength="25" /></div>
                         <div><textarea id="project_descr" class="description" placeholder="enter project description..."></textarea></div>
                         <div>
@@ -918,7 +946,7 @@
                 <fieldset id="motion-fieldset">
                     <div class="control-set">
                         <div class="centered-btn vertical-spacer">
-                            <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" /><input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Standard frame distance is 38mm. The value will be adjusted by this value when moving film to next frame"/>mm</label>        
+                            <label><input type="number" id="film-position" disabled="disabled" style="width:9ch" title="Calculated film position" /><input type="number" step="0.01" id="frame-correction" value="0" style="width:7ch" title="Standard frame distance is 38mm. The value will be adjusted by this value when moving film to next frame"/>mm</label>
                         </div>
                         <div class="centered-btn vertical-spacer">
                             <button id="move-4b-btn" title="ArrowLeft, KeyA">&lt;&lt;&lt;&lt;</button>
@@ -1025,24 +1053,36 @@
                 <div id="stream-error" class="error-message"><span class="icon">&#x26a0;</span>Stream is not available</div>
                 <div class="inline-container">
                     <div id="stream-control" class="control">
+                        <input type="checkbox" id="stream-analyze-cb" onchange="adjust_preview_mode()" /><label for="stream-analyze-cb" accesskey="l" title="Stop stream to analyze preview image">Ana<u>l</u>yze</label>
                         <input type="checkbox" id="stream-invert-cb" value="invert" onchange="adjust_media_viewer()" /><label for="stream-invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
-                        <input type="radio" name="stream-rotate" id="stream-rotate0-rb" value="rotate0" onchange="adjust_media_viewer()" checked /><label for="stream-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
-                        <input type="radio" name="stream-rotate" id="stream-rotate270-rb" value="rotate270" onchange="adjust_media_viewer()" /><label for="stream-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
-                        <input type="radio" name="stream-rotate" id="stream-rotate180-rb" value="rotate180" onchange="adjust_media_viewer()" /><label for="stream-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
-                        <input type="radio" name="stream-rotate" id="stream-rotate90-rb" value="rotate90" onchange="adjust_media_viewer()" /><label for="stream-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
-                        <input type="checkbox" id="stream-flip-cb" value="flip" onchange="adjust_media_viewer()" /><label for="stream-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
-                        <input type="range" id="stream-crop-x-rng" class="crop-x-ctrl" value="95" min="0" max="500" oninput="adjust_media_viewer()" title="Width clipping" />
-                        <input type="range" id="stream-crop-y-rng" class="crop-y-ctrl" value="0" min="0" max="300" oninput="adjust_media_viewer()" title="Height clipping" />
-                        <input type="range" id="stream-background-rng" class="background-ctrl" value="200" min="0" max="255" oninput="adjust_media_viewer()" title="Background color" />
+                        <div id="stream-only-control" class="inline-block">
+                            <input type="radio" name="stream-rotate" id="stream-rotate0-rb" value="rotate0" onchange="adjust_media_viewer()" checked /><label for="stream-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                            <input type="radio" name="stream-rotate" id="stream-rotate270-rb" value="rotate270" onchange="adjust_media_viewer()" /><label for="stream-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
+                            <input type="radio" name="stream-rotate" id="stream-rotate180-rb" value="rotate180" onchange="adjust_media_viewer()" /><label for="stream-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
+                            <input type="radio" name="stream-rotate" id="stream-rotate90-rb" value="rotate90" onchange="adjust_media_viewer()" /><label for="stream-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
+                            <input type="checkbox" id="stream-flip-cb" value="flip" onchange="adjust_media_viewer()" /><label for="stream-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
+                            <input type="range" id="stream-crop-x-rng" class="crop-x-ctrl" value="95" min="0" max="500" oninput="adjust_media_viewer()" title="Width clipping" />
+                            <input type="range" id="stream-crop-y-rng" class="crop-y-ctrl" value="0" min="0" max="300" oninput="adjust_media_viewer()" title="Height clipping" />
+                            <input type="range" id="stream-background-rng" class="background-ctrl" value="200" min="0" max="255" oninput="adjust_media_viewer()" title="Background color" />
+                        </div>
+                        <div id="snapshot-only-control" class="inline-block hidden">
+                            <input type="checkbox" id="stream-crosshair-cb"/><label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle">Cross<u>h</u>air</label>
+                            <div id="snapshot-color-box" class="color-box inline-block" title="Current color at cursor/marker position"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
+                        </div>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
-                        <canvas id="canvas"></canvas>
+                        <canvas id="snapshot" class="hidden"></canvas>
                     </div>
                     <div id="stream-strip-container" class="filmstrip collapsed">
                         <div class="frame"><a href="#" data-image-name="" onclick="show_lightbox(this.getAttribute('data-image-name'))"><img id="filmstrip-frame-0" src="" /></a></div>
                     </div>
-                    <div class="collapse-toggle inline-buttons inline-button top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
+                    <div id="stream-control-toggle" class="collapse-toggle inline-buttons inline-button top-right-toggle" data-container_id="stream-control" title="Click to collapse/reveal stream controls">
+                        <span class="arrow">
+                            &#9650;
+                        </span>
+                    </div>
+                    <div id="snapshot-control-toggle" class="collapse-toggle inline-buttons inline-button top-right-toggle hidden" data-container_id="snapshot-control" title="Click to collapse/reveal stream controls">
                         <span class="arrow">
                             &#9650;
                         </span>
@@ -1445,7 +1485,7 @@
     window.frame_speed = 4;
 
     function get_stream_url(usbpreview, path) {
-        const port = usbpreview ? "8408" : "8409";
+        const port = usbpreview ? "8408" : "8410";   /* 8410 is proxy to 8409 with CORS*/
         return `http://${window._hostname}:${port}/${path}`;
 
     }
@@ -1474,7 +1514,12 @@
             if (connected) {
             }
             window.current_usbpreview = usbpreview;
-        }
+            elem = document.getElementById("stream-analyze-cb");
+            if (!usbpreview && elem.checked) {
+                elem.checked = false;
+                adjust_preview_mode();
+            }
+    }
 
         document.getElementById("camera-fieldset").disabled = !connected;
         document.getElementById("camera-info").disabled = !abilities;
@@ -1575,7 +1620,6 @@
         elem = document.getElementById("shoot-mode-list");
         document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
             elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
-
     }
 
     function adjust_adapter(data) {
@@ -2226,7 +2270,7 @@
                                 elem.innerHTML = "";
                                 if (is_lan_control) {
                                     var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
- 
+
                                 }
                                 sendCommand("LIST_CAMERAS");
                                 if (window.current_volume) {
@@ -2582,6 +2626,150 @@
         }
     }
 
+    function adjust_preview_mode() {
+        const snapshot_mode = document.getElementById("stream-analyze-cb").checked;
+        const img = document.getElementById("stream");
+        const canvas = document.getElementById("snapshot");
+        if (snapshot_mode) {
+            img.classList.add("invisible");
+            canvas.classList.remove("hidden");
+            document.getElementById("stream-only-control").classList.add("hidden");
+            document.getElementById("snapshot-only-control").classList.remove("hidden");
+        } else {
+            img.classList.remove("invisible");
+            canvas.classList.add("hidden");
+            document.getElementById("stream-only-control").classList.remove("hidden");
+            document.getElementById("snapshot-only-control").classList.add("hidden");
+        }
+        if (snapshot_mode) {
+            const rect = img.getBoundingClientRect();
+            canvas.width = rect.width;  /* img.naturalWidth; */
+            canvas.height = rect.height; /* img.naturalHeight;*/
+            const ctx = canvas.getContext("2d", {willReadFrequently: true});
+            var marker_position = null;
+
+            const refresh_snapshot = function() {
+                const image = new Image();
+                image.crossOrigin = "anonymous";
+                image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
+                image.onload = () => {
+                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    if (marker_position != null) {
+                        update_color_box(ctx, marker_position);  /* call before marker draw ! */
+                        draw_marker(ctx, marker_position);
+                    }
+                }
+                image.onerror = () => {
+                    ctx.strokeStyle = "red";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(canvas.width, canvas.height);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width, 0);
+                    ctx.lineTo(0, canvas.height);
+                    ctx.stroke();
+
+                    ctx.font = "50px sans-serif";
+                    ctx.fillStyle = "black";
+                    ctx.textAlign = "center";
+                    ctx.fillText("No Image", canvas.width/2, canvas.height/2);
+                }
+            }
+
+            const update_color_box = function(ctx, xy) {
+                const pixel = ctx.getImageData(xy[0], xy[1], 1, 1).data;
+                var [r, g, b, a] = pixel;
+                if (canvas.classList.contains("invert")) {
+                    r = 255 - r;
+                    g = 255 - g;
+                    b = 255 - b;
+                }
+                const rgb = `rgb(${r}, ${g}, ${b})`;
+                const pad_rgb = function(x) {
+                    return x.toString().padEnd(3, ' ');
+                };
+                const color_box = document.getElementById("snapshot-color-box");
+                const color_value = document.getElementById("snapshot-color-value");
+                color_box.style.backgroundColor = rgb;
+                color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
+            };
+
+            const draw_marker = function(ctx, xy) {
+                const x = xy[0];
+                const y = xy[1];
+                if (document.getElementById("stream-crosshair-cb").checked) {
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = 3;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, ctx.canvas.height);
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(ctx.canvas.width, y);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, ctx.canvas.height);
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(ctx.canvas.width, y);
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 10, 0, 2 * Math.PI);
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                    ctx.strokeStyle = "black";
+                    ctx.stroke();
+                }
+            };
+
+            const get_xy = function(e) {
+                const client_rect = canvas.getBoundingClientRect();
+                const x = Math.floor((e.clientX - client_rect.left) * (canvas.width / client_rect.width));
+                const y = Math.floor((e.clientY - client_rect.top) * (canvas.height / client_rect.height));
+                return [x, y];
+            }
+
+            canvas.onmousemove = (e)=> {
+                if (marker_position != null) {
+                    return;
+                }
+                const xy = get_xy(e);
+                update_color_box(ctx, xy);
+            };
+
+            canvas.onclick = (e)=> {
+                const xy = get_xy(e);
+                if (marker_position == null) {
+                    marker_position = xy;
+                } else {
+                    marker_position = null;
+                    update_color_box(ctx, xy);
+                }
+                refresh_snapshot();
+            };
+
+            refresh_snapshot();
+            if (window.snapshot_timer == null) {
+                window.snapshot_timer = setInterval(refresh_snapshot, 250);
+            }
+        } else {
+            if (window.snapshot_timer != null) {
+                clearInterval(window.snapshot_timer);
+                window.snapshot_timer = null;
+            }
+        }
+    }
+
     function do_onload() {
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
@@ -2597,6 +2785,7 @@
         window.last_film_list_idx = null;
         window.last_backlight = null;
         window.modal_stack = [];
+        window.snapshot_timer = null;
 		do_onresize(undefined);
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", function() {
@@ -2738,6 +2927,7 @@
             "preview.crop.y": "stream-crop-y-rng",
             "praview.background_color": "stream-background-rng",
             "preview.usb": "usb-preview-cb",
+            "preview.crosshair": "stream-crosshair-cb",
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
             "control.autolead": "autolead-cb",
@@ -3044,7 +3234,7 @@
                             visible = false;
                             break;
                         }
-                        var style = window.getComputedStyle(node);                        
+                        var style = window.getComputedStyle(node);
                         if (style.display === "none") {
                             visible = false;
                             break;
@@ -3068,7 +3258,7 @@
                                 control.dispatchEvent(new Event("change"));
                                 break;
                             default:
-                                control.focus();                        
+                                control.focus();
                         }
                         return;
                     }
@@ -3296,6 +3486,15 @@
                 }
             }
         }
+        const canvas = viewer.parentNode.querySelector("canvas");
+        if (canvas) {
+            const copy_style = ["invert"];
+            copy_style.forEach((val)=>{
+                if (canvas.classList.contains(val) != viewer.classList.contains(val)) {
+                    canvas.classList.toggle(val);
+                }
+            });
+        }
         if (skip_crop) {
             return;
         }
@@ -3502,7 +3701,7 @@
         } else {
             multi_container.classList.add("hidden");
 
-        }        
+        }
     }
 
     function set_file_template_values(values) {

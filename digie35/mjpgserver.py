@@ -113,18 +113,22 @@ class StreamingHandler(SimpleHTTPRequestHandler):
     def __init__(self, frames_buffer, snapshot_list, *args):
         self.frames_buffer = frames_buffer
         self.snapshot_list = snapshot_list
-        logging.getLogger().debug("new StreamingHandler")
+        logging.getLogger().log(logging.DEBUG-1, "new StreamingHandler")
         super().__init__(*args)
 
     def __del__(self):
-        logging.getLogger().debug(f"Remove StreamingHandler")
+        logging.getLogger().log(logging.DEBUG-1, f"Remove StreamingHandler")
+
+    def log_message(self, format, *args):
+        if logging.getLogger().getEffectiveLevel() <= logging.DEBUG-1:
+            super().log_message(format, *args)
 
     def do_GET(self):
         # TODO: CORS headers also to send_error()
         parsed = urlparse(self.path)
         query_params = parse_qs(parsed.query)
         path = unquote(parsed.path[1:])
-        logging.getLogger().log(logging.DEBUG, f"path: %s, query: %s" % (path, query_params))
+        logging.getLogger().log(logging.DEBUG-1, f"path: %s, query: %s" % (path, query_params))
         if path == 'stream':
             self.send_response(200)
             self.send_header('Age', 0)
@@ -197,7 +201,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             parts = unquote(path).split("/")
             parts.pop(0)
             src = parts.pop(0) if parts else None
-            logging.getLogger().debug("src: %s, parts: %s" % (src, parts))
+            # logging.getLogger().debug("src: %s, parts: %s" % (src, parts))
             info = query_params.get("info", 0)
             if src == "archive" and base_directory != None:
                 if len(parts) < 3:
@@ -206,7 +210,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                     id = os.path.join(parts[0], parts[1], parts[2])
                     abs_path = Path(os.path.join(base_directory, ".previews", id + ".preview." + ("json" if info else "jpg") )).resolve()
                     cached = self.snapshot_list.get(id)
-                    logging.getLogger().debug("id: %s, abs_path: %s, parts: %s, incache: %s" % (id, abs_path, parts, cached != None))
+                    # logging.getLogger().debug("id: %s, abs_path: %s, parts: %s, incache: %s" % (id, abs_path, parts, cached != None))
                     payload = None
                     if cached != None:
                         if info:

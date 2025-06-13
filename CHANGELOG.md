@@ -9,6 +9,8 @@ Features
   - max.motor run time
   - backlight auto off
   - filmstrip preview
+  - stream/snapshot mode to analyze preview image
+  - color-box to get RGB value
   - hot key to clear error
 
 Fixes
