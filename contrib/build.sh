@@ -62,39 +62,56 @@ if [ $MAKE_LIBGPHOTO2 ] ; then
     ./configure $CONFIGURE_PARAMS
     make
 
-	cd $SAVE_DIR
+    cd $SAVE_DIR
 fi
 
 if [ $MAKE_LIBGPHOTO2_DIST ] ; then
 
     cd $LIBGPHOTO2_DIR
-	echo "Building packages"
-	make dist
-
+    echo "Building packages"
     get_libgphoto2_version
 
-	debmake -a $LIBGPHOTO2_DIR/libgphoto2-$VERSION.tar.gz
-	cd libgphoto2-$VERSION
-	sed -i 's/\(libgphoto2 ([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*-[0-9]*\))/\1~digie35)/' debian/changelog
-    PKG_VERSION=$(sed -n 's/.*(\([^)]\).*/\1/p' debian/changelog)
-	echo "Package version: $PKG_VERSION"
-	echo "override_dh_auto_configure:" >> /debian/rules
-	echo "	./configure $CONFIGURE_PARAMS" >> /debian/rules
-	debuild
+    if ! grep -q " $VERSION " NEWS; then
+        echo "Adding version $VERSION to NEWS"
+        tmpfile=$(mktemp)
+        {
+            echo "libgphoto2 $VERSION development"
+            echo ""
+            echo "all:"
+            echo "* critical patches not merged to master branch"
+            echo "---------------------------------"
+            cat NEWS
+        } > "$tmpfile"
+        mv "$tmpfile" NEWS
+    else
+        echo "NEWS already patched"
+    fi
+    make dist
+
+    debmake -a $LIBGPHOTO2_DIR/libgphoto2-$VERSION.tar.gz
+    cd libgphoto2-$VERSION
+    sed -i 's/\(libgphoto2 ([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*-[0-9]*\))/\1~digie35)/' debian/changelog
+    PKG_VERSION=$(sed -n 's/.*(\([^)]*\).*/\1/p' debian/changelog)
+    echo "Package version: $PKG_VERSION"
+    echo "override_dh_auto_configure:" >> debian/rules
+    echo "	./configure $CONFIGURE_PARAMS" >> debian/rules
+    debuild
+    PKG_FILEPATH=libgphoto2*${PKG_VERSION}_arm64.deb
+
+	#mv "libgphoto2*${PKG_VERSION}*" $LIBGPHOTO2_DIR
     cd $SAVE_DIR
-	PKG_FILEPATH=libgphoto2_${PKG_VERSION}_arm64.deb
 
-	mv "libgphoto2_${PKG_VERSION}*" $LIBGPHOTO2_DIR
+    rpi_project_dir=../../digie35-rpi
+    repo_dir="$rpi_project_dir/apt-repo"
+    package_dir="$repo_dir/pool/main"
 
-	rpi_project_dir=../../digie35-rpi
-	repo_dir="$rpi_project_dir/apt-repo"
-	package_dir="$repo_dir/pool/main"
+    echo "Copying Debian package to repository"
+    cp ${LIBGPHOTO2_DIR}/${PKG_FILEPATH} ${package_dir}
+    cd ${rpi_project_dir}
+    ./build_repo.sh
+    cd $SAVE_DIR
 
-	echo "Copying Debian package to repository"
-	cp ${LIBGPHOTO2_DIR}/${PKG_FILEPATH} ${package_dir}
-	${rpi_project_dir}/build_repo.sh
-
-	#sudo dpkg --install --prefix=$HOME/.local $LIBGPHOTO2_DIR/${PKG_FILEPATH}
+    #sudo dpkg --install --prefix=$HOME/.local $LIBGPHOTO2_DIR/${PKG_FILEPATH}
 fi
 
 function check_libgphoto2_version() {
@@ -150,7 +167,7 @@ if [ $MAKE_PYTHON_GPHOTO2 ] ; then
     echo "To upload run command:"
     CMD="lftp -c \"open ftp://2pcz@ftp.web4u.cz; mirror -R $TGT_DIR/dist/ $REMOTE \""
     echo $CMD
-	echo "Run it now ? [n]"
+    echo "Run it now ? [n]"
     read yesno
     if [ "xx$yesno" == "xxy" ] ; then
         eval $CMD
@@ -173,5 +190,5 @@ if [ $MAKE_GPHOTO2 ] ; then
     make
     make install
 
-	cd $SAVE_DIR
+    cd $SAVE_DIR
 fi
