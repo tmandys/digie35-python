@@ -859,7 +859,10 @@
                         </div>
                         <div id="camera-info" class="vertical-spacer horizontal-spacer">
                             <span id="battery-info" title="Battery charging level notified by camera" >Battery: <span id="battery-level" style="width: 6ch"></span></span>
-                            <span><input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview</span>label></span>
+                            <span>
+                                <input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" />
+                                <label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview</label>
+                            </span>
                             <span><button class="modal-open" data-modal_id="camera-info-modal" title="Click to show camera detail">Info</button></span>
                         </div>
                     </div>
@@ -2702,10 +2705,12 @@
         image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
         image.onload = () => {
             ctx = window.snapshot_canvas_ctx;
-            ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
-            if (window.snapshot_marker_position != null) {
-                update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
-                snapshot_draw_marker(ctx, window.snapshot_marker_position);
+            if (ctx != null) {
+                ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
+                if (window.snapshot_marker_position != null) {
+                    update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
+                    snapshot_draw_marker(ctx, window.snapshot_marker_position);
+                }
             }
             image.onload = null;
             image.onerror = null;
