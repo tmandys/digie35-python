@@ -166,7 +166,7 @@ class ExtensionBoard:
         self._merge_io_configuration()
         self._initialize_io_map(False)
 
-        self.props.set("BL_AUTO_OFF_ENABLE", True)   # auto off backlight 
+        self.props.set("BL_AUTO_OFF_ENABLE", True)   # auto off backlight
         self.props.set("BL_AUTO_OFF_TIMEOUT", 300)   # when is already on at least secs
         self.props.set("BL_AUTO_OFF_INTERVAL", 10)   # and test it in interval
 

@@ -859,7 +859,7 @@
                         </div>
                         <div id="camera-info" class="vertical-spacer horizontal-spacer">
                             <span id="battery-info" title="Battery charging level notified by camera" >Battery: <span id="battery-level" style="width: 6ch"></span></span>
-                            <span><input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview<label></span>
+                            <span><input type="checkbox" id="usb-preview-cb" onchange="adjust_camera_preview(true)" /><label for="usb-preview-cb" accesskey="u" title="Preview using gphoto2 USB"><u>U</u>SB preview</span>label></span>
                             <span><button class="modal-open" data-modal_id="camera-info-modal" title="Click to show camera detail">Info</button></span>
                         </div>
                     </div>
@@ -1489,25 +1489,31 @@
         return `http://${window._hostname}:${port}/${path}`;
 
     }
+
+    function _listener_show_lightbox(event) {
+        show_lightbox(this.getAttribute("data-image-name"));
+        event.preventDefault();
+    };
+
     function adjust() {
-        var connected = document.getElementById("server-info").value != "";
-        var volume = window.current_volume;
-        var camera_list = document.getElementById("camera-list");
-        var project_list = document.getElementById("project-list");
-        var film_list = document.getElementById("film-list");
-        var usb_preview_checkbox = document.getElementById("usb-preview-cb");
+        const connected = document.getElementById("server-info").value != "";
+        const volume = window.current_volume;
+        const camera_list = document.getElementById("camera-list");
+        const project_list = document.getElementById("project-list");
+        const film_list = document.getElementById("film-list");
+        const usb_preview_checkbox = document.getElementById("usb-preview-cb");
 
         if (camera_list.selectedIndex == 0) {
             update_battery();
         }
-        var abilities = (camera_list.selectedIndex > 0) && (typeof window.current_camera != "undefined");
-        var elem = document.getElementById("header-camera-name");
+        const abilities = (camera_list.selectedIndex > 0) && (typeof window.current_camera != "undefined");
+        let elem = document.getElementById("header-camera-name");
         if (abilities) {
             elem.textContent = window.current_camera.model;
         } else {
             elem.textContent = "";
         }
-        var usbpreview = connected && abilities && usb_preview_checkbox.checked && window.current_camera.capture_preview;
+        const usbpreview = connected && abilities && usb_preview_checkbox.checked && window.current_camera.capture_preview;
         if (usbpreview != window.current_usbpreview) {
             document.getElementById("stream").src = get_stream_url(usbpreview, "stream");
             document.getElementById("preview-source").innerHTML = usbpreview ? "USB" : "HDMI";
@@ -1531,14 +1537,14 @@
         if (window.last_project_list_idx !== project_list.selectedIndex) {
             window.last_project_list_idx = project_list.selectedIndex;
             window.last_film_list_idx = null;
-            var project_id = document.getElementById("project_id");
+            const project_id = document.getElementById("project_id");
             project_id.value = project_list.value;
             set_visible(project_id, project_list.value == "");
             project_id.readOnly = project_list.value != "";
             document.getElementById("header-project-name").textContent = project_id.value;
 
-            var project_description = document.getElementById("project_descr");
-            var fl = []
+            const project_description = document.getElementById("project_descr");
+            let fl = []
             if (project_list.selectedIndex > 0) {
                 var custom = project_list.options[project_list.selectedIndex]._custom_data;
                 project_description.value = custom["descr"];
@@ -1562,20 +1568,20 @@
         if (window.last_film_list_idx !== film_list.selectedIndex) {
             window.last_film_list_idx = film_list.selectedIndex;
 
-            var film_id = document.getElementById("film_id");
+            const film_id = document.getElementById("film_id");
             film_id.value = film_list.value;
             set_visible(film_id, film_id.value == "", "inline-block");
             film_id.readOnly = film_id.value != "";
             document.getElementById("header-film-name").textContent = film_id.value;
             document.getElementById("film_descr").value =
                 film_list.selectedIndex > 0 ? film_list.options[film_list.selectedIndex]._custom_data["descr"] : "";
-            var vals = get_file_template_values();
+            const vals = get_file_template_values();
             if (Object.keys(vals.values).length !== 0) {  // avoid test when uninitialized
                 sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], vals);
             }
         }
-        var cnt = 0;
-        var capture_list = document.getElementById("capture-list");
+        let cnt = 0;
+        const capture_list = document.getElementById("capture-list");
         capture_list.innerHTML = "";
 
         function shorten_bytes(n) {
@@ -1586,7 +1592,7 @@
         }
 
         if (film_list.selectedIndex > 0) {
-            var custom = film_list.options[film_list.selectedIndex]._custom_data;
+            const custom = film_list.options[film_list.selectedIndex]._custom_data;
             custom.captured.forEach(capt=>{
                 const sz = capt.size ? shorten_bytes(capt.size) : "link";
                 const s = `${capt.name} (${sz})`
@@ -1597,10 +1603,7 @@
                     // link.target = "digie35_preview";
                     link.textContent = s;
                     link.setAttribute("data-image-name", `${document.getElementById("project_id").value}/${document.getElementById("film_id").value}/${capt.name}`);
-                    link.addEventListener("click", function(event) {
-                        show_lightbox(this.getAttribute("data-image-name"));
-                        event.preventDefault();
-                    });
+                    link.onclick = _listener_show_lightbox;
                     line.appendChild(link);
                 } else {
                     line.textContent = s;
@@ -1623,19 +1626,17 @@
     }
 
     function adjust_adapter(data) {
-        if (typeof window.last_adapter_data != "undefined") {
-            var update = (window.last_adapter_data.movement != data.movement) ||
+        const update = typeof window.last_adapter_data != "undefined" ?
+                (window.last_adapter_data.movement != data.movement) ||
                 (window.last_adapter_data.film_inserted != data.film_inserted) ||
                 (window.last_adapter_data.frame_ready != data.frame_ready) ||
                 (window.last_adapter_data.action != data.action) ||
-                (window.last_adapter_data.capturing != data.capturing);
-        } else {
-            var update = true;
-        }
+                (window.last_adapter_data.capturing != data.capturing)
+            : true;
         window.last_adapter_data = data;
         if (update) {
             function adjust_class(prefix, dir, value, class_name = "current-action") {
-                var elem = get_adapter_button(prefix, dir);
+                const elem = get_adapter_button(prefix, dir);
                 if (value != elem.classList.contains(class_name)) {
                     elem.classList.toggle(class_name);
                 }
@@ -1643,23 +1644,19 @@
             adjust_class("insert", "", data.action=="LEAD_IN");
             adjust_class("insert", "", data.film_inserted, "pre-action");
             adjust_class("stop", "", data.movement==0);
-            var arr = window.adapter_buttons['move'].idx;
-            for (const i in arr) {
-                adjust_class("move", arr[i], (data.action=="MOVE") && (data.movement == reverse(arr[i])));
+            for (const value of window.adapter_buttons['move'].idx) {
+                adjust_class("move", value, (data.action=="MOVE") && (data.movement == reverse(value)));
             }
-            arr = window.adapter_buttons['moveby'].idx;
-            for (const i in arr) {
-                adjust_class("moveby", arr[i], (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(arr[i]) > 0)) && (Math.abs(data.movement) == window.move_by_speed));
+            for (const value of window.adapter_buttons['moveby'].idx) {
+                adjust_class("moveby", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == window.move_by_speed));
             }
-            arr = window.adapter_buttons['frame'].idx;
-            for (const i in arr) {
-                adjust_class("frame", arr[i], (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(arr[i]) > 0)) && (Math.abs(data.movement) == window.frame_speed));
+            for (const value of window.adapter_buttons['frame'].idx) {
+                adjust_class("frame", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == window.frame_speed));
             }
-            window.adapter_buttons['eject'].idx;
-            for (const i in arr) {
-                adjust_class("eject", arr[i], (data.action=="EJECT") && ((data.movement > 0) == (reverse(arr[i]) > 0)));
+            for (const value of window.adapter_buttons['eject'].idx) {
+                adjust_class("eject", value, (data.action=="EJECT") && ((data.movement > 0) == (reverse(value) > 0)));
             }
-            var action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
+            const action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
             document.getElementById("header-motion-name").textContent = action_elem ? action_elem.textContent : "";
             if (typeof data.capturing != "undefined") {
                 adjust_class("shoot", "", data.capturing);
@@ -1669,7 +1666,7 @@
     }
 
     function adjust_capabilities(send_backlight_cmd) {
-        var elem = document.getElementById("motion-fieldset");
+        let elem = document.getElementById("motion-fieldset");
         set_visible(elem, window.capabilities.motorized);
         elem.disabled = !window.capabilities.motorized;
         elem = document.getElementById("backlight-fieldset");
@@ -1682,11 +1679,9 @@
         //elem.disabled = !window.capabilities.hot_plug;
 
         elem = document.getElementById("backlight-color-list");
-        items = elem.options;
-        var change_value = false;
-        var enabled_value = "";
-        for (var i = 0; i < items.length; i++) {
-            var opt = items[i];
+        let change_value = false;
+        let enabled_value = "";
+        for (const opt of elem.options) {
             if (opt.value == "white") {
                 opt.disabled = !window.capabilities.white_backlight;
             } else if (opt.value == "ir") {
@@ -1721,25 +1716,25 @@
             document.getElementById("capture-mode-single-rb").checked = true;
         }
 
-        items = document.getElementById("shoot-mode-list").options;
-        var abilities = (document.getElementById("camera-list").selectedIndex > 0) && (typeof window.current_camera != "undefined");
+        const items = document.getElementById("shoot-mode-list").options;
+        const abilities = (document.getElementById("camera-list").selectedIndex > 0) && (typeof window.current_camera != "undefined");
         // do not adjust value as almost always is required capture which requires camera connection
         items[0].disabled = !abilities || (!window.current_camera.capture_image && !window.current_camera.trigger_capture);
         items[1].disabled = items[0].disabled || !window.current_camera.sdcard_capture;
         items[2].disabled = items[1].disabled;
         items[3].disabled = !window.capabilities.camera_remote_control;
         items[4].disabled = items[3].disabled;
-        [1, 2].forEach(idx => {
-            var elem = get_adapter_button("flatten", idx);
+        for (const idx of [1, 2]) {
+            const elem = get_adapter_button("flatten", idx);
             set_visible(elem, window.capabilities.flattening, "");
             elem.disabled = !window.capabilities.flattening;
-        });
+        }
     }
 
     function adjust_camera_preview(force) {
-        var idx = document.getElementById("camera-list").selectedIndex;
-        var usb_preview_checkbox = document.getElementById("usb-preview-cb");
-        var usbpreview = (idx > 0) && usb_preview_checkbox.checked;
+        const idx = document.getElementById("camera-list").selectedIndex;
+        const usb_preview_checkbox = document.getElementById("usb-preview-cb");
+        let usbpreview = (idx > 0) && usb_preview_checkbox.checked;
         if (force) {
             window.save_usb_preview = usb_preview_checkbox.checked;
         } else {
@@ -1760,13 +1755,11 @@
         if (typeof camera_id == "undefined" || camera_id == null) {
             return;
         }
-        var elem = document.getElementById("camera-list");
+        const elem = document.getElementById("camera-list");
         if (elem.selectedIndex == 0) {
-            var id_name = camera_id.split('|');
+            const id_name = camera_id.split('|');
             if (id_name.length > 1) {
-                var items = elem.options;
-                for (var i = 1; i < items.length; i++) {
-                    var opt = items[i];
+                for (const opt of elem.options) {
                     if (opt.value.split("|")[1] == id_name[1]) {
                         elem.selectedIndex = i;
                         break;
@@ -1777,7 +1770,7 @@
     }
 
     function set_volume() {
-        var volume = document.getElementById("volume-list").value;
+        const volume = document.getElementById("volume-list").value;
         if (volume == "") {
             window.current_volume = ""
         } else {
@@ -1801,11 +1794,11 @@
     }
 
     function update_volume_info(volume) {
-        var elem = document.getElementById("volume-info");
-        var elem2 = document.getElementById("header-volume-name");
+        const elem = document.getElementById("volume-info");
+    const elem2 = document.getElementById("header-volume-name");
         if (volume !== false) {
             elem.innerHTML = format_volume_info(volume, true);
-            var low_space = Number(volume["use%"].slice(0, -1)) > 95;
+            const low_space = Number(volume["use%"].slice(0, -1)) > 95;
             if (low_space != elem.classList.contains("warning")) {
                 elem.classList.toggle("warning");
             }
@@ -1817,13 +1810,13 @@
     }
 
     function update_battery(level) {
-        var elem = document.getElementById("battery-level");
-        var low_battery = false;
+        const elem = document.getElementById("battery-level");
+        let low_battery = false;
         if (typeof level == "undefined" || level == null) {
             elem.innerHTML = "N/A";
         } else {
             elem.innerHTML = level;
-            var n;
+            let n;
             if (level.charAt(level.length-1) == "%") {
                 n = Number(level.slice(0, -1));
             } else {
@@ -1837,7 +1830,7 @@
     }
 
     function update_select_options(id, items, id_field, name_field, selected) {
-        var list = document.getElementById(id);
+        const list = document.getElementById(id);
         if (typeof selected != "undefined") {
             var sel = selected;
         } else {
@@ -1850,9 +1843,9 @@
         while (list.length > 1) {
             list.remove(list.length-1);
         }
-        var sel2 = "";
+        let sel2 = "";
         items.forEach((item)=> {
-            var opt = new Option(item[name_field], item[id_field]);
+            const opt = new Option(item[name_field], item[id_field]);
             opt._custom_data = item;
             list.add(opt);
             if (sel == item[id_field]) {
@@ -1863,13 +1856,13 @@
     }
 
     function update_status_info(msg, clear = false) {
-        var content = document.getElementById("error-content");
+        const content = document.getElementById("error-content");
         if (clear) {
             content.innerHTML = "";
         }
         if (msg != "") {
-            var found = false;
-            for (let child of content.children) {
+            let found = false;
+            for (const child of content.children) {
                 if (child.textContent === msg) {
                     content.appendChild(child);
                     found = true;
@@ -1881,7 +1874,7 @@
                 content.appendChild(line);
             }
         }
-        var elem = document.getElementById("error-box");
+        const elem = document.getElementById("error-box");
         if (content.innerHTML == "") {
             elem.classList.add("hidden");
         } else {
@@ -1911,17 +1904,16 @@
     }
 
     function notify_update(elem) {
-        var css_name = "notify-update-animate";
-        if (!elem.classList.contains(css_name)) {
-            elem.classList.toggle(css_name);
-        }
+        const css_name = "notify-update-animate";
+        elem.classList.add(css_name);
+
         setTimeout(function() {
             elem.classList.remove(css_name);
         }, 300 );
     }
 
     function screen_notification(text) {
-        let notification = document.getElementById("screen-notification");
+        const notification = document.getElementById("screen-notification");
         // change font size to fit, simple algorithm
         notification.style.fontSize = (text.length > 10) ? "50px" : "";
         notification.textContent = text;
@@ -1932,7 +1924,7 @@
     }
 
     function create_next_film_id() {
-        var list = document.getElementById("film-list");
+        const list = document.getElementById("film-list");
         if (list.selectedIndex > 0) {
             var it = parse_id_as_int(list.options[list.selectedIndex].text);
             if (it.len == 0) {
@@ -1942,16 +1934,16 @@
             var it = parse_id_as_int("0");
         }
         it.num++;
-		var items = [];
-        for (var i = 1; i < list.options.length; i++) {
-            var x = parse_id_as_int(list.options[i].text);
+		let items = [];
+        for (let i = 1; i < list.options.length; i++) {
+            const x = parse_id_as_int(list.options[i].text);
             if (x.len > 0 && x.num >= it.num) {
                 x.idx = i;
                 items.push(x);
             }
         }
         items.sort((a, b) => a.num - b.num);  // sort by num ascending
-        for (var i = 0; i < items.length; i++) {
+        for (let i = 0; i < items.length; i++) {
 		    if (items[i].num > it.num) {
                 // free slot found
                 break;
@@ -1965,13 +1957,13 @@
                 it.num++;
             }
         }
-        var s = it.num.toString();
+        let s = it.num.toString();
         while (s.length < it.len) {
             s = "0"+s;
         }
         s = it.prefix + s + it.suffix;
         list.selectedIndex = 0;
-        var elem = document.getElementById("film_id");
+        const elem = document.getElementById("film_id");
         elem.value = s;
         notify_update(elem);
         if (document.getElementById("notify-film-id-cb").checked) {
@@ -1985,10 +1977,9 @@
         if (typeof window.automove_in_progress != "undefined") {
             if (!window.stop_multicapture) {
                 if (window.automove_in_progress == false && window.download_in_progress == false) {
-                    var capture_mode = get_radio_button_value("capture-mode");
+                    const capture_mode = get_radio_button_value("capture-mode");
                     if (capture_mode == "multi") {
-                        var cnt_elem = document.getElementById("capture-multi");
-                        var cnt = Number(+cnt_elem.value || 1);
+                        var cnt = Number(document.getElementById("capture-multi").value || 1);
                     } else if (capture_mode == "serial") {
                         var cnt = 999;
                     } else {
@@ -1996,11 +1987,11 @@
                     }
                     if (cnt > 1) {
                         // delay range is 0..500ms
-                        var val = Number(document.getElementById("serial-shoot-delay-rng").value) * 500;
+                        const val = Number(document.getElementById("serial-shoot-delay-rng").value) * 500;
                         setTimeout(function() {
                             if (!window.stop_multicapture) {
                                 if (capture_mode == "multi") {
-                                    cnt_elem.value = (cnt - 1).toString();
+                                    document.getElementById("capture-multi").value = (cnt - 1).toString();
                                 }
                                 window.adapter_buttons.shoot.action(undefined);
                                 delete window.automove_in_progress;
@@ -2020,7 +2011,7 @@
 
         if (window.capabilities.motorized) {
             if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
-                var x = Math.abs(window.last_capture_position - payload.film_position);
+                let x = Math.abs(window.last_capture_position - payload.film_position);
                 x -= window.frame_width_in_mm;
                 x = x.toFixed(2);
                 if (Math.abs(x) < 10) {
@@ -2067,11 +2058,11 @@
         if (typeof window.control_socket == "undefined") {
             window.control_socket = new WebSocket('ws://'+window._hostname+':8400');
             window.control_socket.onopen = function(e) {
-                console.log("[open] Connection established");
+                console.info("[open] Connection established");
                 window.control_socket.send("HELLO");
             };
             window.control_socket.onmessage = function(event) {
-                console.log(`[message] Data received from server: ${event.data}`);
+                console.log(`[message]: ${event.data}`);
                 if (event.data[0] == "{") {
                     try {
                         var data = JSON.parse(event.data);
@@ -2080,8 +2071,7 @@
                     }
                     if (typeof data.payload != "undefined") {
                         if (typeof data.payload.film_position != "undefined") {
-                            var x = data.payload.film_position;
-                            x = x.toFixed(2);
+                            const x = data.payload.film_position.toFixed(2);
                             document.getElementById("film-position").value = x.toString();
                         }
                         if (typeof data.payload.verbosity != "undefined") {
@@ -2112,14 +2102,14 @@
                             }
                             document.getElementById("backlight-cb").checked = data.payload.backlight.color != "";
                             if (data.payload.backlight.color != "") {
-                                var color_list = document.getElementById("backlight-color-list");
+                                const color_list = document.getElementById("backlight-color-list");
                                 if (Array.from(color_list.options).filter(
                                     opt => (opt.value == data.payload.backlight.color))
                                 .length > 0) {
                                     color_list.value = data.payload.backlight.color;
-                                    var colors = data.payload.backlight.color.split("+");
-                                    var intensity = data.payload.backlight.intensity;
-                                    for (var i = colors.length-1; i >= 0; i--) {
+                                    const colors = data.payload.backlight.color.split("+");
+                                    let intensity = data.payload.backlight.intensity;
+                                    for (let i = colors.length-1; i >= 0; i--) {
                                         document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
                                         intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
                                     }
@@ -2131,9 +2121,9 @@
                             adjust_adapter(data.payload)
                         } else {
                             if (typeof data.payload.volume_list != "undefined") {
-                                var vl = [];
-                                var act = false;
-                                var act_id = "";
+                                let vl = [];
+                                let act = false;
+                                let act_id = "";
                                 data.payload.volume_list.forEach((vol)=>{
                                     vl.push({"id": vol.name, "name": format_volume_info(vol, false)});
                                     if (vol.active) {
@@ -2142,7 +2132,7 @@
                                     }
                                 });
                                 update_select_options("volume-list", vl, "id", "name");
-                                var elem = document.getElementById("volume-list");
+                                const elem = document.getElementById("volume-list");
                                 if (elem.value != act_id) {
                                     elem.value = act_id;
                                 }
@@ -2157,8 +2147,8 @@
                             }
 
                             if (typeof data.payload.camera_list != "undefined") {
-                                var elem = document.getElementById("camera-list");
-                                var current_camera_id = elem.value;
+                                const elem = document.getElementById("camera-list");
+                                const current_camera_id = elem.value;
                                 update_select_options("camera-list", data.payload.camera_list, "id", "name");
                                 data.payload.camera_list.forEach((item)=> {
                                     if (item.current) {
@@ -2178,14 +2168,14 @@
                                 update_volume_info(data.payload.volume);
                             }
                             if (typeof data.payload.preset_list != "undefined") {
-                                var list = []
+                                const list = []
                                 data.payload.preset_list.forEach((item) => {
                                     list.push({"id": item});
                                 });
                                 update_select_options("preset-list", list, "id", "id");
                             }
                             if (typeof data.payload.file_template_list != "undefined") {
-                                var list = []
+                                const list = []
                                 for (const [key, value] of Object.entries(data.payload.file_template_list)) {
                                     list.push({"id": key, "name": value});
                                 }
@@ -2199,11 +2189,11 @@
                                 adjust_capabilities(false);
                                 adjust_camera_preview(false)
                             } else if (data.cmd == "GET_PROJECT") {
-                                var project_list = document.getElementById("project-list");
-                                var film_list = document.getElementById("film-list");
+                                const project_list = document.getElementById("project-list");
+                                const film_list = document.getElementById("film-list");
                                 if ((project_list.value == data.payload.id) && (project_list.selectedIndex > 0)) {
                                     if (data.payload.film) {
-                                        for (var i = 0; i < project_list.options[project_list.selectedIndex]._custom_data.film_list.length; i++) {
+                                        for (let i = 0; i < project_list.options[project_list.selectedIndex]._custom_data.film_list.length; i++) {
                                             if (project_list.options[project_list.selectedIndex]._custom_data.film_list[i].id == data.payload.film.id) {
                                                 project_list.options[project_list.selectedIndex]._custom_data.film_list[i] = data.payload.film;
                                                 break;
@@ -2228,18 +2218,18 @@
                                 check_multicapture();
                             } else if (data.cmd == "CREATE_FILM") {
                                 // add new film into select box as placeholder
-                                var elem = document.getElementById("film-list");
-                                var opt = new Option(data.payload.id, data.payload.id);
+                                const elem = document.getElementById("film-list");
+                                const opt = new Option(data.payload.id, data.payload.id);
                                 elem.add(opt);
                                 elem.value = data.payload.id;
                                 update_project_selection(true);
-                                var project_list = document.getElementById("project-list");
+                                const project_list = document.getElementById("project-list");
                                 project_list.options[project_list.selectedIndex]._custom_data.film_list.push(data.payload);
                                 sendCommand('GET_PROJECT', ['project_id']);
                             } else if (data.cmd == "CREATE_PROJECT") {
                                 // add new project into select box as placeholder
-                                var elem = document.getElementById("project-list");
-                                var opt = new Option(data.payload.id, data.payload.id);
+                                const elem = document.getElementById("project-list");
+                                const opt = new Option(data.payload.id, data.payload.id);
                                 elem.add(opt);
                                 elem.value = data.payload.id;
                                 update_project_selection(false);
@@ -2258,19 +2248,18 @@
                                     set_visible(document.getElementById("select-volume"), false);
                                     window.current_volume = true
                                 }
-                                var is_lan_control = typeof data.payload.lan_ip != "undefined";
-                                var elem = document.getElementById("rc-qrcode");
+                                const is_lan_control = typeof data.payload.lan_ip != "undefined";
+                                let elem = document.getElementById("rc-qrcode");
                                 set_visible(elem, is_lan_control);
-                                var url = location.protocol + "//" + (is_lan_control ? data.payload.lan_ip : "localhost");
+                                let url = location.protocol + "//" + (is_lan_control ? data.payload.lan_ip : "localhost");
                                 if (location.port != "") {
                                     url += ":" + location.port;
                                 }
                                 document.getElementById("rc-url").value = url;
-                                var elem = document.getElementById("rc-qrcode");
+                                elem = document.getElementById("rc-qrcode");
                                 elem.innerHTML = "";
                                 if (is_lan_control) {
-                                    var qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
-
+                                    const qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
                                 }
                                 sendCommand("LIST_CAMERAS");
                                 if (window.current_volume) {
@@ -2299,7 +2288,7 @@
                             }
                         }
                     }
-                    console.log(data);
+                    // console.debug(data);  it leaks likely memory as data are kept in memory till log entry exists
                 } else {
                     update_status_info(event.data);
                 }
@@ -2315,13 +2304,13 @@
                 } else {
                     // e.g. server process killed or network down
                     // event.code is usually 1006 in this case
-                    console.log('[close] Connection died');
+                    console.error('[close] Connection died');
                     do_disconnect();
                 }
             }
 
             window.control_socket.onerror = function(error) {
-                console.log(`[error]`);
+                console.error(`[error] ${error}`);
             };
         }
     }
@@ -2354,7 +2343,7 @@
                 cmd = cmd + ":" + JSON.stringify(obj);
             }
             update_status_info("");
-            console.log('[send]: ' + cmd);
+            console.log(`[send]: ${cmd}`);
             window.control_socket.send(cmd);
         }
     }
@@ -2362,7 +2351,7 @@
     function sendCommand(cmd, params, obj = {}) {
         if (typeof params != "undefined") {
             params.forEach((key)=> {
-                var elem = document.getElementById(key);
+                const elem = document.getElementById(key);
                 if (elem.name != "") {
                     key = elem.name;
                 }
@@ -2383,11 +2372,11 @@
     }
 
     function adjust_logger() {
-        enable = document.getElementById("logger-cb").checked;
+        const enable = document.getElementById("logger-cb").checked;
         if (typeof window.logger_socket == "undefined" && enable) {
             window.logger_socket = new WebSocket('ws://'+window._hostname+':8401');
             window.logger_socket.onopen = function(e) {
-                console.log("[open] Logger connection established");
+                console.info("[open] Logger connection established");
                 document.getElementById("logger-cb").checked = true;
             };
             window.logger_socket.onmessage = function(event) {
@@ -2396,18 +2385,18 @@
 
             window.logger_socket.onclose = function(event) {
                 if (event.wasClean && (window.logger_socket.readyState != window.logger_socket.CLOSED)) {
-                    console.log('[close] Logger connection closed');
+                    console.info('[close] Logger connection closed');
                 } else {
                     // e.g. server process killed or network down
                     // event.code is usually 1006 in this case
-                    console.log('[close] Logger connection died');
+                    console.error('[close] Logger connection died');
                     delete window.logger_socket;
                 }
                 document.getElementById("logger-cb").checked = false;
             }
 
             window.logger_socket.onerror = function(error) {
-                console.log(`[error]`);
+                console.error(`[error] ${error}`);
             };
         } else if (typeof window.logger_socket != "undefined" && !enable) {
             window.logger_socket.onclose = function () {};
@@ -2427,8 +2416,8 @@
     }
 
     function get_radio_button_value(name) {
-        var rb = document.getElementsByName(name);
-        for (var i = 0; i < rb.length; i++) {
+        const rb = document.getElementsByName(name);
+        for (let i = 0; i < rb.length; i++) {
             if (rb[i].checked) {
                 return rb[i].value;
             }
@@ -2450,15 +2439,15 @@
 
 	function do_onresize(event) {
 		// adjust zoom to avoid scrollbars in preview area
-		var width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+		const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
 		//var height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
-        var preview = document.getElementById("preview");
-		var stream_container = document.getElementById("stream-container");
-		var req_width = stream_container.offsetLeft + preview.scrollWidth;
-		var scale = Math.max(Math.min(width / req_width, 1), 0.5);
-		var cls = document.getElementsByClassName('wrapper')[0];
+        const preview = document.getElementById("preview");
+		const stream_container = document.getElementById("stream-container");
+		const req_width = stream_container.offsetLeft + preview.scrollWidth;
+		const scale = Math.max(Math.min(width / req_width, 1), 0.5);
+		const cls = document.getElementsByClassName('wrapper')[0];
 		cls.style["transform"] = "scale("+scale+")";
-        console.log(`[onresize]: scale: ${scale}`);
+        console.debug(`[onresize]: scale: ${scale}`);
 	}
 
     function adjust_adapter_button_style(hotkeys) {
@@ -2468,10 +2457,10 @@
             }
         }
         for (const key in window.adapter_buttons) {
-            var cmd = window.adapter_buttons[key];
+            const cmd = window.adapter_buttons[key];
             if (typeof cmd.idx != "undefined") {
-                for (const i in cmd.idx) {
-                    adj_button(get_adapter_button(key, cmd.idx[i]));
+                for (const i of cmd.idx) {
+                    adj_button(get_adapter_button(key, i));
                 }
             } else {
                 adj_button(get_adapter_button(key, ""));
@@ -2480,7 +2469,7 @@
     }
 
     function show_modal(element_id) {
-        var elem = get_modal();
+        let elem = get_modal();
         if (elem) {
             elem.classList.remove("modal-active");
             window.modal_stack.push(elem);
@@ -2490,11 +2479,11 @@
     }
 
     function close_modal() {
-        var elem = get_modal();
+        const elem = get_modal();
         if (elem) {
             elem.classList.remove("modal-active");
             if (window.modal_stack.length > 0) {
-                elem = window.modal_stack.pop();
+                const elem = window.modal_stack.pop();
                 elem.classList.add("modal-active");
             } else {
                 adjust();
@@ -2518,60 +2507,68 @@
         }
     }
 
-    function add_event_listeners_for_select(elem) {
-        elem.addEventListener('keydown', (event) => {
-            if (!get_modal()) {
-                switch (event.code) {
-                    case "Escape":
-                    case "Enter":   // for BUTTON
-                    case "ArrowRight":
-                    case "ArrowLeft":
-                    case "Home":
-                    case "End":
-                        event.preventDefault();
-                        return;
-                }
-                if (event.target.nodeName == "SELECT") {
-                    if (event.key.length == 1 && event.key.match(/[a-zA-Z0-9,\.]/)) {
-                        event.preventDefault();
-                        return;
-                    }
+    // non-closure listeners for add_event_listeners_for_select()
+    function _listener_select_keydown(event) {
+        if (!get_modal()) {
+            switch (event.code) {
+                case "Escape":
+                case "Enter":   // for BUTTON
+                case "ArrowRight":
+                case "ArrowLeft":
+                case "Home":
+                case "End":
+                    event.preventDefault();
+                    return;
+            }
+            if (event.target.nodeName == "SELECT") {
+                if (event.key.length == 1 && event.key.match(/[a-zA-Z0-9,\.]/)) {
+                    event.preventDefault();
+                    return;
                 }
             }
-        });
+        }
     }
 
-    function add_event_listeners_for_input(elem) {
-        elem.addEventListener('focusin', (event) => {
-            if (get_modal()) {
-                return;
-            }
-            // somohow indicate that keyboard hotkeys are not working
-            adjust_adapter_button_style(false);
-            reset_input_blur_timer(event.target);
-        });
-        elem.addEventListener('focusout', () => {
-            if (get_modal()) {
+    function add_event_listeners_for_select(elem) {
+        elem.addEventListener('keydown', _listener_select_keydown);
+    }
+
+    // non-closure listeners for add_event_listeners_for_input()
+    function _listener_input_focusin(event) {
+        if (get_modal()) {
+            return;
+        }
+        // somohow indicate that keyboard hotkeys are not working
+        adjust_adapter_button_style(false);
+        reset_input_blur_timer(event.target);
+    }
+
+    function _listener_input_focusout(event) {
+        if (get_modal()) {
                 return;
             }
             // keyboards shortcuts working
             reset_input_blur_timer(null);
             adjust_adapter_button_style(true);
-        });
+    }
 
-        elem.addEventListener('keydown', (event) => {
-            reset_input_blur_timer(event.target);
-            event.stopPropagation();
-        });
+    function _listener_input_keydown(event) {
+        reset_input_blur_timer(event.target);
+        event.stopPropagation();
+    }
+
+    function add_event_listeners_for_input(elem) {
+        elem.addEventListener('focusin', _listener_input_focusin);
+        elem.addEventListener('focusout', _listener_input_focusout);
+        elem.addEventListener('keydown', _listener_input_keydown);
     }
 
     function show_lightbox(image_name) {
         if (!image_name) {
             return;
         }
-        var elem = document.getElementById("archived-image-name");
-        elem.textContent = image_name;
-        var img = document.getElementById("archived-image");
+        document.getElementById("archived-image-name").textContent = image_name;
+        const img = document.getElementById("archived-image");
         img.src = get_stream_url(true, `preview/archive/${image_name}`);
         const cb_names = {
             "flipped": ["flip", "-cb", false],
@@ -2579,7 +2576,7 @@
             "rotation": ["rotate", "0-rb", true],
         };
         for (const key in cb_names) {
-            var elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
+            const elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
             elem.checked = cb_names[key][2];
         };
         document.getElementById("archived-image-rotate0-rb").checked = true;
@@ -2590,19 +2587,18 @@
             .then(data=>{
                 for (const key in cb_names) {
                     if (data[key] != "undefined") {
-                        var elem;
                         if (key == "rotation") {
-                            elem = document.getElementById("archived-image-"+cb_names[key][0]+String(data[key])+"-rb");
+                            const elem = document.getElementById("archived-image-"+cb_names[key][0]+String(data[key])+"-rb");
                             if (elem) {
                                 elem.checked = true;
                             }
                         } else {
-                            elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
+                            const elem = document.getElementById("archived-image-"+cb_names[key][0]+cb_names[key][1]);
                             elem.checked = data[key];
                         }
                     }
                 }
-                console.log(data);
+                console.debug(data);
                 adjust_media_viewer("archived-image");
             })
             .catch(error=>console.error(`Fetch (${img.src}) error: ${error}`));
@@ -2626,6 +2622,104 @@
         }
     }
 
+    // get pixel color from canvas coords and update color box
+    function update_color_box(ctx, xy) {
+        const pixel = ctx.getImageData(xy[0], xy[1], 1, 1).data;
+        var [r, g, b, a] = pixel;
+        if (ctx.canvas.classList.contains("invert")) {
+            r = 255 - r;
+            g = 255 - g;
+            b = 255 - b;
+        }
+        const rgb = `rgb(${r}, ${g}, ${b})`;
+        const pad_rgb = function(x) {
+            return x.toString().padEnd(3, ' ');
+        };
+        const color_box = document.getElementById("snapshot-color-box");
+        const color_value = document.getElementById("snapshot-color-value");
+        color_box.style.backgroundColor = rgb;
+        color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
+    };
+
+    function snapshot_draw_marker(ctx, xy) {
+        const x = xy[0];
+        const y = xy[1];
+        if (document.getElementById("stream-crosshair-cb").checked) {
+
+            ctx.beginPath();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, ctx.canvas.height);
+            ctx.moveTo(0, y);
+            ctx.lineTo(ctx.canvas.width, y);
+            ctx.stroke();
+
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 1;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, ctx.canvas.height);
+            ctx.moveTo(0, y);
+            ctx.lineTo(ctx.canvas.width, y);
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, 2 * Math.PI);
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+        }
+    };
+
+    function canvas_draw_empty(ctx) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(ctx.canvas.width, ctx.canvas.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(ctx.canvas.width, 0);
+        ctx.lineTo(0, ctx.canvas.height);
+        ctx.stroke();
+
+        ctx.font = "50px sans-serif";
+        ctx.fillStyle = "black";
+        ctx.textAlign = "center";
+        ctx.fillText("No Image", ctx.canvas.width/2, ctx.canvas.height/2);
+
+    }
+
+    function refresh_snapshot() {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
+        image.onload = () => {
+            ctx = window.snapshot_canvas_ctx;
+            ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
+            if (window.snapshot_marker_position != null) {
+                update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
+                snapshot_draw_marker(ctx, window.snapshot_marker_position);
+            }
+            image.onload = null;
+            image.onerror = null;
+            image.src = "";
+
+        }
+        image.onerror = () => {
+            canvas_draw_empty(window.snapshot_canvas_ctx);
+            image.onload = null;
+            image.onerror = null;
+            image.src = "";
+        }
+    }
+
     function adjust_preview_mode() {
         const snapshot_mode = document.getElementById("stream-analyze-cb").checked;
         const img = document.getElementById("stream");
@@ -2635,138 +2729,25 @@
             canvas.classList.remove("hidden");
             document.getElementById("stream-only-control").classList.add("hidden");
             document.getElementById("snapshot-only-control").classList.remove("hidden");
-        } else {
-            img.classList.remove("invisible");
-            canvas.classList.add("hidden");
-            document.getElementById("stream-only-control").classList.remove("hidden");
-            document.getElementById("snapshot-only-control").classList.add("hidden");
-        }
-        if (snapshot_mode) {
             const rect = img.getBoundingClientRect();
             canvas.width = rect.width;  /* img.naturalWidth; */
             canvas.height = rect.height; /* img.naturalHeight;*/
-            const ctx = canvas.getContext("2d", {willReadFrequently: true});
-            var marker_position = null;
-
-            const refresh_snapshot = function() {
-                const image = new Image();
-                image.crossOrigin = "anonymous";
-                image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
-                image.onload = () => {
-                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-                    if (marker_position != null) {
-                        update_color_box(ctx, marker_position);  /* call before marker draw ! */
-                        draw_marker(ctx, marker_position);
-                    }
-                }
-                image.onerror = () => {
-                    ctx.strokeStyle = "red";
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(0, 0);
-                    ctx.lineTo(canvas.width, canvas.height);
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(canvas.width, 0);
-                    ctx.lineTo(0, canvas.height);
-                    ctx.stroke();
-
-                    ctx.font = "50px sans-serif";
-                    ctx.fillStyle = "black";
-                    ctx.textAlign = "center";
-                    ctx.fillText("No Image", canvas.width/2, canvas.height/2);
-                }
-            }
-
-            const update_color_box = function(ctx, xy) {
-                const pixel = ctx.getImageData(xy[0], xy[1], 1, 1).data;
-                var [r, g, b, a] = pixel;
-                if (canvas.classList.contains("invert")) {
-                    r = 255 - r;
-                    g = 255 - g;
-                    b = 255 - b;
-                }
-                const rgb = `rgb(${r}, ${g}, ${b})`;
-                const pad_rgb = function(x) {
-                    return x.toString().padEnd(3, ' ');
-                };
-                const color_box = document.getElementById("snapshot-color-box");
-                const color_value = document.getElementById("snapshot-color-value");
-                color_box.style.backgroundColor = rgb;
-                color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
-            };
-
-            const draw_marker = function(ctx, xy) {
-                const x = xy[0];
-                const y = xy[1];
-                if (document.getElementById("stream-crosshair-cb").checked) {
-
-                    ctx.beginPath();
-                    ctx.strokeStyle = "black";
-                    ctx.lineWidth = 3;
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, ctx.canvas.height);
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(ctx.canvas.width, y);
-                    ctx.stroke();
-
-                    ctx.strokeStyle = "white";
-                    ctx.lineWidth = 1;
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, ctx.canvas.height);
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(ctx.canvas.width, y);
-                    ctx.stroke();
-                } else {
-                    ctx.beginPath();
-                    ctx.arc(x, y, 10, 0, 2 * Math.PI);
-                    ctx.strokeStyle = "white";
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                    ctx.strokeStyle = "black";
-                    ctx.stroke();
-                }
-            };
-
-            const get_xy = function(e) {
-                const client_rect = canvas.getBoundingClientRect();
-                const x = Math.floor((e.clientX - client_rect.left) * (canvas.width / client_rect.width));
-                const y = Math.floor((e.clientY - client_rect.top) * (canvas.height / client_rect.height));
-                return [x, y];
-            }
-
-            canvas.onmousemove = (e)=> {
-                if (marker_position != null) {
-                    return;
-                }
-                const xy = get_xy(e);
-                update_color_box(ctx, xy);
-            };
-
-            canvas.onclick = (e)=> {
-                const xy = get_xy(e);
-                if (marker_position == null) {
-                    marker_position = xy;
-                } else {
-                    marker_position = null;
-                    update_color_box(ctx, xy);
-                }
-                refresh_snapshot();
-            };
-
+            window.snapshot_canvas_ctx = canvas.getContext("2d", {willReadFrequently: true});
+            window.snapshot_market_position = null;
             refresh_snapshot();
             if (window.snapshot_timer == null) {
                 window.snapshot_timer = setInterval(refresh_snapshot, 250);
             }
         } else {
+            img.classList.remove("invisible");
+            canvas.classList.add("hidden");
+            document.getElementById("stream-only-control").classList.remove("hidden");
+            document.getElementById("snapshot-only-control").classList.add("hidden");
             if (window.snapshot_timer != null) {
                 clearInterval(window.snapshot_timer);
                 window.snapshot_timer = null;
             }
+            window.snapshot_canvas_ctx = null;
         }
     }
 
@@ -2787,56 +2768,66 @@
         window.modal_stack = [];
         window.snapshot_timer = null;
 		do_onresize(undefined);
+        
+        const _listener_collapse_toggle = function() {
+            const elem = document.getElementById(this.getAttribute("data-container_id"));
+            elem.classList.toggle("collapsed");
+            this.classList.toggle("toggle-collapsed");
+        };
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
-            element.addEventListener("click", function() {
-                var elem = document.getElementById(this.getAttribute("data-container_id"));
-                elem.classList.toggle("collapsed");
-                this.classList.toggle("toggle-collapsed");
-            })
+            element.addEventListener("click", _listener_collapse_toggle)
         });
+        
+        const _listener_modal_open = function(event) {
+            show_modal(this.getAttribute("data-modal_id"));
+            consume_event_propagation(event);
+        };
         document.querySelectorAll(".modal-open").forEach(element=> {
-            element.addEventListener("click", function(event) {
-                show_modal(this.getAttribute("data-modal_id"));
-                consume_event_propagation(event);
-            })
+            element.addEventListener("click", _listener_modal_open)
         });
+        
+        const _listener_accordion_header_click = function() {
+            this.parentNode.classList.toggle("closed");
+        };
         document.querySelectorAll(".accordion .header").forEach(element=> {
-            element.addEventListener("click", function() {
-                this.parentNode.classList.toggle("closed");
-            })
+            element.addEventListener("click", _listener_accordion_header_click)
         });
-
+        
+        const _listener_detail_toggle = function() {
+            if (this.disabled || this.parentNode.disabled || this.parentNode.parentNode.disabled || this.parentNode.parentNode.parentNode.disabled) {
+                return;
+            }
+            const elem = document.getElementById(this.getAttribute("data-container_id"));
+            elem.classList.toggle("detail");
+        };
         document.querySelectorAll(".detail-toggle").forEach(element=> {
-            element.addEventListener("click", function() {
-                if (this.disabled || this.parentNode.disabled || this.parentNode.parentNode.disabled || this.parentNode.parentNode.parentNode.disabled) {
-                    return;
-                }
-                var elem = document.getElementById(this.getAttribute("data-container_id"));
-                elem.classList.toggle("detail");
-            })
+            element.addEventListener("click", _listener_detail_toggle)
         });
 
+        const _listener_modal_container_close = function() {
+            close_modal();
+        };
         document.querySelectorAll(".modal-container .close").forEach(element=> {
-            element.addEventListener("click", function() {
-                close_modal();
-            })
+            element.addEventListener("click", _listener_modal_container_close)
         });
 
+        const _listener_backlight_color_ranges_input_range = function(event) {
+            adjust_backlight();
+        };
         document.querySelectorAll('#backlight-color-ranges input[type="range"]').forEach(element=> {
-            element.addEventListener("input", event => {
-                adjust_backlight();
-            });
+            element.addEventListener("input", _listener_backlight_color_ranges_input_range);
         });
 
+        const _listener_backlight_color_ranges_input_number = function(event) {
+            const num_elem = event.target;
+            const elem_color = num_elem.id.split("-")[1];
+            const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
+            range_elem.value = num_elem.value;
+            adjust_backlight();
+            localStorage.setItem("control.backlight."+elem_color, num_elem.value);  // registered is range
+        };
         document.querySelectorAll('#backlight-color-ranges input[type="number"]').forEach(element=> {
-            element.addEventListener("change", event => {
-                var num_elem = event.target;
-                var elem_color = num_elem.id.split("-")[1];
-                var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
-                range_elem.value = num_elem.value;
-                adjust_backlight();
-                localStorage.setItem("control.backlight."+elem_color, num_elem.value);  // registered is range
-            });
+            element.addEventListener("change", _listener_backlight_color_ranges_input_number)
         });
 
         var multi_container = document.getElementById("file-template-options-capture-multi");
@@ -2854,7 +2845,7 @@
         });
         window.multi_tags.has_multi = false;
 
-        var dragsort = new DragSort(window.multi_tags.DOM.scope, {
+        const dragsort = new DragSort(window.multi_tags.DOM.scope, {
             selector: '.'+window.multi_tags.settings.classNames.tag,
             callbacks: {
                 dragEnd: function() {
@@ -2865,9 +2856,9 @@
 
         document.getElementById("file-template--remove").addEventListener('click', window.multi_tags.removeAllTags.bind(window.multi_tags));
         document.getElementById("file-template--add").addEventListener('click', function() {
-            var multi = {};
-            var values = get_file_template_values_ex();
-            var txt = [];
+            const multi = {};
+            const values = get_file_template_values_ex();
+            const txt = [];
             for (const [key, val] of Object.entries(values["values"])) {
                 if (val["multi"] && val["enabled"] && typeof val["value"] != "undefined") {
                     multi[key] = val["value"];
@@ -2883,14 +2874,42 @@
         });
         const filmstrip = document.getElementById("stream-strip-container");
         const frame_template = filmstrip.querySelector(".frame");
-        var frame_count = 5;
+        let frame_count = 5;
         while (frame_count > 0) {
-            var cloned = frame_template.cloneNode(true);
+            const cloned = frame_template.cloneNode(true);
             const link = cloned.querySelector("img");
             link.id = `filmstrip-frame-0${frame_count}`; // just unique id;
             filmstrip.appendChild(cloned);
             frame_count -= 1;
         }
+
+        const canvas = document.getElementById("snapshot");
+        window.snapshot_canvas_ctx = null;
+        window.snapshot_marker_position = null;
+        const canvas_get_xy = function(canvas, e) {
+            const client_rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - client_rect.left) * (canvas.width / client_rect.width));
+            const y = Math.floor((e.clientY - client_rect.top) * (canvas.height / client_rect.height));
+            return [x, y];
+        }
+        canvas.addEventListener("mousemove", (e)=> {
+            if (window.snapshot_marker_position != null) {
+                return;
+            }
+            const xy = canvas_get_xy(window.snapshot_canvas_ctx.canvas, e);
+            update_color_box(window.snapshot_canvas_ctx, xy);
+        });
+
+        canvas.addEventListener("click", (e)=> {
+            const xy = canvas_get_xy(window.snapshot_canvas_ctx.canvas, e);
+            if (window.snapshot_marker_position == null) {
+                window.snapshot_marker_position = xy;
+            } else {
+                window.snapshot_marker_position = null;
+                update_color_box(window.snapshot_canvas_ctx, xy);
+            }
+            refresh_snapshot();
+        });
 
         window.access_keys = {};
         /* get rid of accesskeys which does not work in browser as expected, they ignores unvisibility etc. */
@@ -3011,7 +3030,7 @@
                 "action": function(dir) {
                     window.stop_multicapture = true;
 					if (!document.getElementById("film-fieldset").disabled && document.getElementById("autoinc-cb").checked) {
-						var film_list = document.getElementById("film-list");
+						const film_list = document.getElementById("film-list");
 						if (film_list.selectedIndex == 0 || film_list.options[film_list.selectedIndex]._custom_data.captured.length > 0) {
 							create_next_film_id();
 						}
@@ -3026,18 +3045,18 @@
 						sendCommandM("STOP");
 					}
                     window.stop_multicapture = false;
-                    var shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
+                    const shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
                     if (shoot_mode[0] == "capture") {
                         var params = {"wire_trigger": false, "download": shoot_mode[1].includes("download"), "delete": !shoot_mode[1].includes("sdcard")};
                     } else {
-                        var delay = Number(document.getElementById("trigger-delay-rng").value) * 500;
+                        const delay = Number(document.getElementById("trigger-delay-rng").value) * 500;
                         var params = {"wire_trigger": true, "delay": delay, "focus+shutter": shoot_mode[1]=="f-fs"};
                     }
                     params.preset = document.getElementById("preset-list").value;
                     params.save_preview = document.getElementById("save-preview-cb").checked;
                     params.negative = document.getElementById("stream-invert-cb").checked;
                     params.flipped = document.getElementById("stream-flip-cb").checked;
-                    var val = get_radio_button_value("stream-rotate");
+                    const val = get_radio_button_value("stream-rotate");
                     if (val) {
                         params.rotation = Number(val.replace(/^rotate/, ""));
                     }
@@ -3062,8 +3081,8 @@
                 return;
             }
             const arr = obj.currentTarget.id.split("-");
-            var cmd = window.adapter_buttons[arr[0]];
-            var dir = "";
+            const cmd = window.adapter_buttons[arr[0]];
+            let dir = "";
             if (arr.length > 2) {
                 dir = Number(arr[1][0]);
                 if (arr[1][1] == "b") {
@@ -3075,7 +3094,7 @@
         }
 
         function do_adapter_onmousedown(event) {
-            console.log("[onmousedown]: "+JSON.stringify(event));
+            console.debug("[onmousedown]: "+JSON.stringify(event));
             if (document.getElementById("sticky-cb").checked) {
                 event.currentTarget.click();
                 window.sticky_mouse = event.currentTarget.id;
@@ -3085,7 +3104,7 @@
         }
 
         function do_adapter_onmouseup(event) {
-            console.log("[onmouseup]: "+JSON.stringify(event));
+            console.debug("[onmouseup]: "+JSON.stringify(event));
             if (typeof window.sticky_mouse != "undefined") {
                 // if mousedown and mouseup are invoked from the same button then uncoditionally follows onclick event
                 if (window.sticky_mouse != event.currentTarget.id) {
@@ -3097,7 +3116,7 @@
         }
 
         function do_adapter_ontouchstart(event) {
-            console.log("[ontouchstart]: "+event.currentTarget.id);
+            console.debug("[ontouchstart]: "+event.currentTarget.id);
             if (document.getElementById("sticky-cb").checked) {
                 // event.currentTarget.click();
                 window.sticky_touch = event.currentTarget.id;
@@ -3109,7 +3128,7 @@
         }
 
         function do_adapter_ontouchend(event) {
-            console.log("[ontouchend]: "+event.currentTarget.id);
+            console.debug("[ontouchend]: "+event.currentTarget.id);
             if (typeof window.sticky_touch != "undefined") {
                 sendCommandM("STOP");
                 delete window.sticky_touch;
@@ -3117,16 +3136,16 @@
         }
 
         function do_adapter_ontouchcancel(event) {
-            console.log("[ontouchcancel]: "+event.currentTarget.id);
+            console.debug("[ontouchcancel]: "+event.currentTarget.id);
             if (typeof window.sticky_touch != "undefined") {
                 sendCommandM("STOP");
                 delete window.sticky_touch;
             }
         }
 
-        console.log("Touch device: " + is_touch_device())
+        console.info("Touch device: " + is_touch_device())
         for (const key in window.adapter_buttons) {
-            var cmd = window.adapter_buttons[key];
+            const cmd = window.adapter_buttons[key];
             if (typeof cmd.idx != "undefined") {
                 for (const i in cmd.idx) {
                     get_adapter_button(key, cmd.idx[i]).onclick = do_adapter_onclick;
@@ -3135,10 +3154,10 @@
                 get_adapter_button(key, "").onclick = do_adapter_onclick;
             }
         }
-        var key = "move";
-        var cmd = window.adapter_buttons[key];
+        const key = "move";
+        const cmd = window.adapter_buttons[key];
         for (const i in cmd.idx) {
-            var btn = get_adapter_button(key, cmd.idx[i]);
+            const btn = get_adapter_button(key, cmd.idx[i]);
             btn.onmousedown = do_adapter_onmousedown;
             btn.onmouseup = do_adapter_onmouseup;
             if (is_touch_device()) {
@@ -3155,10 +3174,9 @@
 
         try {
             const RETENTION_PERIOD = 1000*60*60*24*7;
-            var cps = Object.assign({}, JSON.parse(localStorage.getItem("current_project_selection")));
+            const cps = Object.assign({}, JSON.parse(localStorage.getItem("current_project_selection")));
             window.current_project_selection = Object.keys(cps).reduce(function(volume_filtered, volume_id) {
                 // filter out old records not to grow local storage
-                var rec = cps[volume_id];
                 cps[volume_id] = Object.keys(cps[volume_id]["updated"]).reduce(function(filtered2, project_id) {
                     if (Date.now() - cps[volume_id]["updated"][project_id] < RETENTION_PERIOD) {
                         filtered2["updated"][project_id] = cps[volume_id]["updated"][project_id];
@@ -3178,12 +3196,12 @@
         adjust();
 
         for (const key in window.settings) {
-            var val = localStorage.getItem(key);
-            var elem = document.getElementById(window.settings[key]);
+            const val = localStorage.getItem(key);
+            const elem = document.getElementById(window.settings[key]);
             if (elem == null) {
                 elems = document.getElementsByName(window.settings[key]);
-                for (var i = 0; i<elems.length; i++) {
-                    elem = elems[i];
+                for (let i = 0; i<elems.length; i++) {
+                    const elem = elems[i];
                     elem.addEventListener("change", save_settings);
                     if (val === elem.value) {
                         elem.checked = true;
@@ -3215,14 +3233,14 @@
     }
 
     function do_onkeydown(event) {
-        var shift_count = Number(event.altKey) + Number(event.metaKey) + Number(event.shiftKey) + Number(event.ctrlKey);
+        const shift_count = Number(event.altKey) + Number(event.metaKey) + Number(event.shiftKey) + Number(event.ctrlKey);
         if (shift_count == 1 && event.altKey) {
             const key = event.key.toLowerCase();
             if (window.access_keys[key]) {
                 for (const control of window.access_keys[key]) {
-                    var visible = true;
+                    let visible = true;
                     var node = control;
-                    var is_modal_control = false;
+                    let is_modal_control = false;
                     while (node) {
                         if (node === document) {
                             break;
@@ -3234,7 +3252,7 @@
                             visible = false;
                             break;
                         }
-                        var style = window.getComputedStyle(node);
+                        const style = window.getComputedStyle(node);
                         if (style.display === "none") {
                             visible = false;
                             break;
@@ -3275,7 +3293,7 @@
             }
             return;
         }
-        var btn = "";
+        let btn = "";
         if (shift_count == 0) {
             switch (event.code) {
             case "Escape":
@@ -3332,7 +3350,7 @@
                 btn = "shoot";
                 break;
             case "KeyB":
-                var cb_elem = document.getElementById("backlight-cb");
+                const cb_elem = document.getElementById("backlight-cb");
                 cb_elem.checked = !cb_elem.checked;
                 if (!cb_elem.disabled) {
                     cb_elem.onchange();
@@ -3408,12 +3426,12 @@
             event = event || window.event;
             consume_event_propagation(event);    // to consume event to avoid page scroll
         }
-        // console.log("[keydown]: "+JSON.stringify(event));
-        // console.log("[keydown]: "+event.type+ "/"+elem.tagName);
+        // console.debug("[keydown]: "+JSON.stringify(event));
+        // console.debug("[keydown]: "+event.type+ "/"+elem.tagName);
     }
 
     function do_onkeyup(event) {
-        console.log("[keyup]: "+JSON.stringify(event));
+        console.debug("[keyup]: "+JSON.stringify(event));
         if (window.sticky_key == event.code) {
             if (window.capabilities.motorized) {
                 sendCommandM("STOP");
@@ -3459,15 +3477,15 @@
         if (control_name == "") {
             control_name = viewer_name;
         }
-        var viewer = document.getElementById(viewer_name);
-        var viewer_control = document.getElementById(control_name+"-control");
-        var elems = viewer_control.getElementsByTagName("input");
-        var flip = document.getElementById(control_name+"-flip-cb").checked;
-        for (var i = 0; i < elems.length; i++) {
-            var elem = elems[i];
+        const viewer = document.getElementById(viewer_name);
+        const viewer_control = document.getElementById(control_name+"-control");
+        const elems = viewer_control.getElementsByTagName("input");
+        const flip = document.getElementById(control_name+"-flip-cb").checked;
+        for (let i = 0; i < elems.length; i++) {
+            const elem = elems[i];
             if (elem.type == "radio") {
                 if (elem.value != "") {
-                    var flip_class = "flip-" + elem.value;
+                    const flip_class = "flip-" + elem.value;
                     if (!elem.checked) {
                         viewer.classList.remove(elem.value, flip_class);
                     } else {
@@ -3498,15 +3516,15 @@
         if (skip_crop) {
             return;
         }
-        var hc = document.getElementById(control_name+"-crop-x-rng");
-        var vc = document.getElementById(control_name+"-crop-y-rng");
+        const hc = document.getElementById(control_name+"-crop-x-rng");
+        const vc = document.getElementById(control_name+"-crop-y-rng");
         if (vc && hc) {
             viewer.style["clip-path"] = "inset("+vc.value+"px "+hc.value+"px "+vc.value+"px "+hc.value+"px)";
         }
-        var bck = document.getElementById(control_name+"-background-rng");
+        const bck = document.getElementById(control_name+"-background-rng");
         if (bck) {
-            var x = ("0"+Number(bck.value).toString(16)).slice(-2);
-            var elem = viewer.parentNode;
+            const x = ("0"+Number(bck.value).toString(16)).slice(-2);
+            let elem = viewer.parentNode;
             while (elem) {
                 elem.style["background-color"] = "#"+x+x+x;
                 elem = document.getElementById(elem.getAttribute("data-sibling"));
@@ -3515,23 +3533,23 @@
     }
 
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
-        var color_list = document.getElementById("backlight-color-list");
-        var idx = color_list.selectedIndex;
+        const color_list = document.getElementById("backlight-color-list");
+        const idx = color_list.selectedIndex;
         if (idx < 0) {
             var color = "";
         } else {
             var color = color_list.options[idx].value;
         }
-        var val = 0;
-		var is_on = (color != "") && document.getElementById("backlight-cb").checked;
-        var elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
-        for (var i = 0; i < elems.length; i++) {
-            var elem_color = elems[i].id.split("-")[1];
-            var is_visible = color.includes(elem_color);
+        let val = 0;
+		const is_on = (color != "") && document.getElementById("backlight-cb").checked;
+        const elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
+        for (let i = 0; i < elems.length; i++) {
+            const elem_color = elems[i].id.split("-")[1];
+            const is_visible = color.includes(elem_color);
             if (adjust_range) {
                 set_visible(elems[i], is_visible, "");
             }
-            var range_elem = document.getElementById("backlight-"+elem_color+"-rng");
+            const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
             document.getElementById("backlight-"+elem_color+"-num").value = range_elem.value;
             if (is_on && is_visible) {
                 val *= 256;  // bitwise operators are 32-bit only!
@@ -3539,7 +3557,7 @@
             }
         }
         if (send_cmd) {
-            var bck = `${is_on}`;
+            let bck = `${is_on}`;
             if (is_on) {
                 bck += `:${val}`;
             }
@@ -3556,27 +3574,27 @@
 	}
 
     function adjust_delay_value(range_elem) {
-        var value_elem = document.getElementById(range_elem.id.replace("-rng", "-value"));
+        const value_elem = document.getElementById(range_elem.id.replace("-rng", "-value"));
         value_elem.innerHTML = String(Number(range_elem.value) * 0.5)+"s";
     }
 
     function create_file_template(tpl) {
-        var containers = [];
+        const containers = [];
         ["film", "capture"].forEach(name=>{
             containers[name] = document.getElementById("file-template-options-"+name);
             containers[name].innerHTML = "";
         });
-        var is_multi = false;
+        let is_multi = false;
         for (const [part_id, part] of Object.entries(tpl.parts)) {
-            var input;
-            var input_container = null;
-            var len = 0;
-            var val = localStorage.getItem("file_template."+part_id);
+            let input;
+            let input_container = null;
+            let len = 0;
+            let val = localStorage.getItem("file_template."+part_id);
             if (part.type == "enum") {
                 input = document.createElement("select");
-                var valid = false;
+                let valid = false;
                 part.values.forEach(opt=>{
-                    var option = new Option(opt.name, opt.id);
+                    const option = new Option(opt.name, opt.id);
                     if (opt.id === val) {
                         valid = true;
                     }
@@ -3640,7 +3658,7 @@
                 }
                 input.value = input.min;
                 input_container.appendChild(input);
-                var icon = document.createElement("span");
+                const icon = document.createElement("span");
                 icon.classList.add("hidden");
                 icon.classList.add("icon");
                 icon.innerHTML = "&#9888;"
@@ -3657,7 +3675,7 @@
                 input.setAttribute("data-values", JSON.stringify(part.values));
                 add_event_listeners_for_input(input);
                 input_container.appendChild(input);
-                var label = document.createElement("label");
+                const label = document.createElement("label");
                 label.setAttribute("for", input.id);
                 label.innerHTML = part.name;
                 input_container.appendChild(label);
@@ -3694,7 +3712,7 @@
 
             containers[typeof part.container != "undefined" ? part.container : "film"].appendChild(input_container);
         }
-        var multi_container = document.getElementById("file-template-options-capture-multi");
+        const multi_container = document.getElementById("file-template-options-capture-multi");
         window.multi_tags.has_multi = is_multi;
         if (is_multi) {
             multi_container.classList.remove("hidden");
@@ -3705,7 +3723,7 @@
     }
 
     function set_file_template_values(values) {
-        var opts = [
+        const opts = [
             ...document.getElementById("file-template-options-film").querySelectorAll("input, select"),
             ...document.getElementById("file-template-options-capture").querySelectorAll("input, select")
             ];
@@ -3722,18 +3740,18 @@
     }
 
     function get_file_template_values_ex() {
-        var values = {};
-        var opts = [
+        const values = {};
+        const opts = [
             ...document.getElementById("file-template-options-film").querySelectorAll("input, select"),
             ...document.getElementById("file-template-options-capture").querySelectorAll("input, select")
-            ];
+        ];
         opts.forEach(elem=>{
-            var val = {};
+            const val = {};
             val["multi"] = elem.getAttribute("data-multi") === "true";
             val["enabled"] = !document.getElementById("file-template--"+elem.name).classList.contains("hidden");
             if (elem.type == "checkbox") {
                 val["value"] = elem.checked ? 1 : 0;
-                var v = JSON.parse(elem.getAttribute("data-values"));
+                const v = JSON.parse(elem.getAttribute("data-values"));
                 val["text"] = Object.values(v)[val["value"]];
             } else if (typeof elem.value != "undefined") {
                 val["value"] = elem.value;
@@ -3752,8 +3770,8 @@
     }
 
     function get_file_template_values() {
-        var data = get_file_template_values_ex();
-        var values = {};
+        const data = get_file_template_values_ex();
+        const values = {};
         Object.keys(data["values"]).forEach(key=>{
             if (typeof data["values"][key]["value"] != "undefined") {
                 values[key] = data["values"][key]["value"];
@@ -3764,16 +3782,16 @@
 
     function adjust_file_template(tpl) {
         for (const [part_id, part] of Object.entries(tpl.parts)) {
-            var elem = document.getElementById("file-template--"+part_id);
+            const elem = document.getElementById("file-template--"+part_id);
             if (elem) {
                 if (part.enabled === true) {
                     elem.classList.remove("hidden");
                 } else if (part.enabled === false) {
                     elem.classList.add("hidden");
                 }
-                var icon = elem.querySelector(".icon");
+                const icon = elem.querySelector(".icon");
                 if (icon) {
-                    var input = elem.querySelector("input");
+                    const input = elem.querySelector("input");
                     if ((typeof part.value == "undefined") || input.value === String(part.value)) {
                         icon.classList.add("hidden");
                         icon.setAttribute("title", "");
@@ -3789,29 +3807,25 @@
             if (action.type == "set") {
                 switch (action.entity) {
                     case "led":
-                        var elem = document.getElementById("backlight-color-list");
+                        document.getElementById("backlight-color-list").value = action.value;
                         // check if enabled ??
-                        elem.value = action.value;
                         adjust_backlight(true);
                         break;
                     case "preset":
-                        var elem = document.getElementById("preset-list");
-                        elem.value = action.value;
+                        document.getElementById("preset-list").value = action.value;
                         break;
                     case "autoinc":
-                        var elem = document.getElementById("autoinc-cb");
-                        elem.checked = action.value;
+                        document.getElementById("autoinc-cb").checked = action.value;
                         break;
                     case "invert":
                     case "flip":
-                        var elem = document.getElementById("stream-"+action.entity+"-cb");
-                        elem.checked = action.value;
+                        document.getElementById("stream-"+action.entity+"-cb").checked = action.value;
                         adjust_media_viewer();
                         break;
                     case "rotate":
-                        var elem = document.getElementById("stream-rotate"+String(action.value)+"-rb");
-                        if (elem) {
-                            elem.checked = true;
+                        const rotate_elem = document.getElementById("stream-rotate"+String(action.value)+"-rb");
+                        if (rotate_elem) {
+                            rotate_elem.checked = true;
                         }
                         adjust_media_viewer();
                         break;
@@ -3820,7 +3834,7 @@
         });
 
         if (document.getElementById("film_id").value != "") {
-            var errs = [];
+            const errs = [];
             if (typeof tpl.errors != "undefined") {
                 for (const [part_id, err] of Object.entries(tpl.errors)) {
                     errs.push(`${part_id}: ${err}`);
@@ -3831,7 +3845,7 @@
     }
 
     function update_project_selection(film_update) {
-        var rec = Object.assign({"updated": {}, "film_ids": {}}, window.current_project_selection[window.current_volume],
+        const rec = Object.assign({"updated": {}, "film_ids": {}}, window.current_project_selection[window.current_volume],
             {"project_id": document.getElementById("project-list").value, })
         rec["updated"][rec["project_id"]] = Date.now();
         if (film_update) {
@@ -3843,10 +3857,10 @@
     }
 
     function save_settings(event) {
-        var elem = event.srcElement;
+        const elem = event.srcElement;
         for (const key in window.settings) {
             if (elem.id == window.settings[key]) {
-                var val;
+                let val;
                 if (elem.type == "checkbox") {
                     val = elem.checked;
                 } else if (elem.type  == "radio") {
