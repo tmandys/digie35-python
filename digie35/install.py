@@ -200,10 +200,13 @@ def main():
             for cfg in nginx_configs:
                 run(["sudo", "cp", PROJ_DIR + "/nginx/" + cfg, NGINX_CONF_DIR + "/conf.d/"])
                 sed_cmd = ["sudo", "sed", "-i", "s#\\$DIGIE35_DIRECTORY#" + PROJ_DIR + "#g", NGINX_CONF_DIR + "/conf.d/" + cfg]
-            log(" ".join(sed_cmd))
-            run(sed_cmd)
+                log(" ".join(sed_cmd))
+                run(sed_cmd)
             run(["sudo", "rm", "-f", NGINX_CONF_DIR+"/sites-enabled/default"])
             run(["sudo", "nginx", "-s", "reload"])
+            if args.restart_services:
+                log("Restarting service 'nginx'")
+                run(["sudo", "systemctl", "try-restart", "nginx.service"])
 
         for f in desktop_icons:
             for res in desktop_icons_res:
