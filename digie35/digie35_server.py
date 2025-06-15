@@ -1728,7 +1728,7 @@ def broadcast(message):
     caps = digitizer.get_capabilities()
     if message["source"] == "hotplug":
         send_flag |= True
-        message2["adapter_class"] = digitizer.get_adapter().__class__.__name__
+        message2["adapter_class"] = digitizer.get_adapter().__class__.__name__ if digitizer.get_adapter() != None else ""
         message2["capabilities"] = caps
         if caps["motorized"]:
             message2["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()

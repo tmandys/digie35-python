@@ -1206,6 +1206,54 @@
             </div>
         </div>
 
+        <div id="capture-warning-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header">
+                    <span class="title">
+                        Final check before capturing
+                    </span>
+                    <button class="close">&times;</button>
+                </div>
+                <div class="content">
+                    <div class="vertical-spacer">
+                        <p>
+                            Please unsure the following settings and conditions are correct:
+                        </p>
+                        <ul>
+                            <li>
+                                <strong>Camera is in the expected shooting mode</strong>
+                                Usually Av (<em>Aperture priority</em>) with <em>manual focus</em>, <em>minimal ISO</em> (non-auto!)
+                            </li>
+                            <li>
+                                <strong>Image stabilization is turned off</strong>, if available
+                            </li>
+                            <li>
+                                <strong>Lens hood is attached</strong> to reduce side light or reflection
+                            </li>
+                            <li>
+                                <strong>Adapter is fully inserted</strong> and securely attached
+                            </li>
+                            <li>
+                                <strong>Lens is properly focused</strong> on the film grain, using <em>manual focus</em>, <em>minimal aperture</em> (e.g. f/4) 
+                                and <em>magnifier</em>. Focused when adapter <em>flattening press</em> was down, if provided.
+                                <br />
+                                <small>Note: Focusing is done with the lens wide open - minimal f-number - for best accuracy.</small>
+                            </li>
+                            <li>
+                                Focus somewhere between the center and edges to compensate for any film curvature
+                            </li>
+                            <li>
+                                The <strong>working aperture</strong> is set to around <em>f/8</em> to increase depth of field
+                            </li>
+                        </ul>
+                        <p>
+                            These steps help ensure consistently sharp, high-quality images.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="film-settings-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
@@ -1439,6 +1487,18 @@
                             </div>
                         </div>
                         <small class="hint">Save preview JPG image to volume repository in <i>.previews</i> directory, i.e. separated from (RAW) images not to interfere when processing archive.</small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="focus-warning-list" accesskey="f"><u>F</u>ocus reminder interval</label>
+                            <select id="focus-warning-list" style="width:20ch">
+                                <option value="" selected>Never</option>
+                                <option value="adapter">On adapter change</option>
+                                <option value="4H">Every 4 hours</option>
+                                <option value="daily">Once per day</option>
+                            </select>
+                        </div>
+                        <small class="hint">Show a checklist reminder before capturing an image to avoid common setup mistakes (focus, aperture, mode, ...).</small>
                     </div>
                 </div>
             </div>
@@ -2088,6 +2148,9 @@
                                     window.capabilities = data.payload.capabilities;
                                     adjust_capabilities(false)
                                 }
+                                if (typeof data.payload.adapter_class != "undefined") {
+                                    window.current_adapter = data.payload.adapter_class;
+                                }
                                 adjust_adapter(data.payload);
                                 if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
                                     if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
@@ -2241,6 +2304,7 @@
                                 document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
                                 window.steps_per_mm = data.payload.steps_per_mm;
                                 window.capabilities = data.payload.capabilities;
+                                window.current_adapter = data.payload.adapter_class["AOT"] ?? "";
                                 if (data.payload.client_count > 1) {
                                     window.save_usb_preview = data.payload.usbpreview;
                                 } else {
@@ -2772,6 +2836,34 @@
         window.last_backlight = null;
         window.modal_stack = [];
         window.snapshot_timer = null;
+        window.current_adapter = "";
+        // check if it is fresh visit or reload, ...
+        let nav_type = "unknown";
+        if (performance.getEntriesByType) {
+            const nav = performance.getEntriesByType("navigation")[0];
+            if (nav && nav.type) {
+                nav_type = nav.type;
+            }
+        } else if (performance.navigation && typeof performance.navigation.type === "number") {
+            const types = ["navigate", "reload", "back_forward", "reserved"];
+            nav_type = types[performance.navigation.type] || nav_type;
+        }
+
+        if (nav_type === "navigate") {
+            // fresh open page so we supose new user
+            window.focus_warning = {
+                "timestamp": new Date(0),
+                "adapter": "",
+            };
+            localStorage.removeItem("warning.focus_timestamp");
+            localStorage.removeItem("warning.focus_adapter");
+        } else {
+            window.focus_warning = {
+                "timestamp": new Date(localStorage.getItem("warning.focus_timestamp") ?? 0),
+                "adapter": localStorage.getItem("warning.focus_adapter") ?? "",
+            }
+        }
+
 		do_onresize(undefined);
         
         const _listener_collapse_toggle = function() {
@@ -2971,6 +3063,7 @@
 			"control.backlight.blue": "backlight-blue-rng",
 			"control.backlight.ir": "backlight-ir-rng",
 			"control.backlight.external": "backlight-external-rng",
+            "control.focus_warning_interval": "focus-warning-list",
             "capture.multi": "capture-multi",
             "capture.shoot.mode": "shoot-mode-list",
             "capture.shoot.serial_delay": "serial-shoot-delay-rng",
@@ -3049,6 +3142,37 @@
                     if (window.capabilities.motorized) {
 						sendCommandM("STOP");
 					}
+                    const focus_warning = document.getElementById("focus-warning-list").value;
+                    if (focus_warning != "") {
+                        let show = false;
+                        const now = new Date();
+                        switch (focus_warning) {
+                            case "adapter":
+                                show = (window.current_adapter != window.focus_warning["adapter"]);
+                                break;
+                            case "daily":
+                                show = now.getFullYear() !== window.focus_warning.timestamp.getFullYear() ||
+                                    now.getMonth() !== window.focus_warning.timestamp.getMonth() ||
+                                    now.getDate() !== window.focus_warning.timestamp.getDate();
+                                break;
+                            case "4H":
+                                const diff_min = (now - window.focus_warning.timestamp) / 1000 / 60;
+                                show = diff_min >= 4*60;
+                                break;
+                        }
+                        if (show) {
+                            window.focus_warning = {
+                                "adapter": window.current_adapter,
+                                "timestamp": new Date(),
+                            };
+                            localStorage.setItem("warning.focus_timestamp", window.focus_warning.timestamp.toISOString()),
+                            localStorage.setItem("warning.focus_adapter", window.focus_warning.adapter),
+                            show_modal("capture-warning-modal");
+                            return;
+                        }
+                    } else {
+                        window.focus_warning.adapter = window.current_adapter;
+                    }
                     window.stop_multicapture = false;
                     const shoot_mode = document.getElementById("shoot-mode-list").value.split("|");
                     if (shoot_mode[0] == "capture") {
