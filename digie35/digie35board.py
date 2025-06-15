@@ -706,8 +706,8 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self._flattening_state = None
         self._last_flattening_change = None
         self.props.set("FP_AUTO", False)  # control press
-        self.props.set("FP_TRUST_INTERVAL", 5.0)  # do not believe flattening state forever
-        self.props.set("FP_PRESS_DELAY", 2.0)   # wait some time till press down when stopped
+        self.props.set("FP_TRUST_INTERVAL", 30.0)  # do not believe flattening state forever
+        self.props.set("FP_PRESS_DELAY", 10.0)   # wait some time till press down when stopped
         self.props.set("FP_BACKLIGHT_OFF", True)  # switch off light to reduce power load at 24V
         self.props.set("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
         self.props.set("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
