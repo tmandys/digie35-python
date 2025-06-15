@@ -4,6 +4,7 @@ parts:
     name: Select film type
     type: enum
     used_in_pattern: False
+    editable: capture
     values:
       - value: BW_negative
         name: "BW negative"
