@@ -1302,7 +1302,11 @@ class CameraWrapper:
                     if values[part_id] != None:
                         mn = part.get("min", -sys.maxsize - 1)
                         mx = part.get("max", sys.maxsize)
-                        values[part_id] = min(max(mn, int(values[part_id])), mx)
+                        try:
+                            values[part_id] = int(values[part_id])
+                        except:
+                            values[part_id] = 0
+                        values[part_id] = min(max(mn, values[part_id]), mx)
                         part_str = str(abs(values[part_id])).zfill(part.get("digits", 0))
                         if (values[part_id] < 0):
                             part_str = "-" + part_str
@@ -1331,7 +1335,11 @@ class CameraWrapper:
                     if not editable or not part_id in values:
                         cnt = part.get("value", mn) if not editable or required else None
                     else:
-                        cnt = max(int(values[part_id]), mn)
+                        try:
+                            values[part_id] = int(values[part_id])
+                        except:
+                            values[part_id] = 0
+                        cnt = max(values[part_id], mn)
                     if cnt != None:
                         if project_id != "" and film_id != "":
                             film = self.get_film(project_id, film_id)
