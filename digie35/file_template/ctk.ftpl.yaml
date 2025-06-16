@@ -129,7 +129,7 @@ effects:
     actions:
       - type: set
         entity: preset
-        value: ""
+        value: "--no preset--"
       - type: set
         entity: led
         value: white
