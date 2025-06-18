@@ -2179,9 +2179,9 @@
                                         document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
                                         intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
                                     }
-                                    adjust_backlight(true, false);
                                 }
                             }
+                            adjust_backlight(true, false);
                         } else if (data.cmd == "CAMERA") {
                             document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
                             adjust_adapter(data.payload)
@@ -3685,11 +3685,11 @@
                 val += Number(range_elem.value);
             }
         }
+        let bck = `${is_on}`;
+        if (is_on) {
+            bck += `:${val}`;
+        }
         if (send_cmd) {
-            let bck = `${is_on}`;
-            if (is_on) {
-                bck += `:${val}`;
-            }
             if (window.last_backlight !== bck) {
                 // avoid flooding when switched off and moving slidebar
                 window.last_backlight = bck;
@@ -3699,7 +3699,9 @@
                     sendCommand2("SET_BACKLIGHT");
                 }
             }
-        }
+        } else {
+            window.last_backlight = bck;
+		}
 	}
 
     function adjust_delay_value(range_elem) {
