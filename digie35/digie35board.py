@@ -29,7 +29,6 @@ __version__ = "0.3"
 from digie35.digie35core import *
 import logging
 import time
-import time
 import datetime
 from timeit import default_timer
 from threading import Timer

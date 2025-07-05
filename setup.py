@@ -50,6 +50,7 @@ setup(
             "digie35_upgrade = digie35.upgrade:main",
             "digie35_board_tool = digie35.board_tool:main",
             "digie35_log = digie35.log_term:main",
+            "digie35_image_analyzer = digie35.image_analyzer:main",
         ],
     },
     install_requires = [

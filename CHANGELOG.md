@@ -12,6 +12,7 @@ Features
   - stream/snapshot mode to analyze preview image
   - color-box to get RGB value
   - hot key to clear error
+  - digie35_image_analyzer tool
 
 Fixes
 -----
