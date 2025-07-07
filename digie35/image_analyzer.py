@@ -178,7 +178,7 @@ class ImageAnalysis:
         
     @log_duration
     # global max. intensity and colormode
-    def _analyze_global_values(self):
+    def _analyze_overview(self):
         result = {}
         if len(self._image.shape) < 3 or self._image.shape[2] == 1:
             result["colormode"] = "bw"
@@ -200,18 +200,30 @@ class ImageAnalysis:
 
         max_intensity = np.percentile(self._gray, 99)
         result["naked_intensity"] = max_intensity
+
+        # try detect how film is inserted, partially inserted film has frame start or end fully illuminated
+        profile = np.mean(self._gray, axis = 0)
+        # check leader and trailer naked ares
+        film_start = 0
+        film_end = len(profile)
+        while film_start < film_end and profile[film_start] >= max_intensity * 0.95:
+            film_start += 1
+        while film_start < film_end and profile[film_end-1] >= max_intensity * 0.95:
+            film_end -= 1
+        result |= {
+            "film_bounds": {"start": film_start, "end": film_end, },
+        }
         return result
 
     @log_duration
-    def _detect_perforation_holes(self, band, name, **params):
+    def _detect_perforation_holes(self, band, offsetx, name, **params):
         result = {}
         #show_image(band)
         # how many light pixels are above naked intensity
         result["naked_ratio"] = np.sum(band > params["naked_intensity"] * 0.95) / band.size
         if result["naked_ratio"] < 0.30:
-            return ImageAnalysisError(f"Low {name} perforation naked ratio {result['naked_ratio']:.3f}, i.e. no holes on the edge")
+            return ImageAnalysisError(f"Low {name} perforation naked ratio {result['naked_ratio']:.2f}, i.e. no holes on the edge")
 
-        max_intensity = np.percentile(band, 60)
         # hole is always ligher than film base even for negative so find peaks of intensity
         # we have 2D array where column should be uniform, i.e. hole or bridge
         # make 1D array averaging column value
@@ -302,6 +314,12 @@ class ImageAnalysis:
                 if bridges.size:
                     plt.plot(bridges[:, 0], binary[bridges[:, 0]], "yx")
                 plt.show()
+
+            if offsetx != 0:
+                for idx in range(len(holes1)):
+                    holes1[idx][0] += offsetx
+                for idx in range(len(bridges1)):
+                    bridges1[idx][0] += offsetx
             result |= {
                 #"uniformity": cv,
                 "pixel_per_mm": pixel_per_mm,
@@ -318,53 +336,31 @@ class ImageAnalysis:
             return result
 
     @log_duration
-    def _analyze_film_band(self, band, name, **params):
+    def _analyze_film_band(self, band, offsetx, name, **params):
         result = {}
         #show_image(band)
         # try detect how film is inserted, partially inserted film has frame start or end fully illuminated (as hole)
+        # it might differ from inititial film_bound when film has non rectangular end
         # make 1D array averaging column value
         profile = np.mean(band, axis = 0)
-        # ideally we have rectangle signal but in reality apply low-pass filter
-        profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
+        # profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
         thr = params["naked_intensity"] - (params["naked_intensity"] - params["film_base_intensity"]) * 0.05
-        # binarize, 1..naked, 0..film
-        binary = profile > thr
-        # find edges
-        edges = np.diff(binary.astype(np.int8))
-        # lo-hi
-        starts = np.where(edges==1)[0]
-        # hi-lo
-        ends = np.where(edges==-1)[0]
-
-        if False:
-            #print(f"w: {hole_width}, widths{widths}, holes: {holes}/{hole_stat}, bridges: {bridges}/{bridge_stat}")
-
-            plt.plot(binary)
-            plt.plot(starts, binary[starts], "rx")
-            plt.plot(ends, binary[ends], "bx")
-            plt.show()
-
         film_start = 0
-        film_end = len(binary)
-        if binary[0]:
-            if len(ends) > 0:
-                film_start = ends[0]
-            else:
-                film_start = film_end
-        if binary[-1]:
-            if len(starts) > 0:
-                film_end = starts[0]
-            else:
-                film_end = film_start
-        if film_start >= film_end:
-            return None
-        # cut off naked leader/trailer
-        active_film = band[:, film_start:film_end]
+        film_end = len(profile)
+        while film_start < film_end and profile[film_start] >= thr:
+            film_start += 1
+        while film_start < film_end and profile[film_end-1] >= thr:
+            film_end -= 1
+        if film_start >= film_end - 1:
+            return ImageAnalysisError(f"{name} band is naked")
+
+        # cut off naked leader/trailer       
+        band = band[:, film_start:film_end]
         
-        #show_image(active_film)
+        #show_image(band)
 
         # cross profile
-        profile = np.mean(active_film, axis = 1)
+        profile = np.mean(band, axis = 1)
         #profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
         thr = params["film_base_intensity"]
         thr_tol = max(thr * 0.02, 5)
@@ -376,7 +372,7 @@ class ImageAnalysis:
         edges = np.diff(signum.astype(np.int8))        
         changes = np.where(edges != 0)[0] + 1  # index to signum, edge is shifter by one
         if False:
-            print(f"profile: {profile}, signum: {signum}, edges: {edges}, changes{changes}") 
+            print(f"profile: {profile}, std: {profile.std()}, signum: {signum}, edges: {edges}, changes{changes}") 
             plt.plot(signum)
             if changes.size:
                 plt.plot(changes, signum[changes], "rx")
@@ -386,9 +382,6 @@ class ImageAnalysis:
         if len(changes) == 0:
             return ImageAnalysisError(f"{name} film band not detected")
 
-        result |= {
-            "film_bounds": {"start": film_start, "end": film_end, },
-        }
         if signum[0] == 0:
             # no holes at the edge
             result |= {
@@ -415,16 +408,17 @@ class ImageAnalysis:
                     "band_width": changes[0], 
                 }
         if result["payload"] or result["holes"]:
-            result["focus_score"] = self._focus_score(band[: result["band_width"], film_start:film_end])
+            result["focus_score"] = self._focus_score(band)
         else:
             result["focus_score"] = None
         return result
 
     @log_duration
-    def _detect_frame(self, payload, **params):
+    def _detect_frame(self, payload, offsetx, **params):
         #show_image(payload)
         # cross film profile, gaps between frames should have approx.bridge intensity
         profile = np.mean(payload, axis = 0)
+        sigma = np.std(payload, axis = 0)
         # ideally we have rectangle signal but in reality apply low-pass filter
         if True:
             profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
@@ -435,39 +429,70 @@ class ImageAnalysis:
 
         # calculate mean value, variation
         mu = profile.mean()
-        sigma = profile.std()
-        cv = sigma / (mu +1e-6)        
         negative = params["film_base_intensity"] > mu   # double check with params["negative"]
         neg = params.get("negative", negative)
         if neg != negative:
             self._append_error("Confusing negative detection band vs. payload")
-        # binarize, 1..gaps, 0..payload
+        # binarize, 0..gaps, 1..payload
+        # gap should have film base intensity but it is not too robust, It should also have small variation, ideally zero
+        # we cannot use relativa variation (sigma) and it soars in hights in dark band as we divide by small number
         if negative:            
-            thr = params["film_base_intensity"] - (params["film_base_intensity"] - mu) * 0.05
-            binary = profile < thr
+            thr = params["film_base_intensity"] - (params["film_base_intensity"] - mu) * 0.01
+            binary = (profile < thr) | (sigma > 8)
         else:
             thr = params["film_base_intensity"] + max((mu - params["film_base_intensity"]) * 0.05, 5)
-            binary = profile > thr
+            binary = (profile > thr) | (sigma > 5)
         frames = []
         fl = False
         for idx in range(len(binary)):
             if binary[idx] != fl:
                 if fl:
-                    frames.append({"start": start_pos, "end": idx-1})
+                    # avoid evidently wrong useless frames
+                    if idx - start_pos > params["pixel_per_mm"]:
+                        frames.append({"start": start_pos + offsetx, "end": idx - 1 + offsetx})
                 else:
                     start_pos = idx
                 fl = not fl
         if fl:
-            frames.append({"start": start_pos, "end": idx-1})
+            frames.append({"start": start_pos + offsetx, "end": idx - 1 + offsetx})
         if False:
-            print(f"Profile:{profile}, bridge:{params['film_base_intensity']}, thr:{thr}, mu:{mu}, binary:{binary}, frames:{frames}")
+            print(f"Profile:{profile}, sigma: {sigma}, bridge:{params['film_base_intensity']}, thr:{thr}, mu:{mu}, binary:{binary}, frames:{frames}")
             plt.plot(profile)
-            plt.plot(binary)
+            plt.plot(binary * 50)
+            plt.plot(sigma)
+
             plt.show()
         return {
             "frames": frames,
             "negative": negative,
+            "payload_focus_score": self._focus_score(payload),
         }
+
+    @log_duration
+    def _calculate_move(self, **params):
+        result = {}
+        move_by = 0
+        w = self._gray.shape[1]
+        start = start_gap = params["film_bounds"]["start"]
+        end = params["film_bounds"]["end"]
+        end_gap = max(w - 1 - params["film_bounds"]["end"], 0)
+        
+        frames = params.get("frames", [])
+        if frames:
+            optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
+            if len(frames) == 1:
+                fw = frames[0]["end"] - frames[0]["start"]
+                if (fw >= optimal_frame_width):
+                    # we have at least full picture so no action
+                    pass
+        else:
+            # no frame 
+            if end_gap:
+                # film strip continues so move by image width
+                move_by = w
+
+        result["move_by"] = move_by
+        return result
 
     @log_duration
     def analyze(self):
@@ -475,24 +500,31 @@ class ImageAnalysis:
         self._result |= {
             "width": self._image.shape[1],
             "height": self._image.shape[0],
-            #"focus": self._focus_score(self._gray),
         }
 
-        # get overall lightest intyensity
-        glob = self._check_result(self._analyze_global_values())
+        # preanalyze picture
+        glob = self._check_result(self._analyze_overview())
         if glob:
             self._result |= glob
+
+        fb = self._result["film_bounds"]
+        if fb["end"] - fb["start"] < self._horiz_mm_to_px(self._PERFORATION_HOLE_DISTANCE):
+            self._append_error(f"Film strip is not detected")
+            return
 
         # get top and buttom margin where we expect perforation, typical height should be around 27mm
         # holes crosses top/bottom edge of image as we want perforation in image as well
         margin1 = self._vert_mm_to_px(0.15)
         #dead = self._vert_mm_to_px(0.05)
         dead = 0
-        top_perf = self._check_result(self._detect_perforation_holes(self._gray[dead:margin1, :], "top", **self._result))
-        bottom_perf = self._check_result(self._detect_perforation_holes(self._gray[-margin1:-dead-1, :], "bottom", **self._result))
+        top_perf = self._check_result(self._detect_perforation_holes(self._gray[dead:margin1, fb["start"]:fb["end"]], fb["start"], "top", **self._result))
+        bottom_perf = self._check_result(self._detect_perforation_holes(self._gray[-margin1:-dead-1, fb["start"]:fb["end"]], fb["start"], "bottom", **self._result))
 
         if top_perf is None and bottom_perf is None:
             self._append_error(f"Cannot detect perforation")
+            # as fallback try calc blindly focus score
+            margin2 = self._vert_mm_to_px(3)
+            self._result["band_focus_score"] = (self._focus_score(self._gray[dead:margin2, fb["start"]:fb["end"]]) + self._focus_score(self._gray[-margin2:-dead-1, fb["start"]:fb["end"]])) / 2
             return
         elif top_perf is None:
             self._result |= {
@@ -532,30 +564,24 @@ class ImageAnalysis:
 
         margin2 = self._vert_mm_to_px(3, self._result["pixel_per_mm"])
         
-        top_margin = self._check_result(self._analyze_film_band(self._gray[dead:margin2, :], "Top", **self._result))
+        top_margin = self._check_result(self._analyze_film_band(self._gray[dead:margin2, fb["start"]:fb["end"]], fb["start"], "Top", **self._result))
         # flip vertically
-        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-dead-1:-margin2:-1, :], "Bottom", **self._result))
+        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-dead-1:-margin2:-1, :], fb["start"], "Bottom", **self._result))
         if top_margin is None and bottom_margin is None:
             pass
         elif top_margin is None:
             self._result |= {
-                "focus_score": bottom_margin["focus_score"],
+                "band_focus_score": bottom_margin["focus_score"],
                 "negative": bottom_margin["negative"],
-                "film_bounds": bottom_margin["film_bounds"],
             }
         elif bottom_margin is None:
             self._result |= {
-                "focus_score": top_margin["focus_score"],
+                "band_focus_score": top_margin["focus_score"],
                 "negative": top_margin["negative"],
-                "film_bounds": top_margin["film_bounds"],
             }
         else:
             self._result |= {
-                "focus_score": self._calc_weighted_mean(top_margin["focus_score"], 1, bottom_margin["focus_score"], 1),
-                "film_bounds": {
-                    "start": int(self._calc_weighted_mean(top_margin["film_bounds"]["start"], 1, bottom_margin["film_bounds"]["start"], 1)),
-                    "end": int(self._calc_weighted_mean(top_margin["film_bounds"]["end"], 1, bottom_margin["film_bounds"]["end"], 1)),
-                },
+                "band_focus_score": self._calc_weighted_mean(top_margin["focus_score"], 1, bottom_margin["focus_score"], 1),
             }
             if top_margin["negative"] == bottom_margin["negative"]:
                 self._result["negative"] = top_margin["negative"]
@@ -564,17 +590,16 @@ class ImageAnalysis:
             else:
                 self._result["negative"] = bottom_margin["negative"]
 
-        fb = self._result.get("film_bounds", {"start": 0, "end": self._gray.shape[1]})
         y1 = top_margin["band_width"] if top_margin else margin2
         y2 = bottom_margin["band_width"] if bottom_margin else margin2
-        #print(f"fb:{fb}, y1:{y1}, y2:{y2}")
-        frame = self._check_result(self._detect_frame(self._gray[y1:-y2, fb["start"]:fb["end"]], **self._result))
-        self._result |= frame
-        self._result["frames"] = []
         self._result["band_width"] = {"top": y1, "bottom": y2}
-        for fr in frame["frames"]:
-            self._result["frames"].append({"start": fr["start"]+fb["start"], "end": fr["end"]+fb["start"]})
-
+        #print(f"fb:{fb}, y1:{y1}, y2:{y2}")
+        frame = self._check_result(self._detect_frame(self._gray[y1:-y2, fb["start"]:fb["end"]], fb["start"], **self._result))
+        if frame:
+            self._result |= frame
+            move = self._check_result(self._calculate_move(**self._result))
+            if move:
+                self._result |= move
         # TODO: get RGB from holes and analyze. It might help to detect BW vs. Color when non white LED is used
 
     def get_result(self):
@@ -613,6 +638,15 @@ class ImageAnalysis:
             return self._output_image
         out_image = self._image.copy()
         h, w = out_image.shape[:2]
+
+        move_by = result.get("move_by", 0)
+        if move_by != 0:
+            if move_by > 0:
+                x = w - move_by
+            else:
+                x = 0
+            cv2.rectangle(out_image, (x, int(h/2)), (x+abs(move_by), int(h/2)+20), color=CYAN, thickness=-1)
+
         x = result.get("film_bounds", None)
         if x:
             cv2.line(out_image, (x["start"], 0), (x["start"], h), color=GREEN, thickness=2)
@@ -627,7 +661,7 @@ class ImageAnalysis:
 
         holes = result.get("holes", [])
         for hole in holes:
-            cv2.rectangle(out_image, (hole[0], hole[1]), (hole[2], hole[3]), color=MAGENTA, thickness=5)
+            cv2.rectangle(out_image, (hole[0], hole[1]), (hole[2], hole[3]), color=MAGENTA, thickness=-1)
 
         txt_y = band["top"] + 20 if band else 50
         txt_x = 30  
@@ -640,7 +674,7 @@ class ImageAnalysis:
         putText(f"Size: {result['width']}x{result['height']}, Pixel/mm: {result.get('pixel_per_mm', None)}")
         putText(f"Color mode: {result.get('colormode', None)} ({result.get('color_uniformity', None)}), Negative: {result.get('negative', None)}")
         putText(f"Film base: {result.get('film_base_intensity', None)}, Naked: {result.get('naked_intensity', None)}, Contrast: {result.get('contrast', None)}")
-        putText(f"Focus: {result.get('focus_score', None)}")
+        putText(f"Focus score: Band: {result.get('band_focus_score', None)}, Payload: {result.get('payload_focus_score', None)}")
 
         for err in result.get("errors", []):
             putText(err)
@@ -699,11 +733,11 @@ def main():
 
         analyzer.analyze()
 
-        if args.show_output_image:
-            show_image(analyzer.get_output_image(), "Output image")
-
         if not args.quiet:
             print(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=NumpyEncoder))
+
+        if args.show_output_image:
+            show_image(analyzer.get_output_image(), "Output image")
 
         if args.save_output_image:
             path = Path(args.filename)
