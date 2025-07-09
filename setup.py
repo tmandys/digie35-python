@@ -68,6 +68,9 @@ setup(
         "evdev",
         "lxml",
         "simpleeval",
+        "scipy",
+        "numpy",
+        #"opencv-pythom",
         #"configparser",
     ],
     scripts = [
