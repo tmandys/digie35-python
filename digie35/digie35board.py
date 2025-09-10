@@ -711,9 +711,9 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self.props.set("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
         self.props.set("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
 
-    def __del__(self):
+    def close(self):
         self._xboard._cancel_timer(self._FLATTENING_TIMER)
-        super().__del__()
+        super().close()
 
     def flatten_plane(self, enable):
         enable = int(enable) > 0

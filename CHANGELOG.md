@@ -13,11 +13,13 @@ Features
   - color-box to get RGB value
   - hot key to clear error
   - digie35_image_analyzer tool
+  - postponed backlight switch off after no film detected
 
 Fixes
 -----
   - cleanup on SIGTERM
   - RPI4 GPIO21 issue when INPUT
+  - motherboard, xboard, adapter object cleanup
 
 v0.8 (2025-04-24)
 =================

@@ -59,6 +59,7 @@ class Job(Thread):
     def pause(self):
         if self._state == 0:
             self._state = 1
+        self._stopped.set()
 
     def restart(self):
         if self._state == 1:
@@ -175,10 +176,21 @@ class ExtensionBoard:
         self._initialized = True
 
     def __del__(self):
+        if self._mainboard:
+            self._mainboard.assign_extension_board(None)
+        self._mainboard = None
+
+    def close(self):
+        # logging.getLogger().debug("%s" % __name__)
         for key in list(self._timers):
             self._cancel_timer(key)
         if self._backlight_job:
             self._backlight_job.stop()
+            self._backlight_job = None
+        for adapter_type in list(self._adapters):
+            self._adapters[adapter_type].close()
+            self._finalize_io_map(adapter_type)
+            del self._adapters[adapter_type]
 
     def get_adapter(self, name = AOT_NAME):
         if name in list(self._adapters):
@@ -193,6 +205,7 @@ class ExtensionBoard:
         for adapter_type in list(self._adapters):
             if not adapter_type in list(adapter_class) or adapter_class[adapter_type] != self.get_adapter(adapter_type).__class__:
                 logging.getLogger().debug("Destroing adapter: %s" % (self.get_adapter(adapter_type).__class__))
+                self._adapters[adapter_type].close()
                 self._finalize_io_map(adapter_type)
                 del self._adapters[adapter_type]
                 self._merge_io_configuration()
@@ -425,9 +438,9 @@ class ExtensionBoard:
         self._call_notify_callback(source)
 
     def _do_pending_notification(self, source, postpone_interval):
-        self._pending_notification.wait(timeout=postpone_interval)
-        # logging.getLogger().debug("Pending notification: %s" % (source))
-        self._notify_callback({"source": source} | self.get_state())
+        if self._pending_notification.wait(timeout=postpone_interval):
+            # logging.getLogger().debug("Pending notification: %s" % (source))
+            self._notify_callback({"source": source} | self.get_state())
 
     def _call_notify_callback(self, source, new_thread = False, postpone_interval = 0):
         if not self._initialized:
@@ -514,7 +527,7 @@ class ExtensionBoard:
         for key in list(self._timers):
             self._cancel_timer(key)
         self._get_xio(True)
-        if self._backlight_job != None:
+        if self._backlight_job:
             self._backlight_job.stop()
             self._backlight_job = None
         interval = self.props.get("BL_AUTO_OFF_INTERVAL")
@@ -878,6 +891,9 @@ class Adapter:
         self.props = Properties()
 
     def __del__(self):
+        self._xboard = None
+
+    def close(self):
         pass
 
     def get_state(self):
@@ -960,10 +976,15 @@ class StepperMotorAdapter(Adapter):
                 "pending": {},
             }
         self.props.set("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
+        self.props.set("BL_NO_FILM_OFF_DELAY", 4)   # after some timeout to avoid confusing sudden switch off 
+        self._no_film_job = None   # use job instead of timer to simplify implementation
 
-    def __del__(self):
+    def close(self):
         self.set_motor(0)
-        super().__del__()
+        if self._no_film_job:
+            self._no_film_job.stop()
+            self._no_film_job = None
+        super().close()
 
     def _initialize_io_map(self):
         super()._initialize_io_map()
@@ -1043,6 +1064,19 @@ class StepperMotorAdapter(Adapter):
     def reset(self):
         super().reset()
         self.set_motor(0)
+        if self._no_film_job:
+            self._no_film_job.stop()
+            self._no_film_job = None
+        delay = self.props.get("BL_NO_FILM_OFF_DELAY")
+        if delay > 0:
+            self._no_film_job = Job(interval=timedelta(seconds=delay), execute=self._backlight_no_film_off_handler)
+            self._no_film_job.pause()
+            self._no_film_job.start()
+
+    def _backlight_no_film_off_handler(self, *args, **kwargs):
+        # logging.getLogger().debug("Backlight no film off handler")
+        self._no_film_job.pause()
+        self._xboard.set_backlight()
 
     def set_motor(self, direction, action = None):
         """
@@ -1240,6 +1274,9 @@ class StepperMotorAdapter(Adapter):
                 self._film_sensing["state"]["controlled"] = True
             if not self._film_sensing["state"]["light_ready"] and self._film_sensing["state"]["controlled"] and self._film_sensing["state"]["window"]:
                 self._film_sensing["state"]["light_ready"] = True
+                if self._no_film_job:
+                    # cancel backlight switch off
+                    self._no_film_job.pause()
                 if self._save_backlight_color != None:
                     self._xboard.set_backlight(self._save_backlight_color, -1)
             if self._film_sensing["state"]["controlled"] and \
@@ -1251,7 +1288,11 @@ class StepperMotorAdapter(Adapter):
             if self._film_sensing["state"]["light_ready"] and not self._film_sensing["state"]["window"]:
                 self._film_sensing["state"]["light_ready"] = False
                 self._save_backlight_color = self._xboard.get_current_backlight_color()
-                self._xboard.set_backlight()
+                if self._no_film_job:
+                    # postpone backlight switch off
+                    self._no_film_job.restart()
+                else:
+                    self._xboard.set_backlight()
             # film is ready when whole film frame is raedy to shot, window sensor is mandatory but not sufficient
             if not self._film_sensing["state"]["shot_ready"] and self._film_sensing["state"]["controlled"] and self._film_sensing["state"]["window"]:
                 self._film_sensing["state"]["shot_ready"] = \

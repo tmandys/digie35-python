@@ -145,91 +145,94 @@ Examples or args:
     bus_id = 1
     mainboard = digie35rpi.RpiMainboard(True)
     xboard = digie35board.GulpExtensionBoard(mainboard, None)
-    if args.board[0] != "M":
-        if args.board[0] == "A":
-            eeprom = xboard._aot_memory
-        #elif args.board[0] == "L":
-        else:
-            eeprom = xboard._light_memory
-        if args.h_adapter_id == None:
-            id_ver = eeprom.get_id_version()
-        else:
-            id = args.h_adapter_id
-            if args.h_version == None:
-                ver = 0
+    try:
+        if args.board[0] != "M":
+            if args.board[0] == "A":
+                eeprom = xboard._aot_memory
+            #elif args.board[0] == "L":
             else:
-                ver = args.h_version
-            id_ver = (id, ver)
-        if id_ver == None:
-            print("Adapter not specified")
+                eeprom = xboard._light_memory
+            if args.h_adapter_id == None:
+                id_ver = eeprom.get_id_version()
+            else:
+                id = args.h_adapter_id
+                if args.h_version == None:
+                    ver = 0
+                else:
+                    ver = args.h_version
+                id_ver = (id, ver)
+            if id_ver == None:
+                print("Adapter not specified")
+                exit()
+            print("id: %s, ver: %s" % id_ver)
+            adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+            if adapter_class == None:
+                print("Cannot find adapter '%s'" % (id_ver, ))
+                exit()
+            eeprom = eeprom.create_adapter_memory(adapter_class)
+        else:
+            eeprom = xboard._xboard_memory
+        log.debug("Bus_id: %s, i2c_addr: 0x%x", bus_id, eeprom._i2c_addr)
+
+        old_header = eeprom.read_header()
+        old_custom = eeprom.read_custom()
+        if not args.write:
+            print(old_header)
+            print(old_custom)
             exit()
-        print("id: %s, ver: %s" % id_ver)
-        adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
-        if adapter_class == None:
-            print("Cannot find adapter '%s'" % (id_ver, ))
+
+        log.debug("Old header: %s", old_header)
+        log.debug("Old custom: %s", old_custom)
+
+        now = datetime.datetime.now()
+
+        new_header = process_map(args, maps[0][0], eeprom.HEADER_MAP, args.default, now)
+        # what prefix is related to current eeprom ?
+        new_custom = {}
+        unknown = []
+        for item in maps:
+            if isinstance(eeprom, item[1]):
+                new_custom = process_map(args, item[0], eeprom.CUSTOM_MAP, args.default, now)
+            else:
+                # test options related to board. Args parser knows all
+                h = process_map(args, item[0], item[1].CUSTOM_MAP, False, now)
+                if h != {}:
+                    for p in list(h):
+                        unknown.append(item[0]+p)
+
+        if unknown != []:
+            print("Params non related to current board %s" % (unknown) )
             exit()
-        eeprom = eeprom.create_adapter_memory(adapter_class)
-    else:
-        eeprom = xboard._xboard_memory
-    log.debug("Bus_id: %s, i2c_addr: 0x%x", bus_id, eeprom._i2c_addr)
 
-    old_header = eeprom.read_header()
-    old_custom = eeprom.read_custom()
-    if not args.write:
-        print(old_header)
-        print(old_custom)
-        exit()
+        if args.erase:
+            log.debug("Erasing memory")
+            if not args.dry_run:
+                eeprom.erase()
+            else:
+                print("DRY RUN: erase memory")
+        if new_header == {} and new_custom == {}:
+            log.debug("No data provided, skipping write")
+            exit()
 
-    log.debug("Old header: %s", old_header)
-    log.debug("Old custom: %s", old_custom)
+        if new_header != {}:
+            log.debug("Writing new header: %s", new_header)
+            if not args.dry_run:
+                eeprom.write_header(new_header)
+            else:
+                log.debug("Header to be written: %s", new_header)
+        if new_custom != {}:
+            log.debug("Writing new custom: %s", new_custom)
+            if not args.dry_run:
+                eeprom.write_custom(new_custom)
+            else:
+                log.debug("Custom to be written: %s", new_custom)
 
-    now = datetime.datetime.now()
-
-    new_header = process_map(args, maps[0][0], eeprom.HEADER_MAP, args.default, now)
-    # what prefix is related to current eeprom ?
-    new_custom = {}
-    unknown = []
-    for item in maps:
-        if isinstance(eeprom, item[1]):
-            new_custom = process_map(args, item[0], eeprom.CUSTOM_MAP, args.default, now)
-        else:
-            # test options related to board. Args parser knows all
-            h = process_map(args, item[0], item[1].CUSTOM_MAP, False, now)
-            if h != {}:
-                for p in list(h):
-                    unknown.append(item[0]+p)
-
-    if unknown != []:
-        print("Params non related to current board %s" % (unknown) )
-        exit()
-
-    if args.erase:
-        log.debug("Erasing memory")
-        if not args.dry_run:
-            eeprom.erase()
-        else:
-            print("DRY RUN: erase memory")
-    if new_header == {} and new_custom == {}:
-        log.debug("No data provided, skipping write")
-        exit()
-
-    if new_header != {}:
-        log.debug("Writing new header: %s", new_header)
-        if not args.dry_run:
-            eeprom.write_header(new_header)
-        else:
-            log.debug("Header to be written: %s", new_header)
-    if new_custom != {}:
-        log.debug("Writing new custom: %s", new_custom)
-        if not args.dry_run:
-            eeprom.write_custom(new_custom)
-        else:
-            log.debug("Custom to be written: %s", new_custom)
-
-    h = eeprom.read_header()
-    log.debug("Header: %s", h)
-    h = eeprom.read_custom()
-    log.debug("Custom: %s", h)
+        h = eeprom.read_header()
+        log.debug("Header: %s", h)
+        h = eeprom.read_custom()
+        log.debug("Custom: %s", h)
+    finally:
+        xboard.close()
 
 
 if __name__ == "__main__":

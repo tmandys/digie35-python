@@ -373,17 +373,22 @@ def main():
     global xboard
     xboard = film_xboard_class(mainboard, broadcast)
 
-    signal.signal(signal.SIGTERM, on_terminate)
-
-    async def ws_run():
-        async with websockets.serve(ws_handler, host=args.wsAddr, port=args.wsPort):
-            await asyncio.Future()  # run forever
-
     try:
-        asyncio.run(ws_run())
-    except KeyboardInterrupt:
-        xboard.reset()
-        pass
+        signal.signal(signal.SIGTERM, on_terminate)
+
+        async def ws_run():
+            async with websockets.serve(ws_handler, host=args.wsAddr, port=args.wsPort):
+                await asyncio.Future()  # run forever
+
+        try:
+            asyncio.run(ws_run())
+        except KeyboardInterrupt:
+            logging.getLogger().debug("Keyboard interrupt, shutdown")
+    finally:
+        xboard.reset()        
+        xboard.close()
+        del xboard
+        del mainboard
 
 
 if __name__ == "__main__":

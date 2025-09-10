@@ -41,6 +41,7 @@ import datetime
 import re
 import inspect
 import requests
+import gc
 
 import websockets.legacy
 import websockets.legacy.framing
@@ -1940,6 +1941,12 @@ class WebsocketLoggerHandler(logging.Handler):
                     except:
                         pass
 
+def print_object_references(name, obj):
+    print("refcount(%s, %s)" % (name, sys.getrefcount(obj)))
+    refs = gc.get_referrers(obj)
+    for r in refs:
+        print(type(r), repr(r)[:100])
+
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
     argParser = argparse.ArgumentParser(
@@ -2066,24 +2073,26 @@ def main():
     global digitizer_info
     logging.getLogger().debug("film_xboard_class: %s", film_xboard_class.__name__)
     digitizer = film_xboard_class(mainboard, broadcast)
-    if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
-        digitizer_info = digitizer._xboard_memory.read_header()
-        logging.getLogger().info(f"Device: %s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"]))
-    else:
-        digitizer_info = None
-
-    async def ws_run():
-        if args.wsLoggerPort > 0:
-            logging.getLogger().addHandler(WebsocketLoggerHandler(asyncio.get_running_loop()))
-        control_ws = await websockets.serve(ws_control_handler, args.wsAddr, args.wsControlPort, logger=NullLoggerAdapter(logging.getLogger("websockets.server")))
-        if args.wsLoggerPort > 0:
-            logger_ws = await websockets.serve(ws_logger_handler, args.wsAddr, args.wsLoggerPort, logger=WebsocketLoggerAdapter(logging.getLogger("websockets.server")))
-        await asyncio.Future()  # run forever
-
     try:
-        asyncio.run(ws_run())
-    except KeyboardInterrupt:
-        logging.getLogger().debug("Keyboard interrupt, shutdown")
+        if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
+            digitizer_info = digitizer._xboard_memory.read_header()
+            logging.getLogger().info(f"Device: %s v%s #%s" % (digitizer_info["human_name"], digitizer_info["version"], digitizer_info["serial_number"]))
+        else:
+            digitizer_info = None
+
+        async def ws_run():
+            if args.wsLoggerPort > 0:
+                logging.getLogger().addHandler(WebsocketLoggerHandler(asyncio.get_running_loop()))
+            control_ws = await websockets.serve(ws_control_handler, args.wsAddr, args.wsControlPort, logger=NullLoggerAdapter(logging.getLogger("websockets.server")))
+            if args.wsLoggerPort > 0:
+                logger_ws = await websockets.serve(ws_logger_handler, args.wsAddr, args.wsLoggerPort, logger=WebsocketLoggerAdapter(logging.getLogger("websockets.server")))
+            await asyncio.Future()  # run forever
+
+        try:
+            asyncio.run(ws_run())
+        except KeyboardInterrupt:
+            logging.getLogger().debug("Keyboard interrupt, shutdown")
+    finally:
         digitizer.reset()
         try:
             camera.stop_preview("dummy")
@@ -2096,8 +2105,12 @@ def main():
         if shutdown_helper_process != None:
             logging.getLogger().debug(f"Terminate shutdown helper, pid: %d" % (shutdown_helper_process.pid))
             shutdown_helper_process.terminate()
+        # print_object_references("camera", camera)
         del camera
+        digitizer.close()   # there are references so force destructor
+        # print_object_references("digitizer", digitizer)
         del digitizer
+        # print_object_references("mainboard", mainboard)
         del mainboard
 
 if __name__ == "__main__":
