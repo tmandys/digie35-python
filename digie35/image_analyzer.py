@@ -59,6 +59,7 @@ def main():
     argParser.add_argument("-i", "--show-input-image", dest="show_input_image", action="store_true", help="show original image to be analyzed")
     argParser.add_argument("-o", "--show-output-image", dest="show_output_image", action="store_true", help="show annotated image")
     argParser.add_argument("-s", "--save-output-image", dest="save_output_image", action="store_true", help="save annotated image to the same location as original image with '.output' suffix")
+    argParser.add_argument("-j", "--save-result", dest="save_result", action="store_true", help="save json result to the same location as original image with '.output.json' suffix")
     argParser.add_argument("-q", "--quiet", dest="quiet", action="store_true", help="do not print JSON annotations")
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="logging file, default: stderr")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
@@ -99,6 +100,13 @@ def main():
             out_path = str(path.with_name(path.stem + ".output" + path.suffix))
             logging.getLogger().info(f"Output image: {out_path}")
             cv2.imwrite(out_path, analyzer.get_output_image())
+
+        if args.save_result:
+            path = Path(args.filename)
+            out_path = str(path.with_name(path.stem + ".output.json"))
+            logging.getLogger().info(f"Output result: {out_path}")
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=NumpyEncoder))
 
     except KeyboardInterrupt:
         print("Keyboard interrupt, shutdown")
