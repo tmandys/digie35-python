@@ -1014,7 +1014,8 @@ class CameraWrapper:
     def create_project(self, project_id, project_descr):
         self._check_project_exists(project_id, True)
         path = self._get_path(project_id)
-        os.mkdir(path)
+        if not os.path.isdir(path):
+            os.mkdir(path)
         return self.update_project(project_id, project_descr)
 
     def get_project(self, project_id, film_id = None):
@@ -1076,7 +1077,8 @@ class CameraWrapper:
     def create_film(self, project_id, film_id, film_descr):
         self._check_film_exists(project_id, film_id, True)
         path = self._get_path(project_id, film_id)
-        os.mkdir(path)
+        if not os.path.isdir(path):
+            os.mkdir(path)
         return self.update_film(project_id, film_id, film_descr)
 
     def update_film(self, project_id, film_id, film_descr):
@@ -1432,9 +1434,11 @@ class CameraWrapper:
 
     def _check_project_exists(self, project_id, neg = False):
         self._check_id(project_id, "project_id")
-        if os.path.isdir(self._get_path(project_id)):
+        path = self._get_path(project_id)
+        if os.path.isdir(path):
             if neg:
-                raise CameraControlError(f"Project '%s' already exists" % project_id)
+                if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
+                    raise CameraControlError(f"Project '%s' already exists" % project_id)
         else:
             if not neg:
                 raise CameraControlError(f"Project '%s' does not exists" % project_id)
@@ -1442,9 +1446,11 @@ class CameraWrapper:
     def _check_film_exists(self, project_id, film_id, neg = False):
         self._check_project_exists(project_id)
         self._check_id(film_id, "film_id")
-        if os.path.isdir(self._get_path(project_id, film_id)):
+        path = self._get_path(project_id, film_id)
+        if os.path.isdir(path):
             if neg:
-                raise CameraControlError(f"Film '%s/%s' already exists" % (project_id, film_id))
+                if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
+                    raise CameraControlError(f"Film '%s/%s' already exists" % (project_id, film_id))
         else:
             if not neg:
                 raise CameraControlError(f"Film '%s/%s' does not exists" % (project_id, film_id))
