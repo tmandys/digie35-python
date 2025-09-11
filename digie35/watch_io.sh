@@ -4,6 +4,7 @@
 CMD=pinctrl
 
 watch -d -n 0.1 "\
+    echo -n 'LED: '; $CMD get 13;\
     echo -n 'PWM: '; $CMD get 12;\
     echo -n 'IO1: '; $CMD get 21;\
     echo -n 'IO2: '; $CMD get 20;\

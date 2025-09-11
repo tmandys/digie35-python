@@ -56,11 +56,11 @@ def main():
     args = argParser.parse_args()
     if args.install and args.uninstall:
         print("Options --install and --uninstall are mutually exclusive. Specify only one of them ")
-        exit(1)
+        sys.exit(1)
 
     if not args.install and not args.uninstall:
         print("Specify --install or --uninstall option")
-        exit(1)
+        sys.exit(1)
 
     def log(s):
         if args.verbose:

@@ -28,6 +28,7 @@ __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
 __version__ = "0.2"
 
+import sys
 import argparse
 import logging
 import locale
@@ -163,12 +164,12 @@ Examples or args:
                 id_ver = (id, ver)
             if id_ver == None:
                 print("Adapter not specified")
-                exit()
+                sys.exit()
             print("id: %s, ver: %s" % id_ver)
             adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
             if adapter_class == None:
                 print("Cannot find adapter '%s'" % (id_ver, ))
-                exit()
+                sys.exit()
             eeprom = eeprom.create_adapter_memory(adapter_class)
         else:
             eeprom = xboard._xboard_memory
@@ -179,7 +180,7 @@ Examples or args:
         if not args.write:
             print(old_header)
             print(old_custom)
-            exit()
+            sys.exit()
 
         log.debug("Old header: %s", old_header)
         log.debug("Old custom: %s", old_custom)
@@ -202,7 +203,7 @@ Examples or args:
 
         if unknown != []:
             print("Params non related to current board %s" % (unknown) )
-            exit()
+            sys.exit()
 
         if args.erase:
             log.debug("Erasing memory")
@@ -212,7 +213,7 @@ Examples or args:
                 print("DRY RUN: erase memory")
         if new_header == {} and new_custom == {}:
             log.debug("No data provided, skipping write")
-            exit()
+            sys.exit()
 
         if new_header != {}:
             log.debug("Writing new header: %s", new_header)

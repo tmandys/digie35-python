@@ -74,7 +74,7 @@ def main():
         if proc.returncode == 0 or proc.returncode in pass_returncode:
             return proc
         logging.getLogger().error("%s" % (proc.stderr))
-        exit(127)
+        sys.exit(127)
 
     def parse_version(s):
         arr = re.findall("([0.9]+)\.([0-9]+)", s)
@@ -123,19 +123,19 @@ def main():
 
     if install_file == None:
         logging.getLogger().error("Error: Cannot find package")
-        exit(2)
+        sys.exit(2)
 
     if args.check:
         if cmp_ver(install_version, installed_package_version) > 0:
             print("Found newer version: %s" % (install_file))
         else:
             print("No newer version was found")
-        exit(0)
+        sys.exit(0)
 
     if installed_package_version == install_version and not args.force:
         logging.getLogger().info("Package already installed: %s" % (install_file))
         print("Nothing to do, package is up to date")
-        exit(1)
+        sys.exit(1)
 
     params = ["pip", "install"]
 
