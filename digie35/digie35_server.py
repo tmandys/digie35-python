@@ -1028,8 +1028,7 @@ class CameraWrapper:
         if film_id != None:
             path = self._get_path(project_id, film_id)
             if os.path.isdir(path):
-                if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
-                    result["film"] = self.get_film(project_id, film_id)
+                result["film"] = self.get_film(project_id, film_id)
         else:
             filenames = os.listdir(self._get_path(project_id))
             filenames.sort()
@@ -1039,8 +1038,7 @@ class CameraWrapper:
                     continue
                 path = self._get_path(project_id, filename)
                 if os.path.isdir(path):
-                    if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
-                        films.append(self.get_film(project_id, filename))
+                    films.append(self.get_film(project_id, filename))
             result["film_list"] = films
         return result
 
@@ -1077,8 +1075,7 @@ class CameraWrapper:
     def create_film(self, project_id, film_id, film_descr):
         self._check_film_exists(project_id, film_id, True)
         path = self._get_path(project_id, film_id)
-        if not os.path.isdir(path):
-            os.mkdir(path)
+        os.mkdir(path)
         return self.update_film(project_id, film_id, film_descr)
 
     def update_film(self, project_id, film_id, film_descr):
@@ -1090,17 +1087,22 @@ class CameraWrapper:
     def delete_film(self, project_id, film_id):
         self._check_film_exists(project_id, film_id)
         path = self._get_path(project_id, film_id)
-        os.remove(self._get_descr(project_id, film_id))
+        descr_filepath = self._get_descr(project_id, film_id)
+        if os.path.isfile(descr_filepath):
+            os.remove(descr_filepath)
         os.rmdir(path)
         return {"status": "OK"}
 
     def get_film(self, project_id, film_id):
         self._check_film_exists(project_id, film_id)
-        with open(self._get_descr(project_id, film_id), "r") as f:
-            result = {
-                "id": film_id,
-                "descr": f.read()
-            }
+        result = {
+            "id": film_id,
+            "descr": "",
+        }
+        descr_filepath = self._get_descr(project_id, film_id)
+        if os.path.isfile(descr_filepath):
+            with open(descr_filepath, "r") as f:
+                result["descr"] = f.read()
         path = self._get_path(project_id, film_id)
         filenames = os.listdir(path)
         picture_files = {}
@@ -1449,8 +1451,7 @@ class CameraWrapper:
         path = self._get_path(project_id, film_id)
         if os.path.isdir(path):
             if neg:
-                if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
-                    raise CameraControlError(f"Film '%s/%s' already exists" % (project_id, film_id))
+                raise CameraControlError(f"Film '%s/%s' already exists" % (project_id, film_id))
         else:
             if not neg:
                 raise CameraControlError(f"Film '%s/%s' does not exists" % (project_id, film_id))

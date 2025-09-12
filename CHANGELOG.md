@@ -20,6 +20,7 @@ Fixes
   - cleanup on SIGTERM
   - RPI4 GPIO21 issue when INPUT
   - motherboard, xboard, adapter object cleanup
+  - .description.txt optional in film directory
 
 v0.8 (2025-04-24)
 =================
