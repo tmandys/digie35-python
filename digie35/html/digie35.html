@@ -1070,6 +1070,7 @@
                         </div>
                         <div id="snapshot-only-control" class="inline-block hidden">
                             <input type="checkbox" id="stream-crosshair-cb"/><label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle">Cross<u>h</u>air</label>
+                            <input type="checkbox" id="stream-vision-cb"/><label for="stream-vision-cb" accesskey="v" title="Analyze preview image via computer vision"><u>V</u>ision</label>
                             <div id="snapshot-color-box" class="color-box inline-block" title="Current color at cursor/marker position"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
                         </div>
                     </div>
@@ -2348,6 +2349,10 @@
                                 sendCommand("VALIDATE_TEMPLATE", ['project_id', 'film_id'], get_file_template_values());
                             } else if (data.cmd == "VALIDATE_TEMPLATE") {
                                 adjust_file_template(data.payload);
+                            } else if (data.cmd == "ANALYZE") {
+                                window.snapshot_analysis = data.payload;
+                                refresh_snapshot();
+                                // TODO: focus, movement, positive-negative
                             }
                             adjust();
                             if (data.cmd == "DOWNLOAD") {
@@ -2426,6 +2431,14 @@
             })
         }
         sendCommand2(cmd, obj);
+    }
+
+    function sendCommandAnalyze() {
+        var params = {}
+        if (!document.getElementById("usb-preview-cb").checked) {
+            params.snapshot_url = get_stream_url(false, "snapshot");
+        }
+        sendCommand2("ANALYZE", params);
     }
 
     function do_disconnect()  {
@@ -2763,14 +2776,127 @@
 
     }
 
+    function snapshot_draw_analysis(ctx, image) {
+
+        function get_x(x) {
+            return Number(ctx.canvas.width * x / image.width);
+        }
+        function get_y(y) {
+            return Number(ctx.canvas.height * y / image.height);
+        }
+        ctx.strokeStyle = "green";
+        ctx.lineWidth = 1;
+        let x = 0;
+        let y = 0;
+        // js optional chaining ?.
+
+        x = window.snapshot_analysis?.move_by ?? 0;
+        if (x != 0) {
+            ctx.fillStyle = "cyan";
+            let w = 10;
+            if (x > 0) {
+                ctx.fillRect(get_x(image.width-x), ctx.canvas.heigth / 2 - w,  ctx.canvas.width, ctx.canvas.height / 2 + w);
+            } else {
+                ctx.fillRect(0, ctx.canvas.heigth / 2 - w,  get_x(x), ctx.canvas.height / 2 + w);
+            }
+        }
+        x = get_x(window.snapshot_analysis?.film_bounds?.start ?? -1);
+        if (x >= 0) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, ctx.canvas.height);
+            ctx.stroke();
+        }
+        x = get_x(window.snapshot_analysis?.film_bounds?.end ?? -1);
+        if (x >= 0) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, ctx.canvas.height);
+            ctx.stroke();
+        }
+        y = get_y(window.snapshot_analysis?.band_width?.top ?? -1);
+        if (y >= 0) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(ctx.canvas.width, y);
+            ctx.stroke();
+        }
+        y = window.snapshot_analysis?.band_width?.bottom ?? -1;
+        if (y >= 0) {
+            y = get_y(image.height - y);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(ctx.canvas.width, y);
+            ctx.stroke();
+        }
+        for (const frame of window.snapshot_analysis?.frames ?? []) {
+            ctx.strokeStyle = "blue";
+            ctx.lineWidth = 2;
+            x = get_x(frame.start);
+            y = get_y(frame.top);
+            ctx.strokeRect(
+                get_x(frame.start)+ctx.lineWidth/2,
+                get_y(window.snapshot_analysis?.band_width?.top)+ctx.lineWidth/2,
+                get_x(frame.end-frame.start)-ctx.lineWidth,
+                get_y(image.height-window.snapshot_analysis?.band_width?.bottom)-ctx.lineWidth
+            );
+        }
+        for (const hole of window.snapshot_analysis?.holes ?? []) {
+            ctx.fillStyle = "magenta";
+            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
+        }
+        for (const hole of window.snapshot_analysis?.bridges ?? []) {
+            ctx.fillStyle = "yellow";
+            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
+        }
+
+        x = 20;
+        y = get_y(window.snapshot_analysis?.band_width?.bottom ?? -1);
+        if (y < 0) {
+            y = 50;
+        }
+
+        ctx.font = "20px Arial";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "black";
+        ctx.fillStyle = "white";
+        function write_line(txt) {
+            ctx.fillText(txt, x, y);
+            y += 22;
+        }
+        function NaN(fld) {
+            return fld in window.snapshot_analysis ? window.snapshot_analysis[fld]:"None";
+        }
+        write_line(`Size: ${image.width}x${image.height}, Pixel/mm: ${NaN('pixel_per_mm')}`);
+        write_line(`Color mode: ${NaN('colormode')} (${NaN('color_uniformity')}), Negative: ${NaN('negative')}`);
+        write_line(`Film base: ${NaN('film_base_intensity')}, Naked: ${NaN('naked_intensity')}, Contrast: ${NaN('contrast')}`);
+        write_line(`Focus score: Band: ${NaN('band_focus_score')}, Payload: ${NaN('payload_focus_score')}`);
+        if ("move_by" in window.snapshot_analysis) {
+            write_line(`Status: ${NaN('status')}, Move by: ${NaN('move_by')}`);
+        } else {
+            write_line(`Status: ${NaN('status')}`);
+        }
+        for (const err of window.snapshot_analysis?.errors ?? []) {
+            write_line(err);
+        }
+    }
+
     function refresh_snapshot() {
         const image = new Image();
         image.crossOrigin = "anonymous";
         image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
         image.onload = () => {
+            if (document.getElementById("stream-vision-cb").checked) {
+                sendCommandAnalyze();
+            } else {
+                window.snapshot_analysis = null;
+            }
             ctx = window.snapshot_canvas_ctx;
             if (ctx != null) {
                 ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
+                if (window.snapshot_analysis != null) {
+                    snapshot_draw_analysis(ctx, image);
+                }
                 if (window.snapshot_marker_position != null) {
                     update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
                     snapshot_draw_marker(ctx, window.snapshot_marker_position);
@@ -2779,7 +2905,6 @@
             image.onload = null;
             image.onerror = null;
             image.src = "";
-
         }
         image.onerror = () => {
             canvas_draw_empty(window.snapshot_canvas_ctx);
@@ -2983,6 +3108,7 @@
         const canvas = document.getElementById("snapshot");
         window.snapshot_canvas_ctx = null;
         window.snapshot_marker_position = null;
+        window.snapshot_analysis = null;
         const canvas_get_xy = function(canvas, e) {
             const client_rect = canvas.getBoundingClientRect();
             const x = Math.floor((e.clientX - client_rect.left) * (canvas.width / client_rect.width));
@@ -3044,6 +3170,7 @@
             "praview.background_color": "stream-background-rng",
             "preview.usb": "usb-preview-cb",
             "preview.crosshair": "stream-crosshair-cb",
+            "preview.vision": "stream-vision-cb",
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
             "control.autolead": "autolead-cb",

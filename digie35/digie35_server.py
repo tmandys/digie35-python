@@ -705,23 +705,7 @@ class CameraWrapper:
             self._broadcast_capture_status_from_event()
             try:
                 started_timestamp = datetime.datetime.now(datetime.timezone.utc)
-                logging.getLogger().debug("External snapshot: camera preview: %s, framebuffer: %s, url: %s" % (self._camera_preview, self._frame_buffer != None, kwargs.get("snapshot_url", False)))
-                if not self._camera_preview and self._frame_buffer != None:
-                    # take snapshot from external url, i.e. from USB stick video grabber
-                    url = kwargs.get("snapshot_url", False)
-                    if url:
-                        logging.getLogger().debug("Snapshot from: %s" % (url))
-                        try:
-                            response = requests.get(url, timeout=1.5)
-                            if response.status_code == 200:
-                                # logging.getLogger().debug("Write frame buffer: %s" % len(response.content))
-                                self._frame_buffer.write(memoryview(response.content))
-                            else:
-                                logging.getLogger().error(f"HTTP error: {response.status_code}")
-
-                        except Exception as e:
-                            logging.getLogger().error(e, exc_info=True)
-
+                self._get_snapshot(kwargs.get("snapshot_url", False))
 
                 logging.getLogger().debug(f"CameraId: {camera_id}, wire_trigger: {wire_trigger}")
                 if wire_trigger:
@@ -843,6 +827,24 @@ class CameraWrapper:
             "folder": camera_filepath.folder,
             "battery": self._camera_battery,
         }
+
+    def _get_snapshot(self, snapshot_url):
+        logging.getLogger().debug("External snapshot: camera preview: %s, framebuffer: %s, url: %s" % (self._camera_preview, self._frame_buffer != None, snapshot_url))
+        if not self._camera_preview and self._frame_buffer != None:
+            # take snapshot from external url, i.e. from USB stick video grabber
+            if snapshot_url:
+                logging.getLogger().debug("Snapshot from: %s" % (snapshot_url))
+                try:
+                    response = requests.get(snapshot_url, timeout=1.5)
+                    if response.status_code == 200:
+                        # logging.getLogger().debug("Write frame buffer: %s" % len(response.content))
+                        self._frame_buffer.write(memoryview(response.content))
+                    else:
+                        logging.getLogger().error(f"HTTP error: {response.status_code}")
+
+                except Exception as e:
+                    logging.getLogger().error(e, exc_info=True)
+
 
     def _broadcast_capture_status_from_event(self):
         send_thread = Thread(target=self._broadcast_camera_status, kwargs={
@@ -1474,6 +1476,21 @@ class CameraWrapper:
         logging.getLogger().debug(f"targetinfo: %s" % info)
         return info["filesystems"][0]
 
+    def analyze(self, **kwargs):
+        if not "digie35image" in globals():
+            raise CameraControlError(f"Image analyzer is disabled")
+        started_timestamp = datetime.datetime.now(datetime.timezone.utc)
+        self._get_snapshot(kwargs.get("snapshot_url", False))
+        frame = self._frame_buffer.get_latest_frame(started_timestamp - datetime.timedelta(seconds=2))
+        if not frame:
+            raise CameraControlError(f"No image to analyze")
+        analyzer = digie35image.ImageAnalysis(frame)
+        analyzer.analyze()
+        result = analyzer.get_result()
+
+        return result
+
+
 
 WS_PROTOCOL_VERSION = "0.2"
 
@@ -1628,6 +1645,8 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "VERBOSE":
                         logger_helper.setLevel(int(params["level"]))
                         reply = {"verbosity": logger_helper.getLevel()}
+                    elif cmd == "ANALYZE":
+                        reply = camera.analyze(**params)
                     elif cmd in ["HELLO", "HOTPLUG"]:
                         digitizer.check_connected_adapter()
                         reply = VERSION_INFO.copy()
@@ -1639,6 +1658,7 @@ async def ws_control_handler(websocket, path):
                         for name in list(digitizer._adapters):
                             reply["adapter_class"][name] = digitizer.get_adapter(name).__class__.__name__
                         reply["capabilities"] = digitizer.get_capabilities()
+                        reply["capabilities"]["vision"] = "digie35image" in globals();
                         if reply["capabilities"]["motorized"]:
                             reply["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()
                         reply |= camera.list_volumes()
@@ -1979,6 +1999,7 @@ def main():
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
     argParser.add_argument("--logger-port", dest="wsLoggerPort", metavar="PORT", type=int, default=8401, help=f"Websocket logger listener port, when 0 then disable logger, default: %(default)s")
     argParser.add_argument("-g", "--gphoto2-logging", dest="gp_log", action="store_true", help="gphoto2 library logging")
+    argParser.add_argument("-N", "--no-cv", dest="no_cv", action="store_true", help="Do not use opencv2 for image vision, i.e. start faster")
     argParser.add_argument("--version", action="version", version=f"%s" % VERSION_INFO)
 
     args = argParser.parse_args()
@@ -2044,6 +2065,12 @@ def main():
         film_xboard_class = module.NikiExtensionBoard
     else:   # GULP
         film_xboard_class = module.GulpExtensionBoard.get_xboard_class(mainboard)
+
+    if not args.no_cv:
+        logging.getLogger().debug("Importing image analyzer")
+        globals()["digie35image"] = importlib.import_module("digie35image")
+    else:
+        logging.getLogger().info("Image analyzer disabled")
 
     shutdown_helper_process = None
     if is_rpi5 and not args.system_power_button:
