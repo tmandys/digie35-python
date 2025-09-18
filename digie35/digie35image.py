@@ -126,7 +126,7 @@ class ImageAnalysis:
         #print(f"Closed: {closed}")
 
         # ziskat pozice der podle sirky (vyska bude urizla)
-        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)        
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         perforation = []
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
@@ -153,7 +153,7 @@ class ImageAnalysis:
     def _calc_region_stat2(self, profile, regions):
         region = []
         for x, w in regions:
-            region.extend(profile[x: x + w])            
+            region.extend(profile[x: x + w])
         if len(region) > 0:
             return (np.mean(region), np.std(region))
         else:
@@ -172,7 +172,7 @@ class ImageAnalysis:
             return sum / cnt
         else:
             return None
-        
+
     @log_duration
     # global max. intensity and colormode
     def _analyze_overview(self):
@@ -275,7 +275,7 @@ class ImageAnalysis:
                 # get bridges between neighbourgh holes
                 def is_hole_dist_in_tolerance(dist):
                     return dist > hole_dist * 2 / 3 and dist < hole_dist * 1.1
-                
+
                 if len(holes1) > 1:
                     hole_dist = self._horiz_mm_to_px(self._PERFORATION_HOLE_DISTANCE)
                     edge = int((hole_dist - hole_width)*0.1)  # avoid edge to get more realistic film band intensity, i.e. not to confuse intensity gradient
@@ -349,6 +349,17 @@ class ImageAnalysis:
             }
             return result
 
+    def _remove_spikes(self, arr):
+        # remove spikes  0 0 0 1 -1 0 0 1 -1 0 0
+        # print("_remove_spikes(%s)" % arr)
+        for i in range(1, len(arr)-1):
+            if arr[i-1] == 0 and arr[i] != 0 and arr[i] == -arr[i+1]:
+                arr[i] = 0
+                arr[i+1] = 0
+        # print("_remove_spikes: %s" % arr)
+        return arr
+
+
     @log_duration
     def _analyze_film_band(self, band, offsetx, name, **params):
         result = {}
@@ -368,25 +379,31 @@ class ImageAnalysis:
         if film_start >= film_end - 1:
             return ImageAnalysisError(f"{name} band is naked")
 
-        # cut off naked leader/trailer       
+        # cut off naked leader/trailer
         band = band[:, film_start:film_end]
-        
+
         #show_image(band)
 
         # cross profile
         profile = np.mean(band, axis = 1)
         #profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
         thr = params["film_base_intensity"]
-        thr_tol = max(thr * 0.02, 5)
+        thr_tol = max(thr * 0.02, 7)
         # signum 1 lighter, 0 band, -1 darker
         signum = np.zeros_like(profile, dtype=int)
         signum[profile > thr + thr_tol] = 1
         signum[profile < thr - thr_tol] = -1
         # find edges
-        edges = np.diff(signum.astype(np.int8))        
+        edges = np.diff(signum.astype(np.int8))
+        edges = self._remove_spikes(edges)
+        # remove spikes  0 0 0 1 -1 0 0 1 -1 0 0
+        for i in range(1, len(edges)-1):
+            if edges[i-1] == 0 and edges[i] != 0 and edges[i] == -edges[i+1]:
+                edges[i] = 0
+                edges[i+1] = 0
         changes = np.where(edges != 0)[0] + 1  # index to signum, edge is shifter by one
         if False:
-            print(f"profile: {profile}, std: {profile.std()}, signum: {signum}, edges: {edges}, changes{changes}") 
+            print(f"profile: {profile}, std: {profile.std()}, signum: {signum}, edges: {edges}, changes{changes}, [{thr-thr_tol}, {thr+thr_tol}]")
             plt.plot(signum)
             if changes.size:
                 plt.plot(changes, signum[changes], "rx")
@@ -409,17 +426,17 @@ class ImageAnalysis:
             result["holes"] = True
             if signum[changes[0]] < 0:
                 return ImageAnalysisError(f"{name} band is too dark")
-            # band 
+            # band
             result["payload"] = len(changes) > 1
             if len(changes) > 1:
                 result |= {
                     "negative": signum[changes[1]] < 0,
-                    "band_width": changes[1],                    
-                }                                    
+                    "band_width": changes[1],
+                }
             else:
                 result |= {
                     "negative": None,  # contrast ??
-                    "band_width": changes[0], 
+                    "band_width": changes[0],
                 }
         if result["payload"] or result["holes"]:
             result["focus_score"] = self._focus_score(band)
@@ -526,7 +543,7 @@ class ImageAnalysis:
         result = {}
         move_by = 0
         w = self._gray.shape[1]
-        
+
         optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
         optimal_margin = max(int((w - optimal_frame_width) / 2), 0)
         minimal_margin = int(optimal_margin / 4)
@@ -540,14 +557,14 @@ class ImageAnalysis:
                 print(f"center: {idx}, frame_width: {frame_width}, start:{frame_start_gap}, end:{frame_end_gap}, minimal: {minimal_margin}, optimal:{optimal_frame_width}")
                 if (frame_width >= optimal_frame_width or (frame_start_gap > 0 and frame_end_gap > 0)):
                     # we have at least full picture, slightly center to make some gap
-                    # should work also in case of panorama when called recursively                    
+                    # should work also in case of panorama when called recursively
                     if frame_end_gap < minimal_margin:
                         return -optimal_margin - frame_end_gap
                     elif frame_start_gap < minimal_margin:
                         return optimal_margin - frame_start_gap
                     else:
                         return 0
-                elif frame_start_gap <= 0:                    
+                elif frame_start_gap <= 0:
                     # there is partial picture we need make dicision how move
                     return max(frame_end_gap - optimal_margin, 0)
                 else:
@@ -557,7 +574,7 @@ class ImageAnalysis:
                 if frames[0]["start"] == 0 and frames[0]["end"] >= w - 1:
                     # we cannot move, frame is over whole picture
                     return ImageAnalysisError(f"No frame gap detected")
-                move_by = center_frame(0)            
+                move_by = center_frame(0)
             elif len(frames) == 2:
                 move_by = center_frame(1 if frames[-1]["start"] < w / 2 or w - frames[-1]["end"] - 1 > 0 else 0)
             else:
@@ -592,7 +609,7 @@ class ImageAnalysis:
         # holes crosses top/bottom edge of image as we want perforation in image as well
         margin1 = self._vert_mm_to_px(0.15)
         #dead = self._vert_mm_to_px(0.05)
-        dead = 0
+        dead = 2
         top_perf = self._check_result(self._detect_perforation_holes(self._gray[dead:margin1, fb["start"]:fb["end"]], fb["start"], "top", **self._result))
         bottom_perf = self._check_result(self._detect_perforation_holes(self._gray[-margin1:-dead-1, fb["start"]:fb["end"]], fb["start"], "bottom", **self._result))
 
@@ -644,10 +661,10 @@ class ImageAnalysis:
             return
 
         margin2 = self._vert_mm_to_px(3, self._result["pixel_per_mm"])
-        
+
         top_margin = self._check_result(self._analyze_film_band(self._gray[dead:margin2, fb["start"]:fb["end"]], fb["start"], "Top", **self._result))
         # flip vertically
-        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-dead-1:-margin2:-1, :], fb["start"], "Bottom", **self._result))
+        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-dead-1:-margin2:-1, fb["start"]:fb["end"]], fb["start"], "Bottom", **self._result))
         if top_margin is None and bottom_margin is None:
             pass
         elif top_margin is None:
@@ -671,8 +688,8 @@ class ImageAnalysis:
             else:
                 self._result["negative"] = bottom_margin["negative"]
 
-        y1 = top_margin["band_width"] if top_margin else margin2
-        y2 = bottom_margin["band_width"] if bottom_margin else margin2
+        y1 = top_margin["band_width"]+dead if top_margin else margin2
+        y2 = bottom_margin["band_width"]+dead if bottom_margin else margin2
         self._result["band_width"] = {"top": y1, "bottom": y2}
         #print(f"fb:{fb}, y1:{y1}, y2:{y2}")
         frame = self._check_result(self._detect_frame(self._gray[y1:-y2, fb["start"]:fb["end"]], fb["start"], **self._result))
@@ -726,14 +743,6 @@ class ImageAnalysis:
         out_image = self._image.copy()
         h, w = out_image.shape[:2]
 
-        move_by = result.get("move_by", 0)
-        if move_by != 0 and move_by is not None:
-            if move_by > 0:
-                x = w - move_by
-            else:
-                x = 0
-            cv2.rectangle(out_image, (x, int(h/2)), (x+abs(move_by), int(h/2)+20), color=CYAN, thickness=-1)
-
         x = result.get("film_bounds", None)
         if x:
             cv2.line(out_image, (x["start"], 0), (x["start"], h), color=GREEN, thickness=2)
@@ -754,8 +763,19 @@ class ImageAnalysis:
         for hole in holes:
             cv2.rectangle(out_image, (hole[0], hole[1]), (hole[2], hole[3]), color=YELLOW, thickness=-1)
 
+        move_by = result.get("move_by", 0)
+        if move_by != 0 and move_by is not None:
+            x1 = (w-move_by) if move_by > 0 else -move_by
+            x2 = w if move_by > 0 else 0
+            y = int(h/2)
+            dy = 30
+            pts = np.array([[x1, y-dy], [x1, y+dy], [x2, y]], np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.polylines(out_image, [pts], isClosed=True, color=BLACK, thickness=2)
+            cv2.fillPoly(out_image, [pts], color=CYAN)
+
         txt_y = band["top"] + 20 if band else 50
-        txt_x = 30  
+        txt_x = 30
 
         def putText(s):
             nonlocal txt_y
