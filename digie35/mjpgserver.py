@@ -95,6 +95,25 @@ class RingBuffer(object):
                     idx += 1
             return None
 
+    def update(self, id, val):
+        # logging.getLogger().debug("RingBuffer.update(%s, %s)" % (id, val))
+        with self.condition:
+            if isinstance(id, int):
+                idx = id
+                if idx >= 0 and idx < len(self._data):
+                    item = self._data[(self._index - idx - 1) % len(self._data)]
+                    if item:
+                        self._data[(self._index - idx - 1) % len(self._data)] = (item[0], val)
+            else:
+                cnt = len(self._data) if self._full else self._index
+                idx = 0
+                while idx < cnt:
+                    item = self._data[(self._index - idx - 1) % len(self._data)]
+                    if item[0] == id:
+                        self._data[(self._index - idx - 1) % len(self._data)] = (id, val)
+                        break
+                    idx += 1
+
     def foreach(self, callback):
         with self.condition:
             cnt = len(self._data) if self._full else self._index
