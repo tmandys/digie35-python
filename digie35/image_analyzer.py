@@ -60,6 +60,7 @@ def main():
     argParser.add_argument("-o", "--show-output-image", dest="show_output_image", action="store_true", help="show annotated image")
     argParser.add_argument("-s", "--save-output-image", dest="save_output_image", action="store_true", help="save annotated image to the same location as original image with '.output' suffix")
     argParser.add_argument("-j", "--save-result", dest="save_result", action="store_true", help="save json result to the same location as original image with '.output.json' suffix")
+    argParser.add_argument("-a", "--append-result", dest="append_result", action="store_true", help="append json result to the same location as original image into .json file")
     argParser.add_argument("-q", "--quiet", dest="quiet", action="store_true", help="do not print JSON annotations")
     argParser.add_argument("-l", "--logfile", dest="logFile", metavar="FILEPATH", help="logging file, default: stderr")
     argParser.add_argument("-v", "--verbose", action="count", default=0, help="verbose output")
@@ -107,6 +108,19 @@ def main():
             logging.getLogger().info(f"Output result: {out_path}")
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=NumpyEncoder))
+
+        if args.append_result:
+            path = Path(args.filename)
+            out_path = str(path.with_name(path.stem + ".json"))
+            if path.exists():
+                logging.getLogger().info(f"Append result to to json: {out_path}")
+                with open(out_path, "r", encoding="utf-8") as f:
+                    data = json.load(f);
+                data["vision"] = analyzer.get_result()
+                with open(out_path, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(data, indent=2, ensure_ascii=False, cls=NumpyEncoder))
+            else:
+                logging.getLogger().info(f"Json file does not exists: {out_path}")
 
     except KeyboardInterrupt:
         print("Keyboard interrupt, shutdown")
