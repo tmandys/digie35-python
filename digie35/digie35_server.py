@@ -1128,10 +1128,10 @@ class CameraWrapper:
                     picture_files[fname] = {"name": fname}
                     if not is_link:
                         picture_files[fname] |= {"size": os.path.getsize(filepath)}
-                preview_filepath = os.path.join(self._get_path(project_id, film_id, True), fname + self._PREVIEW_SUFFIX)
-                # logging.getLogger().debug("Preview filepath: %s" % (preview_filepath))
-                if os.path.isfile(preview_filepath):
-                    picture_files[fname] |= {"preview": True}
+                    preview_filepath = os.path.join(self._get_path(project_id, film_id, True), fname + self._PREVIEW_SUFFIX)
+                    # logging.getLogger().debug("Preview filepath: %s" % (preview_filepath))
+                    if os.path.isfile(preview_filepath):
+                        picture_files[fname] |= {"preview": True}
         pictures = []
         for key in list(picture_files):
             pictures.append(picture_files[key])
@@ -1487,7 +1487,7 @@ class CameraWrapper:
         analyzer = digie35image.ImageAnalysis(frame)
         analyzer.analyze()
         result = analyzer.get_result()
-
+        logging.getLogger().debug(f"Analyze result: %s" % result)
         return result
 
 

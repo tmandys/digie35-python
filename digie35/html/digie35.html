@@ -182,6 +182,7 @@
         .lightbox .media-container {
             width: fit-content;
             height: fit-content;
+            position: relative;
         }
 
         .form-group {
@@ -472,6 +473,9 @@
             left: 0;
             width: 100%;
             height: 100%;
+        }
+
+        #stream-container canvas {
             cursor: crosshair;
         }
 
@@ -530,7 +534,7 @@
             transform-origin: left top;
             display: flex;
             height: 100vh;
-		}
+        }
 
         .wrapper:after {
             height: 100%;
@@ -1076,7 +1080,7 @@
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
-                        <canvas id="snapshot" class="hidden"></canvas>
+                        <canvas id="snapshot" class="hidden" data-draw_image="1"></canvas>
                     </div>
                     <div id="stream-strip-container" class="filmstrip collapsed">
                         <div class="frame"><a href="#" data-image-name="" onclick="show_lightbox(this.getAttribute('data-image-name'))"><img id="filmstrip-frame-0" src="" /></a></div>
@@ -1514,15 +1518,19 @@
                     <div id="archived-image-error" class="error-message"><span class="icon">&#x26a0;</span>Image is not available</div>
                     <div class="inline-container">
                         <div id="archived-image-control" class="control">
+                            <input type="checkbox" id="archived-image-analyze-cb" onchange="adjust_archived_image_mode()" /><label for="archived-image-analyze-cb" accesskey="l" title="Show image analyze">Ana<u>l</u>yze</label>
                             <input type="checkbox" id="archived-image-invert-cb" value="invert" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-invert-cb" accesskey="i" title="Invert preview"><u>I</u>nvert</label>
-                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate0-rb" value="rotate0" onchange="adjust_media_viewer('archived-image')" checked /><label for="archived-image-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
-                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate270-rb" value="rotate270" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
-                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate180-rb" value="rotate180" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
-                            <input type="radio" name="archived-image-rotate" id="archived-image-rotate90-rb" value="rotate90" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
-                            <input type="checkbox" id="archived-image-flip-cb" value="flip" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
+                            <div id="archived-image-no-analyze-control" class="inline-block">
+                                <input type="radio" name="archived-image-rotate" id="archived-image-rotate0-rb" value="rotate0" onchange="adjust_media_viewer('archived-image')" checked /><label for="archived-image-rotate0-rb" accesskey="t" title="Rotate 0&deg;">Ro<u>t</u>ate 0&deg;</label>
+                                <input type="radio" name="archived-image-rotate" id="archived-image-rotate270-rb" value="rotate270" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate270-rb" accesskey="a" title="Rotate -90&deg;">Rot<u>a</u>te -90&deg;</label>
+                                <input type="radio" name="archived-image-rotate" id="archived-image-rotate180-rb" value="rotate180" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate180-rb" accesskey="o" title="Rotate 180&deg;">R<u>o</u>tate 180&deg;</label>
+                                <input type="radio" name="archived-image-rotate" id="archived-image-rotate90-rb" value="rotate90" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-rotate90-rb" accesskey="e" title="Rotate 90&deg;">Rotat<u>e</u> 90&deg;</label>
+                                <input type="checkbox" id="archived-image-flip-cb" value="flip" onchange="adjust_media_viewer('archived-image')" /><label for="archived-image-flip-cb" accesskey="f" title="Flip preview"><u>F</u>lip</label>
+                            </div>
                         </div>
                         <div id="archived-image-container" class="media-container grey-border">
                             <img id="archived-image" onload="do_imgok('archived-image');" onerror="do_imgerror('archived-image');" />
+                            <canvas id="archived-image-analyze" class="hidden"></canvas>
                         </div>
                         <div class="inline-buttons top-right-toggle">
                             <div class="inline-button close" title="Click to close viewer">
@@ -1687,6 +1695,11 @@
         elem = document.getElementById("shoot-mode-list");
         document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
             elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
+        elem = document.getElementById("stream-vision-cb");
+        elem.disabled = !connected || typeof window.capabilities == "undefined" || !window.capabilities.vision;
+        if (elem.disabled) {
+            elem.checked = false;
+        }
     }
 
     function adjust_adapter(data) {
@@ -1944,7 +1957,7 @@
         } else {
             elem.classList.remove("hidden");
         }
-	}
+    }
 
     function parse_id_as_int(val) {
         var idx = val.search(new RegExp(/[0-9]+/));
@@ -1955,7 +1968,7 @@
             idx = val.search(new RegExp(/[^0-9]/));
             if (idx >= 0) {
                 res.suffix = val.slice(idx);
-				val = val.slice(0, idx);
+                val = val.slice(0, idx);
             } else {
                 res.suffix = "";
             }
@@ -1964,7 +1977,7 @@
         } else {
             res = {"prefix": val, "len": 0, "suffix": ""};
         }
-		return res;
+        return res;
     }
 
     function notify_update(elem) {
@@ -1998,7 +2011,7 @@
             var it = parse_id_as_int("0");
         }
         it.num++;
-		let items = [];
+        let items = [];
         for (let i = 1; i < list.options.length; i++) {
             const x = parse_id_as_int(list.options[i].text);
             if (x.len > 0 && x.num >= it.num) {
@@ -2008,7 +2021,7 @@
         }
         items.sort((a, b) => a.num - b.num);  // sort by num ascending
         for (let i = 0; i < items.length; i++) {
-		    if (items[i].num > it.num) {
+            if (items[i].num > it.num) {
                 // free slot found
                 break;
             } else if (items[i].num == it.num) {
@@ -2517,18 +2530,18 @@
         }
     }
 
-	function do_onresize(event) {
-		// adjust zoom to avoid scrollbars in preview area
-		const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
-		//var height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+    function do_onresize(event) {
+        // adjust zoom to avoid scrollbars in preview area
+        const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+        //var height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
         const preview = document.getElementById("preview");
-		const stream_container = document.getElementById("stream-container");
-		const req_width = stream_container.offsetLeft + preview.scrollWidth;
-		const scale = Math.max(Math.min(width / req_width, 1), 0.5);
-		const cls = document.getElementsByClassName('wrapper')[0];
-		cls.style["transform"] = "scale("+scale+")";
+        const stream_container = document.getElementById("stream-container");
+        const req_width = stream_container.offsetLeft + preview.scrollWidth;
+        const scale = Math.max(Math.min(width / req_width, 1), 0.5);
+        const cls = document.getElementsByClassName('wrapper')[0];
+        cls.style["transform"] = "scale("+scale+")";
         console.debug(`[onresize]: scale: ${scale}`);
-	}
+    }
 
     function adjust_adapter_button_style(hotkeys) {
         function adj_button(btn) {
@@ -2643,6 +2656,37 @@
         elem.addEventListener('keydown', _listener_input_keydown);
     }
 
+    function adjust_archived_image_mode() {
+        const analyze_mode = document.getElementById("archived-image-analyze-cb");
+        analyze_mode.disabled = !window.archived_image_analysis;
+        if (analyze_mode.disabled) {
+            analyze_mode.checked = false;
+        }
+        adjust_media_viewer("archived-image", "", true);
+        const img = document.getElementById("archived-image");
+        const canvas = document.getElementById("archived-image-analyze");
+        if (analyze_mode.checked) {
+            canvas.classList.remove("hidden");
+            document.getElementById("archived-image-no-analyze-control").classList.add("hidden");
+            const scale = Math.min(img.clientWidth / img.naturalWidth, img.clientHeight / img.naturalHeight);
+            const offsetX = (img.clientWidth - img.naturalWidth * scale)/2;
+            const offsetY = (img.clientHeight - img.naturalHeight * scale)/2;
+            const style = getComputedStyle(canvas.parentNode);
+            // canvas does not consider parent padding
+            canvas.style.left = parseFloat(style.paddingLeft)+offsetX + "px";
+            canvas.style.top = parseFloat(style.paddingTop)+offsetY + "px";
+            canvas.width = parseFloat(style.width)-2*offsetX;  // size of buffer
+            canvas.style.width = canvas.width + "px";    // visual size
+            canvas.height = parseFloat(style.height)-2*offsetY;
+            canvas.style.height = canvas.height + "px";
+            const ctx = canvas.getContext("2d");
+            snapshot_draw_analysis(ctx, window.archived_image_analysis);
+        } else {
+            canvas.classList.add("hidden");
+            document.getElementById("archived-image-no-analyze-control").classList.remove("hidden");
+        }
+        return analyze_mode.checked;
+    }
     function show_lightbox(image_name) {
         if (!image_name) {
             return;
@@ -2660,6 +2704,9 @@
             elem.checked = cb_names[key][2];
         };
         document.getElementById("archived-image-rotate0-rb").checked = true;
+        document.getElementById("archived-image-analyze-cb").checked = false;
+        window.archived_image_analysis = null;
+        adjust_archived_image_mode();
         adjust_media_viewer("archived-image");
 
         fetch(img.src+"?info=1")
@@ -2679,7 +2726,10 @@
                     }
                 }
                 console.debug(data);
-                adjust_media_viewer("archived-image");
+                if (typeof data.vision != "undefined") {
+                    window.archived_image_analysis = data.vision;
+                }
+                adjust_archived_image_mode();
             })
             .catch(error=>console.error(`Fetch (${img.src}) error: ${error}`));
         show_modal("lightbox-modal");
@@ -2776,13 +2826,13 @@
 
     }
 
-    function snapshot_draw_analysis(ctx, image) {
+    function snapshot_draw_analysis(ctx, analysis) {
 
         function get_x(x) {
-            return Number(ctx.canvas.width * x / image.width);
+            return Number(ctx.canvas.width * x / analysis.width);
         }
         function get_y(y) {
-            return Number(ctx.canvas.height * y / image.height);
+            return Number(ctx.canvas.height * y / analysis.height);
         }
         ctx.strokeStyle = "green";
         ctx.lineWidth = 1;
@@ -2790,71 +2840,77 @@
         let y = 0;
         // js optional chaining ?.
 
-        x = window.snapshot_analysis?.move_by ?? 0;
-        if (x != 0) {
-            ctx.fillStyle = "cyan";
-            let w = 10;
-            if (x > 0) {
-                ctx.fillRect(get_x(image.width-x), ctx.canvas.heigth / 2 - w,  ctx.canvas.width, ctx.canvas.height / 2 + w);
-            } else {
-                ctx.fillRect(0, ctx.canvas.heigth / 2 - w,  get_x(x), ctx.canvas.height / 2 + w);
-            }
-        }
-        x = get_x(window.snapshot_analysis?.film_bounds?.start ?? -1);
+        x = get_x(analysis?.film_bounds?.start ?? -1);
         if (x >= 0) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, ctx.canvas.height);
             ctx.stroke();
         }
-        x = get_x(window.snapshot_analysis?.film_bounds?.end ?? -1);
+        x = get_x(analysis?.film_bounds?.end ?? -1);
         if (x >= 0) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, ctx.canvas.height);
             ctx.stroke();
         }
-        y = get_y(window.snapshot_analysis?.band_width?.top ?? -1);
+        y = get_y(analysis?.band_width?.top ?? -1);
         if (y >= 0) {
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(ctx.canvas.width, y);
             ctx.stroke();
         }
-        y = window.snapshot_analysis?.band_width?.bottom ?? -1;
+        y = analysis?.band_width?.bottom ?? -1;
         if (y >= 0) {
-            y = get_y(image.height - y);
+            y = get_y(analysis.height - y);
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(ctx.canvas.width, y);
             ctx.stroke();
         }
-        for (const frame of window.snapshot_analysis?.frames ?? []) {
+        for (const frame of analysis?.frames ?? []) {
             ctx.strokeStyle = "blue";
             ctx.lineWidth = 2;
-            x = get_x(frame.start);
-            y = get_y(frame.top);
             ctx.strokeRect(
                 get_x(frame.start)+ctx.lineWidth/2,
-                get_y(window.snapshot_analysis?.band_width?.top)+ctx.lineWidth/2,
+                get_y(analysis?.band_width?.top ?? 0)+ctx.lineWidth/2,
                 get_x(frame.end-frame.start)-ctx.lineWidth,
-                get_y(image.height-window.snapshot_analysis?.band_width?.bottom)-ctx.lineWidth
+                get_y(analysis.height-(analysis?.band_width?.top ?? 0)-(analysis?.band_width?.bottom ?? 0))-ctx.lineWidth
             );
         }
-        for (const hole of window.snapshot_analysis?.holes ?? []) {
+        for (const hole of analysis?.holes ?? []) {
             ctx.fillStyle = "magenta";
             ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
         }
-        for (const hole of window.snapshot_analysis?.bridges ?? []) {
+        for (const hole of analysis?.bridges ?? []) {
             ctx.fillStyle = "yellow";
             ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
         }
+        x = analysis?.move_by ?? 0;
+        if (x != 0) {
+            ctx.fillStyle = "cyan";
+            ctx.beginPath();
+            let w = 25;
+            const x1 = get_x((x > 0) ?analysis.width-x:-x);
+            const x2 = x > 0 ? ctx.canvas.width-1 : 0;
+            y = ctx.canvas.height / 2;
+            ctx.moveTo(x1, y - w);
+            ctx.lineTo(x1, y + w);
+            ctx.lineTo(x2, y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
         x = 20;
-        y = get_y(window.snapshot_analysis?.band_width?.bottom ?? -1);
+        y = get_y(analysis?.band_width?.top ?? -1);
         if (y < 0) {
             y = 50;
         }
+        y += 20;
 
         ctx.font = "20px Arial";
         ctx.lineWidth = 4;
@@ -2865,18 +2921,18 @@
             y += 22;
         }
         function NaN(fld) {
-            return fld in window.snapshot_analysis ? window.snapshot_analysis[fld]:"None";
+            return fld in analysis ? analysis[fld]:"None";
         }
-        write_line(`Size: ${image.width}x${image.height}, Pixel/mm: ${NaN('pixel_per_mm')}`);
+        write_line(`Size: ${analysis.width}x${analysis.height}, Pixel/mm: ${NaN('pixel_per_mm')}`);
         write_line(`Color mode: ${NaN('colormode')} (${NaN('color_uniformity')}), Negative: ${NaN('negative')}`);
         write_line(`Film base: ${NaN('film_base_intensity')}, Naked: ${NaN('naked_intensity')}, Contrast: ${NaN('contrast')}`);
         write_line(`Focus score: Band: ${NaN('band_focus_score')}, Payload: ${NaN('payload_focus_score')}`);
-        if ("move_by" in window.snapshot_analysis) {
+        if ("move_by" in analysis) {
             write_line(`Status: ${NaN('status')}, Move by: ${NaN('move_by')}`);
         } else {
             write_line(`Status: ${NaN('status')}`);
         }
-        for (const err of window.snapshot_analysis?.errors ?? []) {
+        for (const err of analysis?.errors ?? []) {
             write_line(err);
         }
     }
@@ -2886,7 +2942,7 @@
         image.crossOrigin = "anonymous";
         image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
         image.onload = () => {
-            if (document.getElementById("stream-vision-cb").checked) {
+            if (document.getElementById("stream-analyze-cb").checked && document.getElementById("stream-vision-cb").checked) {
                 sendCommandAnalyze();
             } else {
                 window.snapshot_analysis = null;
@@ -2895,7 +2951,7 @@
             if (ctx != null) {
                 ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
                 if (window.snapshot_analysis != null) {
-                    snapshot_draw_analysis(ctx, image);
+                    snapshot_draw_analysis(ctx, window.snapshot_analysis);
                 }
                 if (window.snapshot_marker_position != null) {
                     update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
@@ -2949,7 +3005,7 @@
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
         //window.current_usbpreview = false;
-		window.onresize = do_onresize;
+        window.onresize = do_onresize;
         window.onclick = function(event) {
             if (event.target.classList.contains("modal-active")) {
                 close_modal();
@@ -2989,8 +3045,8 @@
             }
         }
 
-		do_onresize(undefined);
-        
+        do_onresize(undefined);
+
         const _listener_collapse_toggle = function() {
             const elem = document.getElementById(this.getAttribute("data-container_id"));
             elem.classList.toggle("collapsed");
@@ -2999,7 +3055,7 @@
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", _listener_collapse_toggle)
         });
-        
+
         const _listener_modal_open = function(event) {
             show_modal(this.getAttribute("data-modal_id"));
             consume_event_propagation(event);
@@ -3007,14 +3063,14 @@
         document.querySelectorAll(".modal-open").forEach(element=> {
             element.addEventListener("click", _listener_modal_open)
         });
-        
+
         const _listener_accordion_header_click = function() {
             this.parentNode.classList.toggle("closed");
         };
         document.querySelectorAll(".accordion .header").forEach(element=> {
             element.addEventListener("click", _listener_accordion_header_click)
         });
-        
+
         const _listener_detail_toggle = function() {
             if (this.disabled || this.parentNode.disabled || this.parentNode.parentNode.disabled || this.parentNode.parentNode.parentNode.disabled) {
                 return;
@@ -3733,6 +3789,8 @@
         if (control_name == "") {
             control_name = viewer_name;
         }
+		const elem = document.getElementById(control_name+"-analyze-cb");
+		const analyze_mode = elem && elem.checked;
         const viewer = document.getElementById(viewer_name);
         const viewer_control = document.getElementById(control_name+"-control");
         const elems = viewer_control.getElementsByTagName("input");
@@ -3742,10 +3800,14 @@
             if (elem.type == "radio") {
                 if (elem.value != "") {
                     const flip_class = "flip-" + elem.value;
-                    if (!elem.checked) {
+					let chk = elem.checked;
+					if (analyze_mode) {
+						chk = elem.value == "rotate0";
+					}
+                    if (!chk)  {
                         viewer.classList.remove(elem.value, flip_class);
                     } else {
-                        if (flip) {
+                        if (flip && !analyze_mode) {
                             viewer.classList.add(flip_class);
                             viewer.classList.remove(elem.value);
                         } else {
@@ -3755,20 +3817,28 @@
                     }
                 }
             } else if (elem.type == "checkbox") {
-                if (elem.checked != viewer.classList.contains(elem.value)) {
+				let chk = elem.checked;
+				if (analyze_mode) {
+					if (elem.value != "invert") {
+						chk = false;
+					}
+				}
+                if (chk != viewer.classList.contains(elem.value)) {
                     viewer.classList.toggle(elem.value);
                 }
             }
         }
         const canvas = viewer.parentNode.querySelector("canvas");
-        if (canvas) {
-            const copy_style = ["invert"];
-            copy_style.forEach((val)=>{
-                if (canvas.classList.contains(val) != viewer.classList.contains(val)) {
-                    canvas.classList.toggle(val);
-                }
-            });
-        }
+		if (canvas.getAttribute("data-draw_image")) {
+			if (canvas) {
+				const copy_style = ["invert"];
+				copy_style.forEach((val)=>{
+					if (canvas.classList.contains(val) != viewer.classList.contains(val)) {
+						canvas.classList.toggle(val);
+					}
+				});
+			}
+		}
         if (skip_crop) {
             return;
         }
