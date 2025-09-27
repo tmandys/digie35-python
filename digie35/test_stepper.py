@@ -6,7 +6,7 @@
 from gpiozero.output_devices import *
 
 import time
-VERSION=103
+VERSION=105
 
 DRV_ALLEGRO=1
 DRV_TMC=2
