@@ -297,6 +297,7 @@ class ExtensionBoard:
             if item["_adapter_scope"]:
                 item = item | {"unused": False} | merged_adapter_io_map[name]
                 if "name" in list(item):
+                    item["overrides"] = name
                     name = item["name"]   # rename io to adapter name
                     del item["name"]
             if item["unused"]:
