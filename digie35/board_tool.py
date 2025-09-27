@@ -97,9 +97,9 @@ EEPROM I2C addresses: xboard: 0x54, AOT adapter: 0x55, light adapter: 0x56
 
 Examples or args:
   main board init
-    -b MAIN -w --default --h_version 103 --h_serial_number 123456789
+    -b MAIN -w --default --h_version 104 --h_serial_number 123456789
   Stepper adapter init
-    -b AOT -w --default --h_adapter_id STEPPER --h_version 103 --h_serial_number 123456789
+    -b AOT -w --default --h_adapter_id STEPPER --h_version 105 --h_serial_number 123456789
   Nikon adapter init
     -b AOT -w --default --h_adapter_id NIKON --h_version 103 --h_serial_number 123456789
   Manual adapter init
