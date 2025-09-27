@@ -268,6 +268,36 @@ async def ws_handler(websocket, path):
                                 "common": eeprom.read_header(),
                                 "board": eeprom.read_custom(),
                             }
+                        elif cmd == "GET_IO":
+                            state = xboard.get_state(True)
+                            reply = {}
+                            if params and params.get("definition", False):
+                                io_map = xboard._io_map
+                                defs = {
+                                    "XBOARD": {}
+                                }
+                                for name in xboard._io_map:
+                                    if not xboard._io_map[name].get("_adapter_scope", False):
+                                        defs["XBOARD"][name] = xboard._io_map[name].copy()
+                                        del defs["XBOARD"][name]["_adapter_scope"]
+
+                                for adapter_type in list(xboard._adapters):
+                                    defs[adapter_type] = {}
+                                    for name in xboard._io_map:
+                                        if xboard._io_map[name].get("_adapter_scope", False) == adapter_type:
+                                            defs[adapter_type][name] = xboard._io_map[name].copy()
+                                            del defs[adapter_type][name]["_adapter_scope"]
+
+                                reply["definition"] = defs
+                            reply |= {
+                                "state": state["io"],
+                            }
+                        elif cmd == "SET_IO":
+                            xboard.set_io_state(params["name"], params["value"])
+                            reply = {
+                                "name": params["name"],
+                                "value": xboard.get_io_state(params["name"]),
+                            }
                         elif cmd == "BYE":
                             reply = ""
                             reply_status = False

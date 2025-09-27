@@ -261,6 +261,10 @@
                 </ul>
             </li>
             <li>
+                <a href="#" class="menu-item" onclick="showSection('io-section')">I/O</a>
+                <span class="arrow">&raquo;</span>
+            </li>
+            <li>
                 <a href="#" class="menu-item" onclick="showSection('obsolete')">Obsolete</a>
                 <span class="arrow">&raquo;</span>
             </li>
@@ -274,13 +278,13 @@
             <div id="eeprom-XBOARD" class="section eeprom">
                 <div class="header">X-Board configuration</div>
                 <div class="box-container">
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-XBOARD-COMMON" class="eeprom-common">
                             <legend>Common</legend>
                             <div class="control-container form-container"></div>
                         </fieldset>
                     </div>
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-XBOARD-MAIN" class="eeprom-board hidden-tab">
                             <legend>Main</legend>
                             <div class="control-container form-container"></div>
@@ -297,13 +301,13 @@
             <div id="eeprom-ADAPTER" class="section eeprom">
                 <div class="header">Adapter board configuration</div>
                 <div class="box-container">
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-ADAPTER-COMMON" class="eeprom-common">
                             <legend>Common</legend>
                             <div class="control-container form-container"></div>
                         </fieldset>
                     </div>
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-ADAPTER-STEPPER" class="eeprom-board hidden-tab">
                             <legend>Stepper</legend>
                             <div class="control-container form-container"></div>
@@ -328,13 +332,13 @@
             <div id="eeprom-LIGHT" class="section eeprom">
                 <div class="header">Light board configuration</div>
                 <div class="box-container">
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-LIGHT-COMMON" class="eeprom-common">
                             <legend>Common</legend>
                             <div class="control-container form-container"></div>
                         </fieldset>
                     </div>
-                    <div class="box">                    
+                    <div class="box">
                         <fieldset id="eeprom-LIGHT-LGHT8PWM" class="eeprom-board hidden-tab">
                             <legend>8xPWM</legend>
                             <div class="control-container form-container"></div>
@@ -345,6 +349,25 @@
                         <button onclick="eepromLoad('LIGHT');" title="Load values from board">Load</button>
                         <button onclick="eepromSave('LIGHT');" title="Save values to board">Save</button>
                     </div>
+                </div>
+            </div>
+
+            <div id="io-section" class="section io">
+                <div class="header">I/O signals</div>
+                <div class="box-container">
+                    <div class="box">
+                        <fieldset id="io-XBOARD" >
+							<legend>X-Board</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                        <fieldset id="io-ADAPTER" >
+							<legend>Adapter</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                </div>
+                <div class="button-container">
+                    <button onclick="sendCommand('GET_IO');" title="Get current I/O values">Refresh</button>
                 </div>
             </div>
 
@@ -678,6 +701,81 @@
 
     }
 
+	function prepareIoSection(board_id, params) {
+        const container = document.getElementById("io-"+board_id);
+        if (container == undefined) {
+            addLog(`Unsupported board: ${board_id}`);
+            return;
+        }
+        var container2 = container.querySelector(".control-container");
+        container2.replaceChildren();
+        if (params) {
+			for (const [name, item] of Object.entries(params)) {
+                const label = document.createElement("label");
+				let input = null;
+				if (item.type == "gpio") {
+					input = document.createElement("input");
+					input.type = "checkbox";
+					input.id = `io-${name}`;
+					input.name = name;
+					if (item.dir == "i") {
+						input.disabled = true;
+					}
+					label.appendChild(document.createTextNode(name));
+					label.appendChild(input);
+					input = null;
+				} else if (item.type == "pwm") {
+					input = document.createElement("input");
+					input.type = "range";
+					input.min = 0;
+					input.max = 255;
+					input.id = `io-${name}`;
+					input.name = name;
+					label.appendChild(document.createTextNode(name));
+					label.appendChild(input);
+					//input = null;
+				} else {
+                    label.textContent = name;
+				}
+                const div = document.createElement("div");
+                div.classList.add("form-row");
+                const div_ic = document.createElement("div");
+                div_ic.classList.add("input-container");
+				if (input) {
+					div_ic.appendChild(input);
+	                label.setAttribute("for", input);
+                    input.setAttribute("data-type", item);
+				}
+                const hint = document.createElement("small");
+                hint.classList.add("hint");
+                hint.innerHTML = JSON.stringify(item);
+                div_ic.appendChild(hint);
+
+                div.appendChild(label);
+                div.appendChild(div_ic);
+
+                container2.appendChild(div);
+
+			}
+			container.classList.remove("hidden");
+        } else {
+			container.classList.add("hidden");
+		}
+	}
+
+	function updateIoState(states) {
+		for (const [name, value] of Object.entries(states)) {
+            const elem = document.getElementById("io-"+name);
+			if (elem) {
+				if (elem.type == "checkbox") {
+					elem.checked = value;
+				} else if (elem.type == "range") {
+					elem.value = value;
+				}
+			}
+		}
+	}
+
     const BOARD_TYPES = ["XBOARD", "ADAPTER", "LIGHT"]
 
     function connect() {
@@ -734,6 +832,7 @@
                             });
                         });
                         adjustAdapterId();
+                        sendCommand("GET_IO", {"definition": true});
 
                         document.querySelectorAll(".control-container input").forEach(el => {
                             el.onfocus = function(event) {
@@ -873,6 +972,25 @@
                         updateEepromControls(data.board_type, "COMMON", data.common);
                         updateEepromControls(data.board_type, board_id, data.board);
                         adjustAdapterId();
+                    } else if (cmd == "GET_IO") {
+						if (typeof data.definition != "undefined") {
+							prepareIoSection("XBOARD", data.definition["XBOARD"]);
+							prepareIoSection("ADAPTER", typeof data.definition["AOT"] != "undefined" ? data.definition["AOT"] : []);
+							document.querySelectorAll("#io-section input").forEach(el => {
+	                            el.onchange = function(event) {
+									if (!this.disabled) {
+										let val = this.value;
+										if (this.type == "checkbox") {
+											val = this.checked;
+										} else if (this.type == "range") {
+											val = Number(val);
+										}
+										sendCommand("SET_IO", {"name": this.name, "value": val});
+									}
+			                    }
+							});
+						}
+						updateIoState(data.state);
                     }
                     document.getElementById("movement").value = data["movement"];
                     document.getElementById("frame_ready").checked = data["frame_ready"];

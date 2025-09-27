@@ -14,6 +14,7 @@ Features
   - hot key to clear error
   - digie35_image_analyzer tool
   - postponed backlight switch off after no film detected
+  - test server controls all I/O
 
 Fixes
 -----
@@ -21,6 +22,7 @@ Fixes
   - RPI4 GPIO21 issue when INPUT
   - motherboard, xboard, adapter object cleanup
   - .description.txt optional in film directory
+  - Eject direction not affected by reverse sense
 
 v0.8 (2025-04-24)
 =================
