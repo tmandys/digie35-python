@@ -2353,6 +2353,8 @@
                                 document.onkeydown = do_onkeydown;
                                 document.onkeyup = do_onkeyup;
                                 adjust_adapter({"movement": 0, });
+							} else if (data.cmd == "STOP" || data.cmd == "MOVE" || data.cmd == "MOVE_BY") {
+								adjust_adapter(data.payload);
                             } else if (data.cmd == "LIST_CAMERAS") {
                                 adjust_camera_preview(false);
                             } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
