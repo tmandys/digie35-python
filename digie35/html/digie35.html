@@ -977,9 +977,9 @@
                             <button id="flatten-2f-btn" title="Ctrl+ArrowDown, KeyV">&darr;</button>
                         </div>
                         <div class="centered-btn vertical-spacer">
-                            <button id="eject-1b-btn" title="End, KeyQ">&lt; EJECT</button>
+                            <button id="eject-1f-btn" title="End, KeyQ">EJECT O</button>
                             <button id="insert-btn" title="Insert, KeyI, Backspace">LEAD-IN</button>
-                            <button id="eject-1f-btn" title="Home, KeyW">EJECT &gt;</button>
+                            <button id="eject-1b-btn" title="Home, KeyW">EJECT I</button>
                         </div>
                     </div>
                 </fieldset>
@@ -1731,7 +1731,7 @@
                 adjust_class("frame", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == window.frame_speed));
             }
             for (const value of window.adapter_buttons['eject'].idx) {
-                adjust_class("eject", value, (data.action=="EJECT") && ((data.movement > 0) == (reverse(value) > 0)));
+                adjust_class("eject", value, (data.action=="EJECT") && ((data.movement > 0) == (value > 0)));
             }
             const action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
             document.getElementById("header-motion-name").textContent = action_elem ? action_elem.textContent : "";
@@ -3303,6 +3303,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
+					dir = reverse(dir); 	// revert reverse acition
                     sendCommandM("EJECT", {'forward': dir});
                 },
             },
@@ -3397,10 +3398,13 @@
             let dir = "";
             if (arr.length > 2) {
                 dir = Number(arr[1][0]);
-                if (arr[1][1] == "b") {
+                if (arr[1][1].toLowerCase() == "b") {
                     dir = -dir;
                 }
-                dir = reverse(dir);
+				// TODO: currently B/F is not supported in get_adapter_button()
+				if (arr[1].toLowerCase() ==  arr[1]) {
+	                dir = reverse(dir);
+				}
             }
             cmd.action(dir);
         }
@@ -3645,11 +3649,11 @@
                 break;
             case "Home":
             case "KeyW":
-                btn = "eject-1f";
+                btn = "eject-1b";
                 break;
             case "End":
             case "KeyQ":
-                btn = "eject-1b";
+                btn = "eject-1f";
                 break;
             case "Comma":
                 btn = "frame-1b";
