@@ -2068,7 +2068,7 @@ def main():
 
     if not args.no_cv:
         logging.getLogger().debug("Importing image analyzer")
-        globals()["digie35image"] = importlib.import_module("digie35image")
+        globals()["digie35image"] = importlib.import_module("digie35.digie35image")
     else:
         logging.getLogger().info("Image analyzer disabled")
 

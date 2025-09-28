@@ -68,9 +68,10 @@ setup(
         "evdev",
         "lxml",
         "simpleeval",
-        "scipy",
-        "numpy",
-        #"opencv-pythom",
+		# installed via apt get
+        #"scipy",
+        #"numpy",
+        #"opencv-python",
         #"configparser",
     ],
     scripts = [
