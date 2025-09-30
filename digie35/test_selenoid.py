@@ -46,5 +46,4 @@ try:
 except KeyboardInterrupt:
     print("\nCtrl+C aborting");
     activate_pin.value = 0
-    enable_pin.value = enable_pin.active ^ 1
 
