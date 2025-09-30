@@ -697,13 +697,64 @@ class ImageAnalysis:
             self._result |= frame
             move = self._check_result(self._calculate_move(**self._result))
             if move is None:
-                self._status = "UNDECIDABLE"
+                self._status = "UNDETERMINATE"
             else:
                 self._status = "ALIGNED" if move["move_by"] == 0 else "SHIFT_REQUIRED"
                 self._result |= move
         else:
             self._result = "FRAME_NOT_DETECTED"
         # TODO: get RGB from holes and analyze. It might help to detect BW vs. Color when non white LED is used
+
+    @log_duration
+    def analyze_rgb_intensity(self, roi_fraction = 0.2):
+        """
+            Calculate center image intensity in RGB channels to calibrate RGB LEDs
+            Args:
+                roi_fraction (float): crop size (0-1)
+
+            Returns:
+                tuple: (R_mean, G_mean, B_mean)
+        """
+        img_rgb = cv2.cvtColor(self._image, cv2.COLOR_BGR2RGB)
+        h, w = img_rgb.shape[:2]
+        roi_w = int(w * roi_fraction)
+        roi_h = int(h * roi_fraction)
+        x0 = w // 2 - roi_w // 2
+        y0 = h // 2 - roi_h // 2
+        roi = img_rgb[y0:y0+roi_h, x0:x0+roi_w]
+        mean_rgb = np.mean(roi, axis=(0, 1))
+        print(f"RGB: {mean_rgb}")
+        return tuple(mean_rgb)
+
+    @log_duration
+    def analyze_uniformity(self, grid=10):
+        """
+        Analyze illumination intensity
+        Args:
+            grid (int): matrix size
+
+        Returns:
+            uniformity: relative uniformity (0 .. optimal)
+            intensity_map: normalized intensity map, optimal is 1, <1 darker, >1 lighter
+        """
+        h, w = self._gray.shape[:2]
+        step_h = h // grid
+        step_w = w // grid
+
+        intensity_map = np.zeros((grid, grid), dtype=np.float32)
+        y1 = 0
+        for i in range(grid):
+            x1 = 0
+            for j in range(grid):
+                roi = self._gray[y1:y1+step_h, x1:x1+step_w]
+                intensity_map[i, j] = roi.mean()
+                x1 += step_w
+            y1 += step_h
+        global_mean = intensity_map.mean()
+        normalized_map = intensity_map / global_mean if global_mean > 0 else intensity_map
+        uniformity = np.max(np.abs(normalized_map - 1.0))
+        normalized_map= np.around(normalized_map, decimals=2)
+        return uniformity, normalized_map
 
     def get_result(self):
 
