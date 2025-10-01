@@ -2366,6 +2366,8 @@
                                 adjust_file_template(data.payload);
                             } else if (data.cmd == "ANALYZE") {
                                 window.snapshot_analysis = data.payload;
+								window.analyze_in_progress = false;
+								window.last_analyze_stamp =  Date.now();
                                 refresh_snapshot();
                                 // TODO: focus, movement, positive-negative
                             }
@@ -2448,11 +2450,24 @@
         sendCommand2(cmd, obj);
     }
 
-    function sendCommandAnalyze() {
-        var params = {}
+    function sendCommandAnalyze(force=false) {
+		// do not DoS as websocket/tcp buffers requests and analyze might congest server
+		if (window.last_analyze_stamp) {
+			let diff_secs = (Date.now() - window.last_analyze_stamp) / 1000;
+			if (window.analyze_in_progress && diff_secs > 5) {
+				// fallback when response likely never come back, should not happen
+				window.analyze_in_progress = false;
+			}
+			if (window.analyze_in_progress || (!force && diff_secs < 2.5)) {
+				return;
+			}
+		}
+        let params = {}
         if (!document.getElementById("usb-preview-cb").checked) {
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
+		window.last_analyze_stamp =  Date.now();
+		window.analyze_in_progress = true;
         sendCommand2("ANALYZE", params);
     }
 
@@ -3020,6 +3035,8 @@
         window.modal_stack = [];
         window.snapshot_timer = null;
         window.current_adapter = "";
+		window.last_analyze_stamp = null;
+		window.analyze_in_progress = false;
         // check if it is fresh visit or reload, ...
         let nav_type = "unknown";
         if (performance.getEntriesByType) {
