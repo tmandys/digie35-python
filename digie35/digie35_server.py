@@ -59,7 +59,7 @@ import sys
 from threading import Lock, Thread, get_native_id
 from lxml import etree
 from simpleeval import simple_eval
-
+import numpy as np
 
 RPI_FLAG = True
 try:
@@ -169,7 +169,7 @@ class CameraWrapper:
         self._capture_lock_release_clock = time.perf_counter()
         self._capture_lock.release()
         logging.getLogger().log(level, "capture_lock.release(%s) %s" % (info, get_native_id()))
-        
+
     def _usb_connect(self):
         # proceed Sony camera connection
         camera = gp.Camera()
@@ -205,7 +205,7 @@ class CameraWrapper:
         if len(camera_list) < 1:
             raise CameraControlError('No camera detected')
         camera = gp.Camera()
-        logging.getLogger().debug(f"choose camera: %s" % camera_id)        
+        logging.getLogger().debug(f"choose camera: %s" % camera_id)
         idx = port_info_list.lookup_path(camera_id.split("|")[0])
         logging.getLogger().debug("camera.set_port_info([%s])" % idx)
         camera.set_port_info(port_info_list[idx])
@@ -401,7 +401,7 @@ class CameraWrapper:
         self._open_camera(camera_id)
         try:
             result = {"model": self._camera_model, "id": self._camera_id, "battery": self._camera_battery}
-            result["device_type"] = self._camera_abilities.device_type            
+            result["device_type"] = self._camera_abilities.device_type
             result["device_status"] = self._camera_abilities.status
             result["library"] = self._camera_abilities.library
 
@@ -1693,7 +1693,14 @@ async def ws_control_handler(websocket, path):
                     if client_context != None:
                         # pass back a "cookie"
                         reply["client_context"] = client_context
-                    reply = json.dumps({"cmd": cmd, "payload": reply})
+                    try:
+                        if "digie35image" in globals():
+                            reply = json.dumps({"cmd": cmd, "payload": reply}, cls=digie35image.NumpyEncoder)
+                        else:
+                            reply = json.dumps({"cmd": cmd, "payload": reply})
+                    except Exception as e:
+                        logging.getLogger().error(e, exc_info=True)
+                        reply = repr(e)
 
                 log.debug("ws.send: %s" % reply)
                 global ws_lock
@@ -1770,6 +1777,7 @@ def broadcast(message):
         send_flag |= True
         message2["adapter_class"] = digitizer.get_adapter().__class__.__name__ if digitizer.get_adapter() != None else ""
         message2["capabilities"] = caps
+        message2["capabilities"]["vision"] = "digie35image" in globals();
         if caps["motorized"]:
             message2["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()
 
@@ -1977,6 +1985,16 @@ def print_object_references(name, obj):
     refs = gc.get_referrers(obj)
     for r in refs:
         print(type(r), repr(r)[:100])
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
 
 def main():
     locale.setlocale(locale.LC_ALL, 'C')

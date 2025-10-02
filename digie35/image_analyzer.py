@@ -37,14 +37,6 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.bool_):
-            return bool(obj)
-        if isinstance(obj, np.integer):
-            return int(obj)
-        return super().default(obj)
-
 def int_0_100(value):
     ivalue = int(value)
     if ivalue <= 0 or ivalue > 100:
@@ -124,7 +116,7 @@ def main():
             analyzer.analyze()
 
             if not args.quiet:
-                print(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=NumpyEncoder))
+                print(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
 
             if args.show_output_image:
                 digie35image.show_image(analyzer.get_output_image(), "Output image")
@@ -140,7 +132,7 @@ def main():
                 out_path = str(path.with_name(path.stem + ".output.json"))
                 logging.getLogger().info(f"Output result: {out_path}")
                 with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=NumpyEncoder))
+                    f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
 
             if args.append_result:
                 path = Path(args.filename)
@@ -151,7 +143,7 @@ def main():
                         data = json.load(f);
                     data["vision"] = analyzer.get_result()
                     with open(out_path, "w", encoding="utf-8") as f:
-                        f.write(json.dumps(data, indent=2, ensure_ascii=False, cls=NumpyEncoder))
+                        f.write(json.dumps(data, indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
                 else:
                     logging.getLogger().info(f"Json file does not exists: {out_path}")
         elif args.task == "MEAN_RGB":

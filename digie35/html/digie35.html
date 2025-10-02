@@ -1573,7 +1573,7 @@
 	const ANALYZE_ALIGN = 2;
     const ANALYZE_CAPTURE = 4;
     const ANALYZE_ALIGN_REPEAT = 8;
-    const ANALYZE_MAX_ITERATION =3;
+    const ANALYZE_MAX_ITERATION =5;
 
     function get_stream_url(usbpreview, path) {
         const port = usbpreview ? "8408" : "8410";   /* 8410 is proxy to 8409 with CORS*/
@@ -1954,7 +1954,7 @@
         list.value = sel2;
     }
 
-    function update_status_info(msg, clear = false) {
+    function update_status_info(msg, clear = false, key = "") {
         const content = document.getElementById("error-content");
         if (clear) {
             content.innerHTML = "";
@@ -1962,7 +1962,7 @@
         if (msg != "") {
             let found = false;
             for (const child of content.children) {
-                if (child.dataset.message === msg) {
+                if (child.dataset.message === (key ? key : msg)) {
 					child.dataset.count = parseInt(child.dataset.count, 10)+1;
                     content.appendChild(child);
 					child.textContent = `${msg} (${child.dataset.count}x)`;
@@ -1971,7 +1971,7 @@
             }
             if (!found) {
                 const line = document.createElement("div");
-				line.dataset.message = msg;
+				line.dataset.message = key ? key: msg;
 				line.dataset.count = 1;
                 line.textContent = `${msg}`;
                 content.appendChild(line);
@@ -2226,12 +2226,26 @@
                                 }
                             }
                             if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
-                                if (data.payload.action=="LEAD_IN" || (data.payload.action=="MOVE_BY" && data.payload.client_context == "frame")) {
+                                let reason = 0;
+                                if (data.payload.action=="LEAD_IN") {
+                                    reason = ANALYZE_ALIGN;
+                                } else if (data.payload.action=="MOVE_BY" && data.payload.movement == 0) {
+                                    switch (data.payload.client_context) {
+                                        case "frame":
+                                            reason = ANALYZE_ALIGN;
+                                            break;
+                                        case "align":
+    					                    reason = ANALYZE_ALIGN_REPEAT;
+                                            break;
+                                        case "align_capture":
+                                            reason = ANALYZE_ALIGN_REPEAT | ANALYZE_CAPTURE;
+                                            break;
+                                    }
+                                }
+                                if (reason) {
                                     setTimeout(function() {
-					                    sendCommandAnalyze(ANALYZE_ALIGN, true);
+					                    sendCommandAnalyze(reason, true);
                                     }, Number(document.getElementById("preview-latency-rng").value) * 500);
-                                } else if (data.payload.action=="MOVE_BY" && data.payload.client_context == "align") {
-					                sendCommandAnalyze(ANALYZE_ALIGN_REPEAT, true);
                                 }
                             }
                             adjust_backlight(true, false);
@@ -2407,15 +2421,18 @@
                                 window.snapshot_analysis = data.payload;
                                 if ((data.payload.status != "SHIFT_REQUIRED") && (data.payload.status != "ALIGNED")) {
                                     const errs = data.payload ?. errors ?? "";
-                                    update_status_info(`Vision: ${data.payload.status} ${errs}`);
+                                    update_status_info(`Vision: ${data.payload.status} ${errs}`, false, data.payload.status);
 								    window.analyze_in_progress = 0;
                                 } else if (window.analyze_in_progress & ANALYZE_ALIGN) {
                                     if (data.payload.status == "SHIFT_REQUIRED") {
                                         if ((window.analyze_in_progress & ANALYZE_ALIGN_REPEAT) && window.analyze_counter <= 0) {
                                             update_status_info(`Vision: Alignment attempt count exceeded`);
 								            window.analyze_in_progress = 0;
+                                            window.stop_multicapture = true;
                                         } else {
-                                            sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel, 'speed': MOVE_BY_SPEED, 'client_context': 'align'});
+                                            const ctx = (window.analyze_in_progress & ANALYZE_CAPTURE) ? "align_capture" : "align";
+								            window.analyze_in_progress = 0;
+                                            sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel_per_mm, 'speed': MOVE_BY_SPEED, 'client_context': ctx});
                                         }
                                     } else if (data.payload.status == "ALIGNED" && (window.analyze_in_progress & ANALYZE_CAPTURE)) {
 								        window.analyze_in_progress = 0;
@@ -2425,6 +2442,7 @@
                                     }
                                 } else {
 								    window.analyze_in_progress = 0;
+                                    window.stop_multicapture = true;
                                 }
                                 // TODO: focus, positive-negative
 								window.last_analyze_stamp =  Date.now();
@@ -2531,6 +2549,7 @@
             window.analyze_counter = ANALYZE_MAX_ITERATION;
         }
         if (reason & ANALYZE_ALIGN_REPEAT) {
+            window.analyze_in_progress |= ANALYZE_ALIGN;
             window.analyze_counter -= 1;
         }
         sendCommand2("ANALYZE", params);
@@ -3927,8 +3946,8 @@
             }
         }
         const canvas = viewer.parentNode.querySelector("canvas");
-		if (canvas.getAttribute("data-draw_image")) {
-			if (canvas) {
+                 if (canvas) {
+                        if (canvas.getAttribute("data-draw_image")) {
 				const copy_style = ["invert"];
 				copy_style.forEach((val)=>{
 					if (canvas.classList.contains(val) != viewer.classList.contains(val)) {

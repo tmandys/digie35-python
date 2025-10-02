@@ -34,6 +34,15 @@ import cv2
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
+import json
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        return super().default(obj)
 
 def show_image(img, name="Debug image"):
     cv2.imshow(name, img)
@@ -394,6 +403,7 @@ class ImageAnalysis:
     @log_duration
     def _detect_hole_depth(self, band, perf, name, **params):
         result = []
+        # print(f"params:{params}")
         thr = (params["film_base_intensity"]+params["naked_intensity"]) / 2 
         for hole in perf["holes"]["bounds"]:
             depth = 0
@@ -706,19 +716,20 @@ class ImageAnalysis:
         self._result["holes"] = []
         # hole depth needed to skip film edge if possible where might be light artefacts
         top_depth = top_dead
-        if top_perf:
-            depths = self._check_result(self._detect_hole_depth(self._gray[top_dead:top_dead+margin2, :], top_perf, "top", **self._result))
-            for idx, hole in enumerate(top_perf["holes"]["bounds"]):
-                self._result["holes"].append((hole[0], top_dead, hole[0]+hole[1], top_dead+depths[idx]))  # bounding box
-                if depths[idx] > top_depth:
-                    top_depth = depths[idx]
-        bottom_depth = bottom_dead
-        if bottom_perf:
-            depths = self._check_result(self._detect_hole_depth(self._gray[-bottom_dead-1:-bottom_dead-margin2-1:-1, :], bottom_perf, "bottom", **self._result))
-            for idx, hole in enumerate(bottom_perf["holes"]["bounds"]):
-                self._result["holes"].append((hole[0], self._result["height"]-depths[idx]-bottom_dead, hole[0]+hole[1], self._result["height"]-bottom_dead))  # bounding box
-                if depths[idx] > bottom_depth:
-                    bottom_depth = depths[idx]
+        if not self._result["contrast"] is None:   # base intensity is mandatory
+            if top_perf:
+                depths = self._check_result(self._detect_hole_depth(self._gray[top_dead:top_dead+margin2, :], top_perf, "top", **self._result))
+                for idx, hole in enumerate(top_perf["holes"]["bounds"]):
+                    self._result["holes"].append((hole[0], top_dead, hole[0]+hole[1], top_dead+depths[idx]))  # bounding box
+                    if depths[idx] > top_depth:
+                        top_depth = depths[idx]
+            bottom_depth = bottom_dead
+            if bottom_perf:
+                depths = self._check_result(self._detect_hole_depth(self._gray[-bottom_dead-1:-bottom_dead-margin2-1:-1, :], bottom_perf, "bottom", **self._result))
+                for idx, hole in enumerate(bottom_perf["holes"]["bounds"]):
+                    self._result["holes"].append((hole[0], self._result["height"]-depths[idx]-bottom_dead, hole[0]+hole[1], self._result["height"]-bottom_dead))  # bounding box
+                    if depths[idx] > bottom_depth:
+                        bottom_depth = depths[idx]
 
         def add_holes(name, perf, y1, y2):
             if not perf:
@@ -922,3 +933,4 @@ class ImageAnalysis:
 
         self._output_image = out_image
         return out_image
+
