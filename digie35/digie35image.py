@@ -176,9 +176,16 @@ class ImageAnalysis:
     @log_duration
     # global max. intensity and colormode
     def _analyze_overview(self):
+        """
+            Returns:
+                color_uniformity: low value is low diff between RGB, i.e. gray scale
+                color_mode: (bw, color)
+                naked_intensity ... maximum intensity in image
+
+        """
         result = {}
         if len(self._image.shape) < 3 or self._image.shape[2] == 1:
-            result["colormode"] = "bw"
+            result["color_mode"] = "bw"
         else:
             r = self._image[:, :, 0].astype(np.int16)
             g = self._image[:, :, 1].astype(np.int16)
@@ -193,7 +200,7 @@ class ImageAnalysis:
             # if majority of differences under threshold then BW
             perc = np.percentile(max_diff, 99)
             result["color_uniformity"] = perc
-            result["colormode"] = "bw" if perc <= 8 else "color"
+            result["color_mode"] = "bw" if perc <= 8 else "color"
 
         max_intensity = np.percentile(self._gray, 99.5)  # avoid light artefacts
         result["naked_intensity"] = max_intensity
@@ -214,10 +221,33 @@ class ImageAnalysis:
         return result
 
     @log_duration
+    def _detect_dead_margin(self, band, name, **params):
+        """
+        Detect artifacts on the film edge, typically dark stripes caused by unilluminated black margin.
+        When film is misaaligned then top and bottom perforation is not equal. And win worser case when
+        film is not paralell to adapter then perforation is skewed and contains diagonal edge black stripe.
+        If the perforation holes are narrow then we cannot detect horizontally hole/bridge ratio. We could
+        improve algorithm by dividing perforation vertically and inspecting per partes. Not implemented
+        because another perforation should be wider and easy to inspect.
+        """
+        dead = 0
+        #show_image(band)
+        for row in band:
+            naked_ratio = np.sum(row > params["naked_intensity"] * 0.95) / row.size
+           # print(f"dead: {dead}, row: {row}, naked: {naked_ratio}, naked: {params['naked_intensity']*0.95}")
+            if naked_ratio > 0.3:
+                return dead
+            dead += 1
+        #show_image(band)
+        return 0
+
+    @log_duration
     def _detect_perforation_holes(self, band, offsetx, name, **params):
         result = {}
-        # show_image(band)
+        #show_image(band)
         # how many light pixels are above naked intensity
+        if False:
+            print(f"Band: {band}, naked: {params['naked_intensity']}")
         result["naked_ratio"] = np.sum(band > params["naked_intensity"] * 0.95) / band.size
         if result["naked_ratio"] < 0.30:
             return ImageAnalysisError(f"Low {name} perforation naked ratio {result['naked_ratio']:.2f}, i.e. no holes on the edge")
@@ -244,7 +274,17 @@ class ImageAnalysis:
             return ImageAnalysisError(f"Low variability {cv:.3f} to detect {name} perforation")
         else:
             # adaptive threshold
-            thr = mu + 0.3 * sigma
+            # for light bridges and some dust/demage average is beyond hole/bridge interval
+            #thr = mu + 0.3 * sigma
+            # so calculate histogram
+            hist, bins = np.histogram(profile, bins=64, range=(0, 256))
+            indices = np.argsort(hist)[::-1] # sort desc, first two items should contain hole&bridge
+            top_bins = indices[:2]   # two peaks
+            thr = (bins[indices[0]+1]+bins[indices[1]+1]+bins[indices[0]]+bins[indices[1]]) / 4
+            if False:
+                print(f"mu: {mu}, sigma: {sigma}, thr: {thr}, indices: {indices}, top_bins: {top_bins}, hist: {hist}, bins: {bins}")
+                #print(f"band: {band}, profile: {profile}")
+
             # binarize, 1..hole, 0..bridge
             binary = profile > thr
             # find edges
@@ -253,6 +293,8 @@ class ImageAnalysis:
             starts = np.where(edges==1)[0]+1
             # hi-lo
             ends = np.where(edges==-1)[0]
+            if False:
+                print(f"edges: {edges}, starts: {starts}, ends: {ends}")
             holes1 = []
             bridges1 = []
             hole_distances = []
@@ -348,6 +390,20 @@ class ImageAnalysis:
                 },
             }
             return result
+
+    @log_duration
+    def _detect_hole_depth(self, band, perf, name, **params):
+        result = []
+        thr = (params["film_base_intensity"]+params["naked_intensity"]) / 2 
+        for hole in perf["holes"]["bounds"]:
+            depth = 0
+            for row in band:
+                mu = np.mean(row[hole[0]:hole[0]+hole[1]])
+                depth += 1
+                if mu <= thr:
+                    break
+            result.append(depth)
+        return result
 
     def _remove_spikes(self, arr):
         # remove spikes  0 0 0 1 -1 0 0 1 -1 0 0
@@ -607,17 +663,21 @@ class ImageAnalysis:
 
         # get top and buttom margin where we expect perforation, typical height should be around 27mm
         # holes crosses top/bottom edge of image as we want perforation in image as well
-        margin1 = self._vert_mm_to_px(0.15)
-        #dead = self._vert_mm_to_px(0.05)
-        dead = 2
-        top_perf = self._check_result(self._detect_perforation_holes(self._gray[dead:margin1, fb["start"]:fb["end"]], fb["start"], "top", **self._result))
-        bottom_perf = self._check_result(self._detect_perforation_holes(self._gray[-margin1:-dead-1, fb["start"]:fb["end"]], fb["start"], "bottom", **self._result))
+        margin0 = self._vert_mm_to_px(1)
+        #top_dead = self._vert_mm_to_px(0.05)
+        top_dead = self._check_result(self._detect_dead_margin(self._gray[0:margin0, fb["start"]:fb["end"]], "top", **self._result))
+        bottom_dead = self._check_result(self._detect_dead_margin(self._gray[-1:-margin0-1:-1, fb["start"]:fb["end"]], "top", **self._result))
+
+        # margin1 = self._vert_mm_to_px(0.15)
+        margin1 = 1
+        top_perf = self._check_result(self._detect_perforation_holes(self._gray[top_dead:top_dead+margin1, fb["start"]:fb["end"]], fb["start"], "top", **self._result))
+        bottom_perf = self._check_result(self._detect_perforation_holes(self._gray[-bottom_dead-1:-bottom_dead-margin1-1:-1, fb["start"]:fb["end"]], fb["start"], "bottom", **self._result))
 
         if top_perf is None and bottom_perf is None:
             self._append_error(f"Cannot detect perforation")
             # as fallback try calc blindly focus score
             margin2 = self._vert_mm_to_px(3)
-            self._result["band_focus_score"] = (self._focus_score(self._gray[dead:margin2, fb["start"]:fb["end"]]) + self._focus_score(self._gray[-margin2:-dead-1, fb["start"]:fb["end"]])) / 2
+            self._result["band_focus_score"] = (self._focus_score(self._gray[top_dead:top_dead+margin2, fb["start"]:fb["end"]]) + self._focus_score(self._gray[-margin2-bottom_dead-1:-bottom_dead-1, fb["start"]:fb["end"]])) / 2
             self._status = "PERFORATION_NOT_DETECTED"
             return
         elif top_perf is None:
@@ -642,29 +702,44 @@ class ImageAnalysis:
                 "pixel_per_mm": self._calc_weighted_mean(top_perf["pixel_per_mm"], len(top_perf["holes"]["bounds"]), bottom_perf["pixel_per_mm"], len(bottom_perf["holes"]["bounds"])),
             }
 
+        margin2 = self._vert_mm_to_px(3, self._result["pixel_per_mm"])
+        self._result["holes"] = []
+        # hole depth needed to skip film edge if possible where might be light artefacts
+        top_depth = top_dead
+        if top_perf:
+            depths = self._check_result(self._detect_hole_depth(self._gray[top_dead:top_dead+margin2, :], top_perf, "top", **self._result))
+            for idx, hole in enumerate(top_perf["holes"]["bounds"]):
+                self._result["holes"].append((hole[0], top_dead, hole[0]+hole[1], top_dead+depths[idx]))  # bounding box
+                if depths[idx] > top_depth:
+                    top_depth = depths[idx]
+        bottom_depth = bottom_dead
+        if bottom_perf:
+            depths = self._check_result(self._detect_hole_depth(self._gray[-bottom_dead-1:-bottom_dead-margin2-1:-1, :], bottom_perf, "bottom", **self._result))
+            for idx, hole in enumerate(bottom_perf["holes"]["bounds"]):
+                self._result["holes"].append((hole[0], self._result["height"]-depths[idx]-bottom_dead, hole[0]+hole[1], self._result["height"]-bottom_dead))  # bounding box
+                if depths[idx] > bottom_depth:
+                    bottom_depth = depths[idx]
+
         def add_holes(name, perf, y1, y2):
             if not perf:
                 return
             for hole in perf[name]["bounds"]:
                 self._result[name].append((hole[0], y1, hole[0]+hole[1], y2))  # bounding box
 
-        self._result["holes"] = []
-        add_holes("holes", top_perf, dead, margin1)
-        add_holes("holes", bottom_perf, self._result["height"]-margin1, self._result["height"]-dead)
+        #add_holes("holes", top_perf, top_dead, margin1)
+        #add_holes("holes", bottom_perf, self._result["height"]-margin1, self._result["height"]-bottom_dead)
         self._result["bridges"] = []
-        add_holes("bridges", top_perf, dead, margin1)
-        add_holes("bridges", bottom_perf, self._result["height"]-margin1, self._result["height"]-dead)
+        add_holes("bridges", top_perf, top_dead, margin1)
+        add_holes("bridges", bottom_perf, self._result["height"]-margin1, self._result["height"]-bottom_dead)
 
         if self._result["contrast"] is None:
             self._append_error(f"Cannot detect naked and film base intensity")
             self._status = "INTENSITY_ESTIMATION_FAILED"
             return
 
-        margin2 = self._vert_mm_to_px(3, self._result["pixel_per_mm"])
-
-        top_margin = self._check_result(self._analyze_film_band(self._gray[dead:margin2, fb["start"]:fb["end"]], fb["start"], "Top", **self._result))
+        top_margin = self._check_result(self._analyze_film_band(self._gray[top_depth:top_depth+margin2, fb["start"]:fb["end"]], fb["start"], "Top", **self._result))
         # flip vertically
-        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-dead-1:-margin2:-1, fb["start"]:fb["end"]], fb["start"], "Bottom", **self._result))
+        bottom_margin = self._check_result(self._analyze_film_band(self._gray[-bottom_depth-1:-bottom_depth-margin2-1:-1, fb["start"]:fb["end"]], fb["start"], "Bottom", **self._result))
         if top_margin is None and bottom_margin is None:
             pass
         elif top_margin is None:
@@ -688,8 +763,8 @@ class ImageAnalysis:
             else:
                 self._result["negative"] = bottom_margin["negative"]
 
-        y1 = top_margin["band_width"]+dead if top_margin else margin2
-        y2 = bottom_margin["band_width"]+dead if bottom_margin else margin2
+        y1 = top_margin["band_width"]+top_depth if top_margin else margin2
+        y2 = bottom_margin["band_width"]+bottom_depth if bottom_margin else margin2
         self._result["band_width"] = {"top": y1, "bottom": y2}
         #print(f"fb:{fb}, y1:{y1}, y2:{y2}")
         frame = self._check_result(self._detect_frame(self._gray[y1:-y2, fb["start"]:fb["end"]], fb["start"], **self._result))
@@ -834,7 +909,7 @@ class ImageAnalysis:
             txt_y += 30
 
         putText(f"Size: {result['width']}x{result['height']}, Pixel/mm: {result.get('pixel_per_mm', None)}")
-        putText(f"Color mode: {result.get('colormode', None)} ({result.get('color_uniformity', None)}), Negative: {result.get('negative', None)}")
+        putText(f"Color mode: {result.get('color_mode', None)} ({result.get('color_uniformity', None)}), Negative: {result.get('negative', None)}")
         putText(f"Film base: {result.get('film_base_intensity', None)}, Naked: {result.get('naked_intensity', None)}, Contrast: {result.get('contrast', None)}")
         putText(f"Focus score: Band: {result.get('band_focus_score', None)}, Payload: {result.get('payload_focus_score', None)}")
         move_by = result.get("move_by", None)
