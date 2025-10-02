@@ -427,7 +427,7 @@ class CameraWrapper:
             self._close_camera()
         return result
 
-    def _do_download(self, wire_trigger, started_timestamp, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_data, **kwargs):
+    def _do_download(self, wire_trigger, started_timestamp, download, delete, project_id, film_id, camera_filepath, target_filename, websocket, client_context, **kwargs):
         try:
             try:
                 error = None
@@ -659,8 +659,8 @@ class CameraWrapper:
                     }}
                 if preview_image_name != None:
                     msg["payload"]["preview_image_name"] = preview_image_name
-                if client_data != None:
-                    msg["payload"]["client_data"] = client_data
+                if client_context != None:
+                    msg["payload"]["client_context"] = client_context
                 if error != None:
                     msg["payload"]["error"] = error
                 send_thread = Thread(target=run_send, kwargs={
@@ -678,7 +678,7 @@ class CameraWrapper:
             # handle all unhandled exceptions
             logging.getLogger().error(e, exc_info=True)
 
-    def capture(self, websocket, wire_trigger, camera_id, project_id, film_id, client_data = None, **kwargs):
+    def capture(self, websocket, wire_trigger, camera_id, project_id, film_id, client_context = None, **kwargs):
         if self._capture_in_progress:  # but not preview capture
             raise CameraControlError("Capture in progress")
         # do not switch off backlight in timer when capturing
@@ -728,7 +728,7 @@ class CameraWrapper:
                     # prevalidated so error should not happen
 
                     time.sleep(kwargs.get("delay", 0)/1000)
-                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "download": False, "delete": False, "started_timestamp": started_timestamp})
+                    download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_context": client_context, "wire_trigger": wire_trigger, "download": False, "delete": False, "started_timestamp": started_timestamp})
                     download_thread.name = "download"
                     download_thread.start()
 
@@ -805,7 +805,7 @@ class CameraWrapper:
                         time.sleep(0.2)   # sometimes when from unknown reason is not stored more file in Sony buffer and we start moving before capture is processed even camera says that is ok
 
                         # leave asap to allow move commands
-                        download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_data": client_data, "wire_trigger": wire_trigger, "started_timestamp": started_timestamp})
+                        download_thread = Thread(target=self._do_download, kwargs=kwargs | {"project_id": project_id, "film_id": film_id, "camera_filepath": camera_filepath, "target_filename": tpl2["filename"], "websocket": websocket, "client_context": client_context, "wire_trigger": wire_trigger, "started_timestamp": started_timestamp})
                         download_thread.name = "download"
                         download_thread.start()
                     except Exception as e:
@@ -1544,12 +1544,12 @@ async def ws_control_handler(websocket, path):
                 else:
                     params = {}
                 cmd = cmd.upper()
-                if "client_data" in params:
-                    client_data = params["client_data"]
-                    if cmd != "CAPTURE":
-                        del params["client_data"]
+                if "client_context" in params:
+                    client_context = params["client_context"]
+                    if not cmd in ["CAPTURE", "MOVE_BY", ]:
+                        del params["client_context"]
                 else:
-                    client_data = None
+                    client_context = None
                 reply = ""
                 reply_status = False
                 try:
@@ -1690,9 +1690,9 @@ async def ws_control_handler(websocket, path):
                     reply = digitizer.get_state(True)
 
                 if isinstance(reply, (dict, list, set)):
-                    if client_data != None:
+                    if client_context != None:
                         # pass back a "cookie"
-                        reply["client_data"] = client_data
+                        reply["client_context"] = client_context
                     reply = json.dumps({"cmd": cmd, "payload": reply})
 
                 log.debug("ws.send: %s" % reply)
@@ -1747,6 +1747,8 @@ def broadcast(message):
     if message["source"] == "backlight":
         send_flag |= True
         message["action"] = "BACKLIGHT"
+    if message["source"] == "motor":
+        send_flag |= True
     if not "action" in message:
         message["action"] = ""
     if not "movement" in message:
@@ -1761,6 +1763,8 @@ def broadcast(message):
         send_flag |= last_adapter["frame_ready"] != message["frame_ready"]
         message2["frame_ready"] = message["frame_ready"]
 
+    if "client_context" in message:
+        message2["client_context"] = message["client_context"]
     caps = digitizer.get_capabilities()
     if message["source"] == "hotplug":
         send_flag |= True

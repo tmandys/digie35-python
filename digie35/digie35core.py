@@ -443,7 +443,7 @@ class ExtensionBoard:
             # logging.getLogger().debug("Pending notification: %s" % (source))
             self._notify_callback({"source": source} | self.get_state())
 
-    def _call_notify_callback(self, source, new_thread = False, postpone_interval = 0):
+    def _call_notify_callback(self, source, new_thread = False, postpone_interval = 0, params = {}):
         if not self._initialized:
             return
         if self._notify_callback != None:
@@ -465,7 +465,7 @@ class ExtensionBoard:
                 self._notify_thread.start()
             else:
                 # logging.getLogger().debug("Normal notification: %s" % (source))
-                self._notify_callback({"source": source} | self.get_state())
+                self._notify_callback({"source": source} | params | self.get_state())
 
     # public stuff
     def get_id(self):
@@ -1237,9 +1237,12 @@ class StepperMotorAdapter(Adapter):
             if stop:
                 self._motor_job.stop(False)
                 self._do_on_stop(0)
+                params = {"action": action["cmd"]}
+                if action.get("client_context", None):
+                    params["client_context"] = action.get("client_context")
                 self._motor_current_dir = 0
                 self._motor_current_action = None
-                self._xboard._call_notify_callback("motor")
+                self._xboard._call_notify_callback("motor", params=params)
             else:
                 return self._get_next_interval(kwargs["req_freq"])
 
@@ -1336,7 +1339,7 @@ class StepperMotorAdapter(Adapter):
         self._check_adapter_ready()
         self.set_motor((int(forward)*2-1) * 999, {"cmd": "EJECT", "phase": 0, })
 
-    def move_by(self, mm, speed):
+    def move_by(self, mm, speed, client_context=None):
         """
             Move film by particular number of mm
         """
@@ -1348,7 +1351,7 @@ class StepperMotorAdapter(Adapter):
         else:
             dir = 0
         # TODO: stepcount is obsolete
-        self.set_motor(dir*abs(speed), {"cmd": "MOVE_BY", "mm": abs(mm), "step_count": abs(mm)*self.get_steps_per_mm()})
+        self.set_motor(dir*abs(speed), {"cmd": "MOVE_BY", "mm": abs(mm), "step_count": abs(mm)*self.get_steps_per_mm(), "client_context": client_context})
 
     def lead_in(self):
         """

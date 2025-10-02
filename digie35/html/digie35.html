@@ -972,6 +972,7 @@
                             <button id="flatten-1f-btn" title="Ctrl+ArrowUp, KeyC">&uarr;</button>
                             <button id="moveby-1b-btn" title="Ctrl+Shift+ArrowLeft">&lt;~</button>
                             <button id="frame-1b-btn" title="Ctrl+ArrowLeft, Comma">[&nbsp;&lt;&lt;&nbsp;]</button>
+                            <button id="align-btn" title="KeyM">&lt;||&gt;</button>
                             <button id="frame-1f-btn" title="Ctrl+ArrowRight, Period">[&nbsp;&gt;&gt;&nbsp;]</button>
                             <button id="moveby-1f-btn" title="Ctrl+Shift+ArrowRight">~&gt;</button>
                             <button id="flatten-2f-btn" title="Ctrl+ArrowDown, KeyV">&darr;</button>
@@ -1379,6 +1380,19 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
+                            <label for="vision-alignment-cb" accesskey="v"><u>V</u>ision alignment</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="vision-alignment-cb" value="1" checked />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Use vision align to automatically adjust the film position before initiating capture. This ensures optimal framing and reduces misallignment artifacts</small>
+                    </div>
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
                             <label for="autocorrection-cb" accesskey="c" >Auto <u>c</u>orrection</label>
                             <div class="switch-container">
                                 <label class="switch">
@@ -1440,13 +1454,13 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="serial-shoot-delay-rng" accesskey="c"><u>C</u>apture delay</label>
-                            <span id="serial-shoot-delay">
-                                <input type="range" id="serial-shoot-delay-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" />
-                                <span id="serial-shoot-delay-value" class="range-value"></span>
+                            <label for="preview-latency-rng" accesskey="c">Latency <u>c</u>ompensation</label>
+                            <span id="preview-latency">
+                                <input type="range" id="preview-latency-rng" value="1" min="0" max="10" oninput="adjust_delay_value(this)" />
+                                <span id="preview-latency-value" class="range-value"></span>
                             </span>
                         </div>
-                        <small class="hint">Delay in before next serial capture. It gets some time to interrupt operation via STOP even lagging preview</small>
+                        <small class="hint">Preview image is lagging because of transmission delay so it gets some time to settle after movement is stopped. Real image is important for monito preview, preview capture and for vision system</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1551,10 +1565,15 @@
 </body>
 
 <script>
-    window.frame_width_in_mm = 36+2;
-    window.move_by_in_mm = 0.4;  // TODO: how is calculated movement when 3 / 0.4 gives 1.2 ?
-    window.move_by_speed = 3;
-    window.frame_speed = 4;
+	const FRAME_WIDTH_IN_MM = 36+2;
+	const MOVE_BY_IN_MM = 0.4; // TODO: how is calculated movement when 3 / 0.4 gives 1.2 ?
+	const MOVE_BY_SPEED = 3;
+	const FRAME_SPEED = 4;
+	const ANALYZE_GENERAL = 1;
+	const ANALYZE_ALIGN = 2;
+    const ANALYZE_CAPTURE = 4;
+    const ANALYZE_ALIGN_REPEAT = 8;
+    const ANALYZE_MAX_ITERATION =3;
 
     function get_stream_url(usbpreview, path) {
         const port = usbpreview ? "8408" : "8410";   /* 8410 is proxy to 8409 with CORS*/
@@ -1725,10 +1744,10 @@
                 adjust_class("move", value, (data.action=="MOVE") && (data.movement == reverse(value)));
             }
             for (const value of window.adapter_buttons['moveby'].idx) {
-                adjust_class("moveby", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == window.move_by_speed));
+                adjust_class("moveby", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == MOVE_BY_SPEED));
             }
             for (const value of window.adapter_buttons['frame'].idx) {
-                adjust_class("frame", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == window.frame_speed));
+                adjust_class("frame", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == FRAME_SPEED));
             }
             for (const value of window.adapter_buttons['eject'].idx) {
                 adjust_class("eject", value, (data.action=="EJECT") && ((data.movement > 0) == (value > 0)));
@@ -1806,6 +1825,9 @@
             set_visible(elem, window.capabilities.flattening, "");
             elem.disabled = !window.capabilities.flattening;
         }
+		elem = get_adapter_button("align", "");
+		set_visible(elem, window.capabilities.vision, "");
+		elem.disabled = !window.capabilities.vision;
     }
 
     function adjust_camera_preview(force) {
@@ -1940,14 +1962,18 @@
         if (msg != "") {
             let found = false;
             for (const child of content.children) {
-                if (child.textContent === msg) {
+                if (child.dataset.message === msg) {
+					child.dataset.count = parseInt(child.dataset.count, 10)+1;
                     content.appendChild(child);
+					child.textContent = `${msg} (${child.dataset.count}x)`;
                     found = true;
                 }
             }
             if (!found) {
                 const line = document.createElement("div");
-                line.textContent = msg;
+				line.dataset.message = msg;
+				line.dataset.count = 1;
+                line.textContent = `${msg}`;
                 content.appendChild(line);
             }
         }
@@ -2063,14 +2089,18 @@
                         var cnt = 1;
                     }
                     if (cnt > 1) {
-                        // delay range is 0..500ms
-                        const val = Number(document.getElementById("serial-shoot-delay-rng").value) * 500;
+                        // delay range is 0..5000ms
+                        const val = Number(document.getElementById("preview-latency-rng").value) * 500;
                         setTimeout(function() {
                             if (!window.stop_multicapture) {
                                 if (capture_mode == "multi") {
                                     document.getElementById("capture-multi").value = (cnt - 1).toString();
                                 }
-                                window.adapter_buttons.shoot.action(undefined);
+                                if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
+					                sendCommandAnalyze(ANALYZE_ALIGN | ANALYZE_CAPTURE, true);
+                                } else {
+                                    window.adapter_buttons.shoot.action(undefined);
+                                }
                                 delete window.automove_in_progress;
                             }
                         }, val);
@@ -2089,7 +2119,7 @@
         if (window.capabilities.motorized) {
             if (typeof window.last_capture_position != "undefined" && document.getElementById("autocorrection-cb").checked) {
                 let x = Math.abs(window.last_capture_position - payload.film_position);
-                x -= window.frame_width_in_mm;
+                x -= FRAME_WIDTH_IN_MM;
                 x = x.toFixed(2);
                 if (Math.abs(x) < 10) {
                     document.getElementById("frame-correction").value = x.toString();
@@ -2193,6 +2223,15 @@
                                         document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
                                         intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
                                     }
+                                }
+                            }
+                            if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
+                                if (data.payload.action=="LEAD_IN" || (data.payload.action=="MOVE_BY" && data.payload.client_context == "frame")) {
+                                    setTimeout(function() {
+					                    sendCommandAnalyze(ANALYZE_ALIGN, true);
+                                    }, Number(document.getElementById("preview-latency-rng").value) * 500);
+                                } else if (data.payload.action=="MOVE_BY" && data.payload.client_context == "align") {
+					                sendCommandAnalyze(ANALYZE_ALIGN_REPEAT, true);
                                 }
                             }
                             adjust_backlight(true, false);
@@ -2366,10 +2405,30 @@
                                 adjust_file_template(data.payload);
                             } else if (data.cmd == "ANALYZE") {
                                 window.snapshot_analysis = data.payload;
-								window.analyze_in_progress = false;
+                                if ((data.payload.status != "SHIFT_REQUIRED") && (data.payload.status != "ALIGNED")) {
+                                    const errs = data.payload ?. errors ?? "";
+                                    update_status_info(`Vision: ${data.payload.status} ${errs}`);
+								    window.analyze_in_progress = 0;
+                                } else if (window.analyze_in_progress & ANALYZE_ALIGN) {
+                                    if (data.payload.status == "SHIFT_REQUIRED") {
+                                        if ((window.analyze_in_progress & ANALYZE_ALIGN_REPEAT) && window.analyze_counter <= 0) {
+                                            update_status_info(`Vision: Alignment attempt count exceeded`);
+								            window.analyze_in_progress = 0;
+                                        } else {
+                                            sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel, 'speed': MOVE_BY_SPEED, 'client_context': 'align'});
+                                        }
+                                    } else if (data.payload.status == "ALIGNED" && (window.analyze_in_progress & ANALYZE_CAPTURE)) {
+								        window.analyze_in_progress = 0;
+                                        if (!window.stop_multicapture) {
+                                            window.adapter_buttons.shoot.action(undefined);
+                                        }
+                                    }
+                                } else {
+								    window.analyze_in_progress = 0;
+                                }
+                                // TODO: focus, positive-negative
 								window.last_analyze_stamp =  Date.now();
                                 refresh_snapshot();
-                                // TODO: focus, movement, positive-negative
                             }
                             adjust();
                             if (data.cmd == "DOWNLOAD") {
@@ -2450,13 +2509,13 @@
         sendCommand2(cmd, obj);
     }
 
-    function sendCommandAnalyze(force=false) {
+    function sendCommandAnalyze(reason, force=false) {
 		// do not DoS as websocket/tcp buffers requests and analyze might congest server
 		if (window.last_analyze_stamp) {
 			let diff_secs = (Date.now() - window.last_analyze_stamp) / 1000;
 			if (window.analyze_in_progress && diff_secs > 5) {
 				// fallback when response likely never come back, should not happen
-				window.analyze_in_progress = false;
+				window.analyze_in_progress = 0;
 			}
 			if (window.analyze_in_progress || (!force && diff_secs < 2.5)) {
 				return;
@@ -2467,7 +2526,13 @@
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
 		window.last_analyze_stamp =  Date.now();
-		window.analyze_in_progress = true;
+		window.analyze_in_progress |= reason;
+        if (reason & ANALYZE_ALIGN) {
+            window.analyze_counter = ANALYZE_MAX_ITERATION;
+        }
+        if (reason & ANALYZE_ALIGN_REPEAT) {
+            window.analyze_counter -= 1;
+        }
         sendCommand2("ANALYZE", params);
     }
 
@@ -2941,7 +3006,7 @@
             return fld in analysis ? analysis[fld]:"None";
         }
         write_line(`Size: ${analysis.width}x${analysis.height}, Pixel/mm: ${NaN('pixel_per_mm')}`);
-        write_line(`Color mode: ${NaN('colormode')} (${NaN('color_uniformity')}), Negative: ${NaN('negative')}`);
+        write_line(`Color mode: ${NaN('color_mode')} (${NaN('color_uniformity')}), Negative: ${NaN('negative')}`);
         write_line(`Film base: ${NaN('film_base_intensity')}, Naked: ${NaN('naked_intensity')}, Contrast: ${NaN('contrast')}`);
         write_line(`Focus score: Band: ${NaN('band_focus_score')}, Payload: ${NaN('payload_focus_score')}`);
         if ("move_by" in analysis) {
@@ -2960,7 +3025,7 @@
         image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
         image.onload = () => {
             if (document.getElementById("stream-analyze-cb").checked && document.getElementById("stream-vision-cb").checked) {
-                sendCommandAnalyze();
+                sendCommandAnalyze(ANALYZE_GENERAL);
             } else {
                 window.snapshot_analysis = null;
             }
@@ -3036,7 +3101,7 @@
         window.snapshot_timer = null;
         window.current_adapter = "";
 		window.last_analyze_stamp = null;
-		window.analyze_in_progress = false;
+		window.analyze_in_progress = 0;
         // check if it is fresh visit or reload, ...
         let nav_type = "unknown";
         if (performance.getEntriesByType) {
@@ -3248,6 +3313,7 @@
             "preview.vision": "stream-vision-cb",
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
+            "control.vision.alignment": "vision-alignment-cb",
             "control.autolead": "autolead-cb",
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
@@ -3268,7 +3334,7 @@
             "control.focus_warning_interval": "focus-warning-list",
             "capture.multi": "capture-multi",
             "capture.shoot.mode": "shoot-mode-list",
-            "capture.shoot.serial_delay": "serial-shoot-delay-rng",
+            "capture.preview.latency": "preview-latency-rng",
             "capture.shoot.trigger_delay": "trigger-delay-rng",
             "select.camera": "camera-list",
             "select.volume": "volume-list",
@@ -3296,7 +3362,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommandM("MOVE_BY", {'mm': dir*window.move_by_in_mm, 'speed': window.move_by_speed});
+                    sendCommandM("MOVE_BY", {'mm': dir*MOVE_BY_IN_MM, 'speed': MOVE_BY_SPEED, 'client_context': "wheel"});
                 },
             },
 
@@ -3304,7 +3370,7 @@
                 "idx": [-1, 1],
                 "action": function(dir) {
                     window.stop_multicapture = true;
-                    sendCommandM("MOVE_BY", {'mm': dir*(window.frame_width_in_mm + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': window.frame_speed});
+                    sendCommandM("MOVE_BY", {'mm': dir*(FRAME_WIDTH_IN_MM + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': FRAME_SPEED, 'client_context': 'frame'});
                 },
             },
 
@@ -3339,6 +3405,12 @@
                     sendCommandM('INSERT');
                 },
             },
+
+			"align": {
+				"action": function(dir) {
+					sendCommandAnalyze(ANALYZE_ALIGN, true);
+				}
+			},
 
             "shoot": {
                 "action": function(dir) {
@@ -3560,7 +3632,7 @@
         }
         window.save_usb_preview = document.getElementById("usb-preview-cb").checked;
         adjust_camera_list(localStorage.getItem("select.camera"));
-        adjust_delay_value(document.getElementById("serial-shoot-delay-rng"));
+        adjust_delay_value(document.getElementById("preview-latency-rng"));
         adjust_delay_value(document.getElementById("trigger-delay-rng"));
         adjust_logger();
         connect();
@@ -3700,6 +3772,9 @@
             case "KeyV":
                 btn = "flatten-2f";
                 break;
+			case "KeyM":
+				btn = "align";
+				break;
             }
         } else if (shift_count == 1) {
             switch (event.code) {
