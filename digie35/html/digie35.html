@@ -1569,7 +1569,7 @@
 	const MOVE_BY_IN_MM = 0.4; // TODO: how is calculated movement when 3 / 0.4 gives 1.2 ?
 	const MOVE_BY_SPEED = 3;
 	const FRAME_SPEED = 4;
-	const ANALYZE_GENERAL = 1;
+	const ANALYZE_STREAM = 1;
 	const ANALYZE_ALIGN = 2;
     const ANALYZE_CAPTURE = 4;
     const ANALYZE_ALIGN_REPEAT = 8;
@@ -1737,7 +1737,7 @@
                     elem.classList.toggle(class_name);
                 }
             }
-            adjust_class("insert", "", data.action=="LEAD_IN");
+            adjust_class("insert", "", data.action=="LEAD_IN" && (data.movement != 0));
             adjust_class("insert", "", data.film_inserted, "pre-action");
             adjust_class("stop", "", data.movement==0);
             for (const value of window.adapter_buttons['move'].idx) {
@@ -1750,7 +1750,7 @@
                 adjust_class("frame", value, (data.action=="MOVE_BY") && ((data.movement > 0) == (reverse(value) > 0)) && (Math.abs(data.movement) == FRAME_SPEED));
             }
             for (const value of window.adapter_buttons['eject'].idx) {
-                adjust_class("eject", value, (data.action=="EJECT") && ((data.movement > 0) == (value > 0)));
+                adjust_class("eject", value, (data.action=="EJECT") && (data.movement != 0) &&((data.movement > 0) == (value > 0)));
             }
             const action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
             document.getElementById("header-motion-name").textContent = action_elem ? action_elem.textContent : "";
@@ -2097,7 +2097,7 @@
                                     document.getElementById("capture-multi").value = (cnt - 1).toString();
                                 }
                                 if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
-					                sendCommandAnalyze(ANALYZE_ALIGN | ANALYZE_CAPTURE, true);
+					                sendCommandAnalyze(ANALYZE_ALIGN | ANALYZE_CAPTURE);
                                 } else {
                                     window.adapter_buttons.shoot.action(undefined);
                                 }
@@ -2244,7 +2244,7 @@
                                 }
                                 if (reason) {
                                     setTimeout(function() {
-					                    sendCommandAnalyze(reason, true);
+					                    sendCommandAnalyze(reason);
                                     }, Number(document.getElementById("preview-latency-rng").value) * 500);
                                 }
                             }
@@ -2367,7 +2367,7 @@
                                 elem.value = data.payload.id;
                                 update_project_selection(false);
                                 sendCommand('LIST_PROJECTS');
-                            } else if (data.cmd == "HELLO" || data.cmd == "HOTPLUG") {
+                            } else if (["HELLO", "HOTPLUG"].includes(data.cmd)) {
                                 document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
                                 window.steps_per_mm = data.payload.steps_per_mm;
                                 window.capabilities = data.payload.capabilities;
@@ -2406,11 +2406,11 @@
                                 document.onkeydown = do_onkeydown;
                                 document.onkeyup = do_onkeyup;
                                 adjust_adapter({"movement": 0, });
-							} else if (data.cmd == "STOP" || data.cmd == "MOVE" || data.cmd == "MOVE_BY") {
+							} else if (["STOP", "MOVE", "MOVE_BY", "EJECT", "INSERT"].includes( data.cmd)) {
 								adjust_adapter(data.payload);
                             } else if (data.cmd == "LIST_CAMERAS") {
                                 adjust_camera_preview(false);
-                            } else if ((data.cmd == "START_PREVIEW") || (data.cmd == "STOP_PREVIEW")) {
+                            } else if (["START_PREVIEW", "STOP_PREVIEW"].includes(data.cmd)) {
                                 document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
                             } else if (data.cmd == "GET_TEMPLATE") {
                                 create_file_template(data.payload);
@@ -2421,7 +2421,7 @@
                                 window.snapshot_analysis = data.payload;
                                 if ((data.payload.status != "SHIFT_REQUIRED") && (data.payload.status != "ALIGNED")) {
                                     const errs = data.payload ?. errors ?? "";
-                                    update_status_info(`Vision: ${data.payload.status} ${errs}`, false, data.payload.status);
+                                    update_status_info(`Vision: ${data.payload.status} ${errs}`, false, "VISION");
 								    window.analyze_in_progress = 0;
                                 } else if (window.analyze_in_progress & ANALYZE_ALIGN) {
                                     if (data.payload.status == "SHIFT_REQUIRED") {
@@ -2527,7 +2527,7 @@
         sendCommand2(cmd, obj);
     }
 
-    function sendCommandAnalyze(reason, force=false) {
+    function sendCommandAnalyze(flags) {
 		// do not DoS as websocket/tcp buffers requests and analyze might congest server
 		if (window.last_analyze_stamp) {
 			let diff_secs = (Date.now() - window.last_analyze_stamp) / 1000;
@@ -2535,20 +2535,23 @@
 				// fallback when response likely never come back, should not happen
 				window.analyze_in_progress = 0;
 			}
-			if (window.analyze_in_progress || (!force && diff_secs < 2.5)) {
+			if (window.analyze_in_progress) {
+                window.analyze_in_progress |= flags;
+                return;
+            if ((flags & ANALYZE_STREAM) && diff_secs < 2.5) {
 				return;
 			}
 		}
-        let params = {}
+        let params = {"client_context": flags};
         if (!document.getElementById("usb-preview-cb").checked) {
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
 		window.last_analyze_stamp =  Date.now();
-		window.analyze_in_progress |= reason;
-        if (reason & ANALYZE_ALIGN) {
+		window.analyze_in_progress |= flags;
+        if (flags & ANALYZE_ALIGN) {
             window.analyze_counter = ANALYZE_MAX_ITERATION;
         }
-        if (reason & ANALYZE_ALIGN_REPEAT) {
+        if (flags & ANALYZE_ALIGN_REPEAT) {
             window.analyze_in_progress |= ANALYZE_ALIGN;
             window.analyze_counter -= 1;
         }
@@ -3044,7 +3047,7 @@
         image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
         image.onload = () => {
             if (document.getElementById("stream-analyze-cb").checked && document.getElementById("stream-vision-cb").checked) {
-                sendCommandAnalyze(ANALYZE_GENERAL);
+                sendCommandAnalyze(ANALYZE_STREAM);
             } else {
                 window.snapshot_analysis = null;
             }
@@ -3427,7 +3430,7 @@
 
 			"align": {
 				"action": function(dir) {
-					sendCommandAnalyze(ANALYZE_ALIGN, true);
+					sendCommandAnalyze(ANALYZE_ALIGN);
 				}
 			},
 
