@@ -71,9 +71,10 @@ class ImageAnalysisError(Exception):
 class ImageAnalysis:
     _PERFORATION_HOLE_DISTANCE = 4.75 # mm
     _PERFORATION_HOLE_WIDTH = 1.98 # mm
+    _PERFORATION_HOLE_DISTANCE2 = 25.5 # mm
     _FRAME_WIDTH = 36.5 # mm
     _FRAME_HEIGHT = _FRAME_WIDTH * 2 / 3
-    _MAGNIFICATION = 0.95  # not 1:1 as we want borders
+    _MAGNIFICATION = _FRAME_HEIGHT / (_FRAME_HEIGHT + 1.2)  # not 1:1 as we want perforation
     # imagedata in BGR color space
     def __init__(self, image_data: bytes, filename = None):
         nparr = np.frombuffer(image_data, dtype=np.uint8)
@@ -82,7 +83,8 @@ class ImageAnalysis:
             raise ValueError("Wrong JPEG image")
         self._gray = cv2.cvtColor(self._image, cv2.COLOR_BGR2GRAY)
         h, w = self._gray.shape[:2]
-        self._pixel_per_mm = w / self._FRAME_WIDTH / self._MAGNIFICATION
+        self._pixel_per_mm = h / self._FRAME_HEIGHT * self._MAGNIFICATION
+        #print(f"Image: {w}x{h}, ratio: {self._pixel_per_mm}, Frame: {self._FRAME_WIDTH}x{self._FRAME_HEIGHT}, Magnify: {self._MAGNIFICATION}")
         self._filename = filename
         np.set_printoptions(threshold=np.inf)  # debug complete arrays
         self._reset()
@@ -110,13 +112,13 @@ class ImageAnalysis:
     def _horiz_mm_to_px(self, mm, pixel_per_mm = None):
         if pixel_per_mm is None:
             h, w = self._gray.shape[:2]
-            pixel_per_mm = w / self._FRAME_WIDTH / self._MAGNIFICATION
+            pixel_per_mm = w / self._FRAME_WIDTH * self._MAGNIFICATION
         return int(mm * pixel_per_mm)
 
     def _vert_mm_to_px(self, mm, pixel_per_mm = None):
         if pixel_per_mm is None:
             h, w = self._gray.shape[:2]
-            pixel_per_mm = h / self._FRAME_HEIGHT / self._MAGNIFICATION
+            pixel_per_mm = h / self._FRAME_HEIGHT * self._MAGNIFICATION
         return int(mm * pixel_per_mm)
 
 
@@ -358,15 +360,19 @@ class ImageAnalysis:
             else:
                 contrast = None
 
+            pixel_per_mm = 0
             if holes.size:
                 if len(hole_distances) > 0:
                     w = np.array(hole_distances).mean()
                     pixel_per_mm = w / self._PERFORATION_HOLE_DISTANCE
+                    resolution_weight = 2 * len(hole_distances)
                 else:
                     w = np.mean(holes[:, 1])
                     pixel_per_mm = w / self._PERFORATION_HOLE_WIDTH
-            else:
+                    resolution_weight = holes.size
+            if pixel_per_mm < self._pixel_per_mm * 0.8:  # hole width tends provide misleading sizes
                 pixel_per_mm = None
+                resolution_weight = None
 
             if False:
                 print(f"holes: {holes}/{hole_stat}, bridges: {bridges}/{bridge_stat}")
@@ -388,6 +394,7 @@ class ImageAnalysis:
             result |= {
                 #"uniformity": cv,
                 "pixel_per_mm": pixel_per_mm,
+                "resolution_weight": resolution_weight,
                 "contrast": contrast,
                 "holes": {
                     "bounds": holes1,
@@ -620,14 +627,12 @@ class ImageAnalysis:
                 frame_width = frames[idx]["end"] - frames[idx]["start"]
                 frame_start_gap = frames[idx]["start"]
                 frame_end_gap = w - frames[idx]["end"] - 1
-                print(f"center: {idx}, frame_width: {frame_width}, start:{frame_start_gap}, end:{frame_end_gap}, minimal: {minimal_margin}, optimal:{optimal_frame_width}")
+                #print(f"center: {idx}, frame_width: {frame_width}, start:{frame_start_gap}, end:{frame_end_gap}, minimal: {minimal_margin}, optimal:{optimal_frame_width}, optimal_margin:{optimal_margin}, pixel_per_mm:{params['pixel_per_mm']}")
                 if (frame_width >= optimal_frame_width or (frame_start_gap > 0 and frame_end_gap > 0)):
                     # we have at least full picture, slightly center to make some gap
                     # should work also in case of panorama when called recursively
-                    if frame_end_gap < minimal_margin:
-                        return -optimal_margin - frame_end_gap
-                    elif frame_start_gap < minimal_margin:
-                        return optimal_margin - frame_start_gap
+                    if frame_end_gap < minimal_margin or frame_start_gap < minimal_margin:
+                        return int((frame_start_gap + frame_end_gap) / 2) - frame_start_gap
                     else:
                         return 0
                 elif frame_start_gap <= 0:
@@ -709,13 +714,14 @@ class ImageAnalysis:
                 "film_base_intensity": self._calc_weighted_mean(top_perf["bridges"]["intensity"], len(top_perf["bridges"]["bounds"]), bottom_perf["bridges"]["intensity"], len(bottom_perf["bridges"]["bounds"])),
                 "naked_intensity": self._calc_weighted_mean(top_perf["holes"]["intensity"], len(top_perf["holes"]["bounds"]), bottom_perf["holes"]["intensity"], len(bottom_perf["holes"]["bounds"])),
                 "contrast": self._calc_weighted_mean(top_perf["contrast"], len(top_perf["holes"]["bounds"]), bottom_perf["contrast"], len(bottom_perf["holes"]["bounds"])),
-                "pixel_per_mm": self._calc_weighted_mean(top_perf["pixel_per_mm"], len(top_perf["holes"]["bounds"]), bottom_perf["pixel_per_mm"], len(bottom_perf["holes"]["bounds"])),
+                "pixel_per_mm": self._calc_weighted_mean(top_perf["pixel_per_mm"], top_perf["resolution_weight"], bottom_perf["pixel_per_mm"], bottom_perf["resolution_weight"]),
             }
 
         margin2 = self._vert_mm_to_px(3, self._result["pixel_per_mm"])
         self._result["holes"] = []
         # hole depth needed to skip film edge if possible where might be light artefacts
-        top_depth = top_dead
+        top_depth = -1
+        bottom_depth = -1
         if not self._result["contrast"] is None:   # base intensity is mandatory
             if top_perf:
                 depths = self._check_result(self._detect_hole_depth(self._gray[top_dead:top_dead+margin2, :], top_perf, "top", **self._result))
@@ -723,13 +729,21 @@ class ImageAnalysis:
                     self._result["holes"].append((hole[0], top_dead, hole[0]+hole[1], top_dead+depths[idx]))  # bounding box
                     if depths[idx] > top_depth:
                         top_depth = depths[idx]
-            bottom_depth = bottom_dead
             if bottom_perf:
                 depths = self._check_result(self._detect_hole_depth(self._gray[-bottom_dead-1:-bottom_dead-margin2-1:-1, :], bottom_perf, "bottom", **self._result))
                 for idx, hole in enumerate(bottom_perf["holes"]["bounds"]):
                     self._result["holes"].append((hole[0], self._result["height"]-depths[idx]-bottom_dead, hole[0]+hole[1], self._result["height"]-bottom_dead))  # bounding box
                     if depths[idx] > bottom_depth:
                         bottom_depth = depths[idx]
+
+        calc_vert_res = top_depth >= 0 and bottom_depth >= 0
+        top_depth = max(0, top_depth) + top_dead
+        bottom_depth = max(0, bottom_depth) + bottom_dead
+        if calc_vert_res:
+            # top and bottom holes found so we can calc dpi as vertical distance is known
+            pixel_per_mm = (self._result["height"] - top_depth - bottom_depth) / self._PERFORATION_HOLE_DISTANCE2
+            # print(f"Vertical pixel_per_mm: {pixel_per_mm}")
+            self._result["pixel_per_mm"] = (self._result["pixel_per_mm"] + pixel_per_mm) / 2
 
         def add_holes(name, perf, y1, y2):
             if not perf:
