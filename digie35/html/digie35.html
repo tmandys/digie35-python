@@ -1584,7 +1584,7 @@
     function _listener_show_lightbox(event) {
         show_lightbox(this.getAttribute("data-image-name"));
         event.preventDefault();
-    };
+    }
 
     function adjust() {
         const connected = document.getElementById("server-info").value != "";
@@ -2538,6 +2538,7 @@
 			if (window.analyze_in_progress) {
                 window.analyze_in_progress |= flags;
                 return;
+            }
             if ((flags & ANALYZE_STREAM) && diff_secs < 2.5) {
 				return;
 			}
