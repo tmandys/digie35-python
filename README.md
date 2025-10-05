@@ -203,6 +203,15 @@ Add PCI support to `/boot/firmware/config.txt`
 dtparam=pciex1=on
 # dtparam=pciex1_gen=3
 
+LED activity is triggered by specific action. To change from mmc0 (i.e. SD card) to e.g. default-on use:
+
+dtparam=act_led_trigger=default-on
+
+Current settings is available (and changeable) via
+
+  cat /sys/class/leds/ACT/trigger
+  echo <opt> | sudo tee /sys/class/leds/ACT/trigger
+
 Check boot order via `rpi-eeprom-config` if PCI is mentioned. Parameter is evaluated right to left.
 1..SD card, 6..PCI, 4..USB, f..stop
 
@@ -213,7 +222,7 @@ So good value is e.g.:
 If not then modify via `sudo rpi-eeprom-config -e`, save and reboot. Note `rpi-eeprom-config` won't report
 updated value till reboot.
 
-- RPI5 USB-C PD 
+- RPI5 USB-C PD
 
 To avoid warnings because powered via internal PSU over GPIO and not via USB-C
 where negotiates PD params then add option to rpi-eeprom-config
