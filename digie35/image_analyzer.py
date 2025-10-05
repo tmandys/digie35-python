@@ -53,7 +53,7 @@ def main():
         description="Digie35 image analyzer, v%s" % __version__,
         epilog="",
     )
-    argParser.add_argument("filename", help="Input image file name")  # nargs="+"
+    argParser.add_argument("filename", nargs="+", help="Input image file name")
     argParser.add_argument("-t", "--task", dest="task", choices=["FRAME", "MEAN_RGB", "UNIFORMITY"], type=str.upper, default="FRAME", help=f"Select task to be performed. Default: %(default)s")
     argParser.add_argument("-i", "--show-input-image", dest="show_input_image", action="store_true", help="show original image to be analyzed")
 
@@ -103,57 +103,58 @@ def main():
     logging.getLogger().setLevel(verbose2level[level])
     logging.getLogger().debug("Verbosity: %s(%s)" % (level, logging.getLogger().getEffectiveLevel()))
     try:
-        logging.getLogger().info(f"Input image: {args.filename}")
-        with open(args.filename, "rb") as f:
-            image_data = f.read()
-        logging.getLogger().debug(f"Header: {image_data[:10]}")
+        for filename in args.filename:
+            logging.getLogger().info(f"Input image: {filename}")
+            with open(filename, "rb") as f:
+                image_data = f.read()
+            logging.getLogger().debug(f"Header: {image_data[:10]}")
 
-        analyzer = digie35image.ImageAnalysis(image_data, args.filename)
-        if args.show_input_image:
-            digie35image.show_image(analyzer._image, "Input image")
+            analyzer = digie35image.ImageAnalysis(image_data, filename)
+            if args.show_input_image:
+                digie35image.show_image(analyzer._image, "Input image")
 
-        if args.task == "FRAME":
-            analyzer.analyze()
+            if args.task == "FRAME":
+                analyzer.analyze()
 
-            if not args.quiet:
-                print(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
+                if not args.quiet:
+                    print(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
 
-            if args.show_output_image:
-                digie35image.show_image(analyzer.get_output_image(), "Output image")
+                if args.show_output_image:
+                    digie35image.show_image(analyzer.get_output_image(), "Output image")
 
-            if args.save_output_image:
-                path = Path(args.filename)
-                out_path = str(path.with_name(path.stem + ".output" + path.suffix))
-                logging.getLogger().info(f"Output image: {out_path}")
-                cv2.imwrite(out_path, analyzer.get_output_image())
+                if args.save_output_image:
+                    path = Path(filename)
+                    out_path = str(path.with_name(path.stem + ".output" + path.suffix))
+                    logging.getLogger().info(f"Output image: {out_path}")
+                    cv2.imwrite(out_path, analyzer.get_output_image())
 
-            if args.save_result:
-                path = Path(args.filename)
-                out_path = str(path.with_name(path.stem + ".output.json"))
-                logging.getLogger().info(f"Output result: {out_path}")
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
-
-            if args.append_result:
-                path = Path(args.filename)
-                out_path = str(path.with_name(path.stem + ".json"))
-                if path.exists():
-                    logging.getLogger().info(f"Append result to to json: {out_path}")
-                    with open(out_path, "r", encoding="utf-8") as f:
-                        data = json.load(f);
-                    data["vision"] = analyzer.get_result()
+                if args.save_result:
+                    path = Path(filename)
+                    out_path = str(path.with_name(path.stem + ".output.json"))
+                    logging.getLogger().info(f"Output result: {out_path}")
                     with open(out_path, "w", encoding="utf-8") as f:
-                        f.write(json.dumps(data, indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
-                else:
-                    logging.getLogger().info(f"Json file does not exists: {out_path}")
-        elif args.task == "MEAN_RGB":
-            result = analyzer.analyze_rgb_intensity(args.mrgb_fraction/100)
-            print(f"{result}")
-        elif args.task == "UNIFORMITY":
-            result = analyzer.analyze_uniformity(args.uni_grid)
-            arr_str = [[f"{v:.2f}" for v in row] for row in result[1]]
-            print(f"{result[0]:3f}")
-            print(f"{arr_str}")
+                        f.write(json.dumps(analyzer.get_result(), indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
+
+                if args.append_result:
+                    path = Path(filename)
+                    out_path = str(path.with_name(path.stem + ".json"))
+                    if path.exists():
+                        logging.getLogger().info(f"Append result to to json: {out_path}")
+                        with open(out_path, "r", encoding="utf-8") as f:
+                            data = json.load(f);
+                        data["vision"] = analyzer.get_result()
+                        with open(out_path, "w", encoding="utf-8") as f:
+                            f.write(json.dumps(data, indent=2, ensure_ascii=False, cls=digie35image.NumpyEncoder))
+                    else:
+                        logging.getLogger().info(f"Json file does not exists: {out_path}")
+            elif args.task == "MEAN_RGB":
+                result = analyzer.analyze_rgb_intensity(args.mrgb_fraction/100)
+                print(f"{result}")
+            elif args.task == "UNIFORMITY":
+                result = analyzer.analyze_uniformity(args.uni_grid)
+                arr_str = [[f"{v:.2f}" for v in row] for row in result[1]]
+                print(f"{result[0]:3f}")
+                print(f"{arr_str}")
 
     except KeyboardInterrupt:
         print("Keyboard interrupt, shutdown")
