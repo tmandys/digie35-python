@@ -826,6 +826,7 @@
 <body onload="do_onload()">
     <div id="error-box" class="error-message hidden" title="Ctrl+C to clear errors">
         <span class="icon">&#x26a0;</span>
+        <audio id="error-sound" src="sounds/error.mp3"></audio>
         <span id="error-close" class="close">&times;</span>
         <div id="error-content" class="content"></div>
     </div>
@@ -1120,6 +1121,18 @@
                     <button class="close">&times;</button>
                 </div>
                 <div class="content">
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="play-sound-cb" accesskey="p"><u>P</u>lay sound</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="play-sound-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">Play sound when an error occurs</small>
+                    </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="verbose-list" accesskey="v"><u>V</u>erbosity</label>
@@ -1977,6 +1990,17 @@
 				line.dataset.count = 1;
                 line.textContent = `${msg}`;
                 content.appendChild(line);
+            }
+            if (document.getElementById("play-sound-cb").checked) {
+                const audio = document.getElementById("error-sound");
+                if (audio.paused || audio.ended) {
+                    audio.play();
+                } else {
+                    // play again
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.play();
+                }
             }
         } else {
             if (clear) {
@@ -3370,6 +3394,7 @@
             "select.volume": "volume-list",
             "select.project": "project-list",
             "select.film": "film-list",
+            "sound.on_error": "play-sound-cb",
         };
 
         // add listeners for adapter

@@ -112,6 +112,10 @@ def main():
         "digie35-crop-width.svg",
     }
 
+    www_sounds = {
+        "error.mp3",
+    }
+
     desktop_prefix = "digie35-"
     desktop_apps = [
         "gui",
@@ -195,6 +199,12 @@ def main():
                 log("Linking image '%s' to '%s'" % (f, f2))
                 run(["sudo", "rm", "-f", f2])
                 run(["sudo", "ln", "-s", f, f2])
+            for f in www_sounds:
+                f2 = WWW_DIR + "/sounds/" + f
+                f = PROJ_DIR + "/sounds/" + f
+                log("Linking sound '%s' to '%s'" % (f, f2))
+                run(["sudo", "rm", "-f", f2])
+                run(["sudo", "ln", "-s", f, f2])
         elif args.httpd == NGINX_CONF_DIR:
             log("Installing nginx stuff")
             for cfg in nginx_configs:
@@ -248,6 +258,10 @@ def main():
 
             for f in www_images:
                 f = WWW_DIR + "/images/" + f
+                log("Removing WWW link '%s'" % f )
+                run(["sudo", "rm", f])
+            for f in www_sounds:
+                f = WWW_DIR + "/sounds/" + f
                 log("Removing WWW link '%s'" % f )
                 run(["sudo", "rm", f])
         elif args.httpd == NGINX_CONF_DIR:

@@ -15,6 +15,7 @@ Features
   - digie35_image_analyzer tool
   - postponed backlight switch off after no film detected
   - test server controls all I/O
+  - play sound on error
 
 Fixes
 -----

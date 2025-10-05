@@ -33,6 +33,7 @@ setup(
             "html/*.css",
             "html/*.js",
             "html/images/*",
+            "html/audio/*",
             "systemd/*.service",
             "cameras/*",
             "desktop/*",
