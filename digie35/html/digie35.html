@@ -1984,14 +1984,14 @@
                     break;
                 }
             }
-            if (!found) {
+            if (!found && msg != "") {
                 const line = document.createElement("div");
 				line.dataset.message = key ? key: msg;
 				line.dataset.count = 1;
                 line.textContent = `${msg}`;
                 content.appendChild(line);
             }
-            if (document.getElementById("play-sound-cb").checked) {
+            if (msg != "" && document.getElementById("play-sound-cb").checked) {
                 const audio = document.getElementById("error-sound");
                 if (audio.paused || audio.ended) {
                     audio.play();
@@ -2465,10 +2465,12 @@
 								            window.analyze_in_progress = 0;
                                             sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel_per_mm, 'speed': MOVE_BY_SPEED, 'client_context': ctx});
                                         }
-                                    } else if (data.payload.status == "ALIGNED" && (window.analyze_in_progress & ANALYZE_CAPTURE)) {
-								        window.analyze_in_progress = 0;
-                                        if (!window.stop_multicapture) {
-                                            window.adapter_buttons.shoot.action(undefined);
+                                    } else if (data.payload.status == "ALIGNED") {
+                                        if (window.analyze_in_progress & ANALYZE_CAPTURE) {
+                                            if (!window.stop_multicapture) {
+    								            window.analyze_in_progress = 0;
+                                                window.adapter_buttons.shoot.action(undefined);
+                                            }
                                         }
                                     }
                                 } else {
@@ -2564,7 +2566,7 @@
 			let diff_secs = (Date.now() - window.last_analyze_stamp) / 1000;
 			if (window.analyze_in_progress && diff_secs > 5) {
 				// fallback when response likely never come back, should not happen
-				window.analyze_in_progress = 0;
+			    window.analyze_in_progress = 0;
 			}
 			if (window.analyze_in_progress) {
                 window.analyze_in_progress |= flags;
