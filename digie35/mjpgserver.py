@@ -45,7 +45,7 @@ class FrameBuffer(object):
 
     def get_latest_frame(self, not_older = None):
         with self.condition:
-            if not_older != None and self.latest_timestamp < not_older:
+            if self.latest_timestamp is None or (not not_older is None and self.latest_timestamp < not_older):
                 return None
             else:
                 return self.latest_frame
