@@ -148,7 +148,7 @@ def main():
                     else:
                         logging.getLogger().info(f"Json file does not exists: {out_path}")
             elif args.task == "MEAN_RGB":
-                result = analyzer.analyze_rgb_intensity(args.mrgb_fraction/100)
+                result = analyzer.analyze_rgb_intensity(args.mean_rgb_fraction/100)
                 print(f"{result}")
             elif args.task == "UNIFORMITY":
                 result = analyzer.analyze_uniformity(args.uni_grid)

@@ -81,8 +81,7 @@ class ImageAnalysis:
         self._image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if self._image is None:
             raise ValueError("Wrong JPEG image")
-        self._gray = cv2.cvtColor(self._image, cv2.COLOR_BGR2GRAY)
-        h, w = self._gray.shape[:2]
+        h, w = self._image.shape[:2]
         self._pixel_per_mm = h / self._FRAME_HEIGHT * self._MAGNIFICATION
         #print(f"Image: {w}x{h}, ratio: {self._pixel_per_mm}, Frame: {self._FRAME_WIDTH}x{self._FRAME_HEIGHT}, Magnify: {self._MAGNIFICATION}")
         self._filename = filename
@@ -200,10 +199,12 @@ class ImageAnalysis:
         result = {}
         if len(self._image.shape) < 3 or self._image.shape[2] == 1:
             result["color_mode"] = "bw"
+            self._gray = self._image
         else:
-            r = self._image[:, :, 0].astype(np.int16)
-            g = self._image[:, :, 1].astype(np.int16)
-            b = self._image[:, :, 2].astype(np.int16)
+            b, g, r = cv2.split(self._image)
+            #r = self._image[:, :, 0].astype(np.int16)
+            #g = self._image[:, :, 1].astype(np.int16)
+            #b = self._image[:, :, 2].astype(np.int16)
 
             diff_rg = np.abs(r - g)
             diff_gb = np.abs(g - b)
@@ -214,7 +215,18 @@ class ImageAnalysis:
             # if majority of differences under threshold then BW
             perc = np.percentile(max_diff, 99)
             result["color_uniformity"] = perc
+            # select channel with max. variability, even for gray scale it is not bottleneck vs. self._gray = cv2.cvtColor(self._image, cv2.COLOR_BGR2GRAY)
+            # variability of gray scale is always lower than any separate channel
+            stds = [b.std(), g.std(), r.std()]
+            self._gray = [b, g, r][np.argmax(stds)]
+            #print(f"BGR[{np.argmax(stds)}, stds: {stds}")
             result["color_mode"] = "bw" if perc <= 8 else "color"
+            #show_image(b)
+            #show_image(g)
+            #show_image(r)
+
+        #print(f"Color mode: {result['color_mode']}, perc: {perc}, bgr: {np.argmax(stds)}")
+        #show_image(self._gray)
 
         max_intensity = np.percentile(self._gray, 99.5)  # avoid light artefacts
         result["naked_intensity"] = max_intensity
@@ -248,8 +260,8 @@ class ImageAnalysis:
         #show_image(band)
         dark_artifacts = np.percentile(band, 5)
         mu = band[band >= dark_artifacts].mean()
-        print(f"dark artifacts: {dark_artifacts}, mu:{mu}")
-        w = max(0.4, 1-(params['naked_intensity'] - mu)/30)   # weighed average when small distance the use weight on naked otherwise use average
+        #print(f"dark artifacts: {dark_artifacts}, mu:{mu}")
+        w = max(0.4, 1-(params['naked_intensity'] - mu)/30)   # weighted average when small distance the use weight on naked otherwise use average
         thr = int(params['naked_intensity']*w + mu * (1-w))
         for row in band:
             naked_ratio = np.count_nonzero(row >= thr) / row.size
@@ -258,6 +270,7 @@ class ImageAnalysis:
             if naked_ratio > 0.33:
                 return dead
             dead += 1
+        # TODO: fallback when band is clear then decrease naked ratio as it might be hole at innermost distance where ration is 25% or so
         #show_image(band)
         return None
 
@@ -290,150 +303,159 @@ class ImageAnalysis:
         cv = sigma / (mu + 1e-6)
         if False:
             print(f"mu:{mu}, sigma:{sigma}, cv:{cv}")
-        if cv < 0.000000:   # TODO
-            # low variability so no holes found
-            return ImageAnalysisError(f"Low variability {cv:.3f} to detect {name} perforation")
-        else:
-            # adaptive threshold
-            # for light bridges and some dust/demage average is beyond hole/bridge interval
-            #thr = mu + 0.3 * sigma
-            # so calculate histogram
-            hist, bins = np.histogram(profile, bins=64, range=(0, 256))
-            indices = np.argsort(hist)[::-1] # sort desc, first two items should contain hole&bridge
-            top_bins = indices[:2]   # two peaks
-            thr = (bins[indices[0]+1]+bins[indices[1]+1]+bins[indices[0]]+bins[indices[1]]) / 4
-            if False:
-                print(f"mu: {mu}, sigma: {sigma}, thr: {thr}, indices: {indices}, top_bins: {top_bins}, hist: {hist}, bins: {bins}")
-                #print(f"band: {band}, profile: {profile}")
+        # adaptive threshold
+        # for light bridges and some dust/demage average is beyond hole/bridge interval
+        # and for nice contrast perforation might fall test to two major values to detect bridge/hole because both might be in bridge (or hole) so decrease bin count
+        perc5, perc95 = np.percentile(band, [5, 95])
+        contrast_range = perc95 - perc5
+        # normalize 0-1 by 255
+        norm_contrast = np.clip(contrast_range / 255, 0, 1)
 
-            # binarize, 1..hole, 0..bridge
-            binary = profile > thr
-            # find edges
-            edges = np.diff(binary.astype(np.int8))
-            # lo-hi
-            starts = np.where(edges==1)[0]+1
-            # hi-lo
-            ends = np.where(edges==-1)[0]
-            if False:
-                print(f"edges: {edges}, starts: {starts}, ends: {ends}")
-            holes1 = []
-            bridges1 = []
-            hole_distances = []
-            if len(starts) > 0 and len(ends) > 0:
-                # we are interested inholes so array pair must start with lo->hi and end with hi->lo
-                #print(f"starts{starts}, ends: {ends}")
-                if starts[0] > ends[0]:
-                    ends = np.delete(ends, 0)
-                if len(ends) > 0:
-                    if starts[-1] > ends[-1]:
-                        starts = np.delete(starts, -1)
-                centers = (starts + ends) // 2
-                widths = ends-starts
-                hole_width = self._horiz_mm_to_px(self._PERFORATION_HOLE_WIDTH)
-                # get holes by expected width
-                for idx in range(len(widths)):
-                    if widths[idx] > hole_width / 2 and widths[idx] < hole_width * 1.1:
-                        holes1.append([starts[idx], widths[idx]])
+        MIN_BINS = 2
+        MAX_BINS = 64
+        GAMMA = 1.2   # non linear to start rising slowly
+        norm_contrast = norm_contrast ** GAMMA
+        bin_count = int(round(MAX_BINS - norm_contrast * (MAX_BINS - MIN_BINS)))       # adaptive between 4 - 64 bins
+        bin_count = max(MIN_BINS, bin_count)
 
-                # get bridges between neighbourgh holes
-                def is_hole_dist_in_tolerance(dist):
-                    return dist > hole_dist * 2 / 3 and dist < hole_dist * 1.1
+        #thr = mu + 0.3 * sigma
+        # so calculate histogram
+        hist, bins = np.histogram(profile, bins=bin_count, range=(0, 256))
+        indices = np.argsort(hist)[::-1] # sort desc, first two items should contain hole&bridge
+        top_bins = indices[:2]   # two peaks
+        thr = (bins[indices[0]+1]+bins[indices[1]+1]+bins[indices[0]]+bins[indices[1]]) / 4
+        if False:
+            print(f"mu: {mu}, sigma: {sigma}, thr: {thr}, indices: {indices}, top_bins: {top_bins}, hist: {hist}, bins: {bins}, perc5: {perc5}, perc95: {perc95}, norm_contrast: {norm_contrast}, bincount: {bin_count}")
+            #print(f"band: {band}, profile: {profile}")
 
-                if len(holes1) > 1:
-                    hole_dist = self._horiz_mm_to_px(self._PERFORATION_HOLE_DISTANCE)
-                    edge = int((hole_dist - hole_width)*0.1)  # avoid edge to get more realistic film band intensity, i.e. not to confuse intensity gradient
-                    for idx in range(len(holes1)-1):
-                        dist = holes1[idx+1][0] - holes1[idx][0]
-                        if is_hole_dist_in_tolerance(dist):
-                            x = holes1[idx][0] + holes1[idx][1] + 1 + edge
-                            w = holes1[idx+1][0] - x - 1 - edge
-                            if w > 0:
-                                bridges1.append([x, w])
-                            hole_distances.append(dist)
-                        else:
-                            cnt = int(round(dist / hole_dist))
-                            if cnt > 0:
-                                dist2 = dist / cnt
-                                if is_hole_dist_in_tolerance(dist2):
-                                    hole_distances.append(dist2)
+        # binarize, 1..hole, 0..bridge
+        binary = profile > thr
+        # find edges
+        edges = np.diff(binary.astype(np.int8))
+        # lo-hi
+        starts = np.where(edges==1)[0]+1
+        # hi-lo
+        ends = np.where(edges==-1)[0]
+        if False:
+            print(f"edges: {edges}, starts: {starts}, ends: {ends}")
+        holes1 = []
+        bridges1 = []
+        hole_distances = []
+        if len(starts) > 0 and len(ends) > 0:
+            # we are interested inholes so array pair must start with lo->hi and end with hi->lo
+            #print(f"starts{starts}, ends: {ends}")
+            if starts[0] > ends[0]:
+                ends = np.delete(ends, 0)
+            if len(ends) > 0:
+                if starts[-1] > ends[-1]:
+                    starts = np.delete(starts, -1)
+            centers = (starts + ends) // 2
+            widths = ends-starts
+            hole_width = self._horiz_mm_to_px(self._PERFORATION_HOLE_WIDTH)
+            # get holes by expected width
+            for idx in range(len(widths)):
+                if widths[idx] > hole_width / 2 and widths[idx] < hole_width * 1.1:
+                    holes1.append([starts[idx], widths[idx]])
 
-            if len(holes1):
-                holes = np.array(holes1)
-                bridges = np.array(bridges1)
-                hole_stat = self._calc_region_stat2(profile, holes)
-                bridge_stat = self._calc_region_stat2(profile, bridges)
+            # get bridges between neighbourgh holes
+            def is_hole_dist_in_tolerance(dist):
+                return dist > hole_dist * 2 / 3 and dist < hole_dist * 1.1
 
-                if hole_stat is not None and bridge_stat is not None:
-                    contrast = (hole_stat[0] - bridge_stat[0]) / (bridge_stat[0]+1)
-                else:
-                    contrast = None
-
-                pixel_per_mm = 0
-                #print(f"hole_distances:{hole_distances}, holes:{holes}")
-                if len(holes):
-                    if len(hole_distances) > 0:
-                        w = np.array(hole_distances).mean()
-                        pixel_per_mm = w / self._PERFORATION_HOLE_DISTANCE
-                        resolution_weight = 2 * len(hole_distances)
+            if len(holes1) > 1:
+                hole_dist = self._horiz_mm_to_px(self._PERFORATION_HOLE_DISTANCE)
+                edge = int((hole_dist - hole_width)*0.1)  # avoid edge to get more realistic film band intensity, i.e. not to confuse intensity gradient
+                for idx in range(len(holes1)-1):
+                    dist = holes1[idx+1][0] - holes1[idx][0]
+                    if is_hole_dist_in_tolerance(dist):
+                        x = holes1[idx][0] + holes1[idx][1] + 1 + edge
+                        w = holes1[idx+1][0] - x - 1 - edge
+                        if w > 0:
+                            bridges1.append([x, w])
+                        hole_distances.append(dist)
                     else:
-                        w = np.mean(holes[:, 1])
-                        pixel_per_mm = w / self._PERFORATION_HOLE_WIDTH
-                        resolution_weight = len(holes)
-                if pixel_per_mm < self._pixel_per_mm * 0.8:  # hole width tends provide misleading sizes
-                    pixel_per_mm = self._pixel_per_mm   # fallback
-                    resolution_weight = 0.1
+                        cnt = int(round(dist / hole_dist))
+                        if cnt > 0:
+                            dist2 = dist / cnt
+                            if is_hole_dist_in_tolerance(dist2):
+                                hole_distances.append(dist2)
 
-                if False:
-                    print(f"holes: {holes}/{hole_stat}, bridges: {bridges}/{bridge_stat}")
+        if len(holes1):
+            holes = np.array(holes1)
+            bridges = np.array(bridges1)
+            hole_stat = self._calc_region_stat2(profile, holes)
+            bridge_stat = self._calc_region_stat2(profile, bridges)
 
-                    plt.plot(binary)
-                    plt.plot(starts, binary[starts], "rx")
-                    plt.plot(ends, binary[ends], "bx")
-                    if holes.size:
-                        plt.plot(holes[:, 0], binary[holes[:, 0]], "gx")
-                    if bridges.size:
-                        plt.plot(bridges[:, 0], binary[bridges[:, 0]], "yx")
-                    plt.show()
-
-                if offsetx != 0:
-                    for idx in range(len(holes1)):
-                        holes1[idx][0] += offsetx
-                    for idx in range(len(bridges1)):
-                        bridges1[idx][0] += offsetx
-                result |= {
-                    #"uniformity": cv,
-                    "pixel_per_mm": pixel_per_mm,
-                    "resolution_weight": resolution_weight,
-                    "base_weight": len(bridges1),
-                    "contrast": contrast,
-                    "holes": {
-                        "bounds": holes1,
-                        "intensity": hole_stat[0] if hole_stat is not None else None,
-                    },
-                    "bridges": {
-                        "bounds": bridges1,
-                        "intensity": bridge_stat[0] if bridge_stat is not None else None,
-                    },
-                }
-            elif params["naked_intensity"] >= 255:  # burnt perforation holes
-                result |= {
-                    #"uniformity": cv,
-                    "pixel_per_mm": self._pixel_per_mm,
-                    "resolution_weight": 0.1,
-                    "base_weight": 1,
-                    "contrast": 0,
-                    "holes": {
-                        "bounds": [],
-                        "intensity": params["naked_intensity"],
-                    },
-                    "bridges": {
-                        "bounds": [],
-                        "intensity": params["naked_intensity"],
-                    },
-                }
+            if hole_stat is not None and bridge_stat is not None:
+                contrast = (hole_stat[0] - bridge_stat[0]) / (bridge_stat[0]+1)
             else:
-                return ImageAnalysisError(f"Cannot detect any {name} perforation hole")
-            return result
+                contrast = None
+
+            pixel_per_mm = 0
+            #print(f"hole_distances:{hole_distances}, holes:{holes}")
+            if len(holes):
+                if len(hole_distances) > 0:
+                    w = np.array(hole_distances).mean()
+                    pixel_per_mm = w / self._PERFORATION_HOLE_DISTANCE
+                    resolution_weight = 2 * len(hole_distances)
+                else:
+                    w = np.mean(holes[:, 1])
+                    pixel_per_mm = w / self._PERFORATION_HOLE_WIDTH
+                    resolution_weight = len(holes)
+            if pixel_per_mm < self._pixel_per_mm * 0.8:  # hole width tends provide misleading sizes
+                pixel_per_mm = self._pixel_per_mm   # fallback
+                resolution_weight = 0.1
+
+            if False:
+                print(f"holes: {holes}/{hole_stat}, bridges: {bridges}/{bridge_stat}")
+
+                plt.plot(binary)
+                plt.plot(starts, binary[starts], "rx")
+                plt.plot(ends, binary[ends], "bx")
+                if holes.size:
+                    plt.plot(holes[:, 0], binary[holes[:, 0]], "gx")
+                if bridges.size:
+                    plt.plot(bridges[:, 0], binary[bridges[:, 0]], "yx")
+                plt.show()
+
+            if offsetx != 0:
+                for idx in range(len(holes1)):
+                    holes1[idx][0] += offsetx
+                for idx in range(len(bridges1)):
+                    bridges1[idx][0] += offsetx
+            result |= {
+                #"uniformity": cv,
+                "pixel_per_mm": pixel_per_mm,
+                "resolution_weight": resolution_weight,
+                "base_weight": len(bridges1),
+                "contrast": contrast,
+                "holes": {
+                    "bounds": holes1,
+                    "intensity": hole_stat[0] if hole_stat is not None else None,
+                },
+                "bridges": {
+                    "bounds": bridges1,
+                    "intensity": bridge_stat[0] if bridge_stat is not None else None,
+                },
+            }
+        elif params["naked_intensity"] >= 255:  # burnt perforation holes
+            result |= {
+                #"uniformity": cv,
+                "pixel_per_mm": self._pixel_per_mm,
+                "resolution_weight": 0.1,
+                "base_weight": 1,
+                "contrast": 0,
+                "holes": {
+                    "bounds": [],
+                    "intensity": params["naked_intensity"],
+                },
+                "bridges": {
+                    "bounds": [],
+                    "intensity": params["naked_intensity"],
+                },
+            }
+        else:
+            return ImageAnalysisError(f"Cannot detect any {name} perforation hole")
+        return result
 
     @log_duration
     def _detect_hole_depth(self, band, perf, name, **params):
@@ -450,19 +472,33 @@ class ImageAnalysis:
             result.append(depth)
         return result
 
+    @log_duration
+    def _calculate_mean_value(self, band, bounds, **params):
+        #print(f"Bounds: {bounds}")
+        if len(bounds) == 0:
+            return None
+        #show_image(band)
+        sum = 0
+        for x, w in (bounds):
+            sum += np.mean(band[:, x:x+w])
+        return sum / len(bounds)
+
+
     def _remove_spikes(self, arr):
-        # remove spikes  0 0 0 1 -1 0 0 1 -1 0 0
+        # remove spikes  0 0 0 1  0 0 1 -1 0 0  > 0 0 0 0 0 0 1 -1 0 0
         # print("_remove_spikes(%s)" % arr)
         for i in range(1, len(arr)-1):
-            if arr[i-1] == 0 and arr[i] != 0 and arr[i] == -arr[i+1]:
-                arr[i] = 0
-                arr[i+1] = 0
+            if arr[i-1] != arr[i] and arr[i-1] == arr[i+1]:
+                arr[i] = arr[i-1]
         # print("_remove_spikes: %s" % arr)
         return arr
 
 
     @log_duration
     def _analyze_film_band(self, band, offsetx, name, **params):
+        """
+            band ... ideally bare band because holes should be skipped.
+        """
         result = {}
         #show_image(band)
         # try detect how film is inserted, partially inserted film has frame start or end fully illuminated (as hole)
@@ -479,6 +515,10 @@ class ImageAnalysis:
             film_end -= 1
         if film_start >= film_end - 1:
             return ImageAnalysisError(f"{name} band is naked")
+        result |= {
+            "start": film_start + offsetx,
+            "end": film_end + offsetx,
+        }
 
         # cut off naked leader/trailer
         band = band[:, film_start:film_end]
@@ -488,24 +528,27 @@ class ImageAnalysis:
         # cross profile
         profile = np.mean(band, axis = 1)
         #profile = sp.ndimage.gaussian_filter1d(profile, sigma=2.0)
+        #print(f"Params:{params}, profile: {profile}")
         thr = params["film_base_intensity"]
         thr_tol = max(thr * 0.02, 7)
         # signum 1 lighter, 0 band, -1 darker
         signum = np.zeros_like(profile, dtype=int)
         signum[profile > thr + thr_tol] = 1
         signum[profile < thr - thr_tol] = -1
+        # if supposed negative then remove leading dark artifacts
+        if signum[-1] == -1:
+            for i in range(0, 4):
+                if signum[i] == -1:
+                    signum[0] = signum[i+1]
+                else:
+                    break
         # remove leading change
         if len(signum) > 3:
             if signum[0] != 0 and signum[1] == 0 and signum[2] == 0:
                 signum[0] = 0
+        signum = self._remove_spikes(signum)
         # find edges
         edges = np.diff(signum.astype(np.int8))
-        edges = self._remove_spikes(edges)
-        # remove spikes  0 0 0 1 -1 0 0 1 -1 0 0
-        for i in range(1, len(edges)-1):
-            if edges[i-1] == 0 and edges[i] != 0 and edges[i] == -edges[i+1]:
-                edges[i] = 0
-                edges[i+1] = 0
         changes = np.where(edges != 0)[0] + 1  # index to signum, edge is shifter by one
         if False:
             print(f"profile: {profile}, std: {profile.std()}, signum: {signum}, edges: {edges}, changes{changes}, [{thr-thr_tol}, {thr+thr_tol}]")
@@ -513,40 +556,19 @@ class ImageAnalysis:
             if changes.size:
                 plt.plot(changes, signum[changes], "rx")
             plt.show()
-        if signum[0] < 0:
-            return ImageAnalysisError(f"{name} edge intensity bellow band")
         if len(changes) == 0:
             return ImageAnalysisError(f"{name} film band not detected")
-
-        if signum[0] == 0:
-            # no holes at the edge
-            result |= {
-                "negative": signum[changes[0]] < 0,
-                "band_width": changes[0],
-                "payload": True,
-                "holes": False,
-            }
-        else:
-            # perforation
-            result["holes"] = True
-            if signum[changes[0]] < 0:
-                return ImageAnalysisError(f"{name} band is too dark")
-            # band
-            result["payload"] = len(changes) > 1
-            if len(changes) > 1:
-                result |= {
-                    "negative": signum[changes[1]] < 0,
-                    "band_width": changes[1],
-                }
-            else:
-                result |= {
-                    "negative": None,  # contrast ??
-                    "band_width": changes[0],
-                }
-        if result["payload"] or result["holes"]:
+        # no holes at the edge, value in expected value
+        result |= {
+            "negative": edges[changes[0]-1] < 0,
+            "band_width": changes[0],
+            "payload": True,
+        }
+        if result["payload"]:
             result["focus_score"] = self._focus_score(band)
         else:
             result["focus_score"] = None
+        result["film_base_intensity"] = np.mean(profile[0: result["band_width"]-1]) if result["band_width"] > 1 else None
         return result
 
     @log_duration
@@ -568,6 +590,7 @@ class ImageAnalysis:
         negative = params["film_base_intensity"] > mu   # double check with params["negative"]
         neg = params.get("negative", negative)
         if neg != negative:
+            #print(f"mu:{mu} < film_base: {params['film_base_intensity']}, neg: {neg}")
             self._append_error("Confusing negative detection band vs. payload")
         # binarize, 0..gaps, 1..payload
         # gap should have film base intensity but it is not too robust, It should also have small variation, ideally zero
@@ -576,21 +599,23 @@ class ImageAnalysis:
         if negative:
             gradient = max((params["film_base_intensity"] - mu) * 0.01, 5)
             thr = params["film_base_intensity"] - gradient
+            thr_sigma = 8
         else:
             gradient = max((mu - params["film_base_intensity"]) * 0.05, 5)
             thr = params["film_base_intensity"] + gradient
+            thr_sigma = 5
         frames = []
         #print(f"Profile: {profile}, sigma: {sigma}, negative: {negative}, thr: {thr}, Filmbase: {params['film_base_intensity']}")
         fl = False
         for idx in range(len(profile)):
             if negative:
-                is_payload = (profile[idx] < thr) | (sigma[idx] > 8)
+                is_payload = (profile[idx] < thr) | (sigma[idx] > thr_sigma)
             else:
-                is_payload = (profile[idx] > thr) | (sigma[idx] > 5)
+                is_payload = (profile[idx] > thr) | (sigma[idx] > thr_sigma)
             if is_payload != fl:
                 if fl:
-                    # avoid evidently wrong useless frames
-                    if idx - start_pos > params["pixel_per_mm"]:
+                    # avoid evidently wrong useless frames, e.g. 1mm
+                    if idx - start_pos > params["pixel_per_mm"]*1:
                         frames.append({"start": start_pos, "end": idx - 1})
                 else:
                     start_pos = idx
@@ -599,36 +624,103 @@ class ImageAnalysis:
             if idx - start_pos > params["pixel_per_mm"]:
                 frames.append({"start": start_pos, "end": idx})
 
-        #print(f"Frames: {frames}")
-        confident_gradient = gradient * 5
+        # print(f"Frames: {frames}")
+        # now try do a heuristic to optimize non contarast frames
+        optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
+
+        def extend_frame(fr, min_x, max_x, thr_sigma):
+            while fr["end"] - fr["start"] < optimal_frame_width:
+                if fr["start"] > min_x and fr["end"] < max_x:
+                    start_grad = abs(profile[fr["start"]+1] - profile[fr["start"]-1])
+                    end_grad = abs(profile[fr["end"]+1] - profile[fr["end"]-1])
+                    if start_grad < end_grad and sigma[fr["start"]] >= thr_sigma:
+                        fr["start"] -= 1
+                    elif start_grad > end_grad and sigma[fr["end"]] >= thr_sigma:
+                        fr["end"] += 1
+                    elif sigma[fr["start"]] > sigma[fr["end"]] and sigma[fr["start"]] >= thr_sigma:
+                        fr["start"] -= 1
+                    elif sigma[fr["start"]] < sigma[fr["end"]] and sigma[fr["end"]] >= thr_sigma:
+                        fr["end"] += 1
+                    else:
+                        break
+                elif fr["start"] > min_x:
+                    if sigma[fr["start"]] >= thr_sigma:
+                        fr["start"] -= 1
+                    else:
+                        break
+                elif fr["end"] < max_x:
+                    if sigma[fr["end"]] >= thr_sigma:
+                        fr["end"] += 1
+                    else:
+                        break
+                else:
+                    break
+            return fr["start"] == min_x or fr["end"] == max_x
+
+        def shrink_gap(fr1, fr2, thr_sigma):
+            if fr2["end"] - fr1["start"] < optimal_frame_width * 1.05:
+                min_gap = 0
+            else:
+                # won't join to longer picture than optimal, apoparently 2 separate pictures
+                min_gap = max(int((params["width"] - optimal_frame_width) / 2), 0)
+            while fr2["start"] - fr1["end"] > min_gap:
+                start_grad = abs(profile[fr1["end"]+1] - profile[fr1["end"]-1])
+                end_grad = abs(profile[fr2["start"]+1] - profile[fr2["start"]-1])
+                #print(f"shrink: end: {fr1['end']}, start: {fr2['start']}, grad: {start_grad}/{end_grad}")
+                if start_grad < end_grad and sigma[fr1["end"]] >= thr_sigma:
+                    fr1["end"] += 1
+                elif start_grad > end_grad and sigma[fr2["start"]] >= thr_sigma:
+                    fr2["start"] -= 1
+                elif sigma[fr1["end"]] > sigma[fr2["start"]] and sigma[fr1["end"]] >= thr_sigma:
+                    fr1["end"] += 1
+                elif sigma[fr1["end"]] < sigma[fr2["start"]] and sigma[fr2["start"]] >= thr_sigma:
+                    fr2["start"] -= 1
+                else:
+                    break
+            return fr1["end"] >= fr2["start"]-1   # merge frames
+
+        def shrink_frame(fr, thr_sigma):
+            while fr["end"] - fr["start"] > optimal_frame_width:
+                if sigma[fr["start"]] < sigma[fr["end"]] and sigma[fr["start"]] < thr_sigma:
+                    fr["start"] += 1
+                elif sigma[fr["start"]] > sigma[fr["end"]] and sigma[fr["end"]] < thr_sigma:
+                    fr["end"] -= 1
+                else:
+                    break
+
+        thr_sigma2 = thr_sigma / 2   # not to extend frames in gap
+
+        if len(frames) > 2:
+            # physically max two frames of normal width so likely we need merge
+            idx = 0
+            while idx < len(frames)-1:
+                if shrink_gap(frames[idx], frames[idx+1], thr_sigma2):
+                    del frames[idx+1]
+                else:
+                    idx += 1
+
         if len(frames) == 1:
-            optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
             # low contast frames might be detected as too narrow
 
             #print(profile)
-            fr = frames[0]
-            #print(f"diff: {abs(profile[fr['start']] - params['film_base_intensity'])}, opt:{optimal_frame_width}")
-            if fr["end"] - fr["start"] < optimal_frame_width and fr["start"] > 0 and fr["end"] < len(profile)-1:
-                start_grad = abs(profile[fr["start"]+1] - profile[fr["start"]-1])
-                end_grad = abs(profile[fr["end"]+1] - profile[fr["end"]-1])
-                #print(f"grad{start_grad}/{end_grad}")
-                if start_grad > confident_gradient:
-                    #print(f"xx:{profile[fr['start']-offsetx]} diff: {profile[fr['start']-offsetx] - params['film_base_intensity']}")
-                    #print("extend frame")
-                    frames[0]["end"] = min(int(fr["start"] + optimal_frame_width), len(profile))
-                elif end_grad > confident_gradient:
-                    frames[0]["start"] = max(int(fr["end"] - optimal_frame_width), 0)
+            #print(f"diff: {abs(profile[frames[0]['start']] - params['film_base_intensity'])}, opt:{optimal_frame_width}")
+            if not extend_frame(frames[0], 0, len(profile)-1, thr_sigma2):
+                # if payload does not touch limit then it is likely extendable, so try once more with looser sigma
+                extend_frame(frames[0], 0, len(profile)-1, thr_sigma2/4)
+            shrink_frame(frames[0], thr_sigma2)
         elif len(frames) == 2:
             # we have 2 frames and we might extend payload in the middle, i.e. narrow gap
-            optimal_frame_gap = max(int((self._gray.shape[1] - self._FRAME_WIDTH * params["pixel_per_mm"]) / 2), 0)
-            #print(f"optimal_frame_gap:{optimal_frame_gap}")
-            if frames[1]["start"] - frames[0]["end"] > optimal_frame_gap and frames[0]["start"] == 0 and frames[1]["end"] >= len(profile)-1:
-                start_grad = abs(profile[frames[1]["start"]+1] - profile[frames[1]["start"]-1])
-                end_grad = abs(profile[frames[0]["end"]+1] - profile[frames[0]["end"]-1])
-                if start_grad > confident_gradient and end_grad < confident_gradient:
-                    frames[0]["end"] = frames[1]["start"] - optimal_frame_gap
-                elif end_grad > confident_gradient and start_grad < confident_gradient:
-                    frames[1]["start"] = frames[0]["end"] + optimal_frame_gap
+            if shrink_gap(frames[0], frames[1], thr_sigma2):
+                frames[0]["end"] = frames[1]["end"]
+                del frames[1]
+                if not extend_frame(frames[0], 0, len(profile)-1, thr_sigma2):
+                    extend_frame(frames[0], 0, len(profile)-1, thr_sigma2/2)
+            elif frames[0]["start"] > 0 and frames[1]["end"] < len(profile)-1 and abs(frames[1]["end"] - frames[0]["start"] - optimal_frame_width) < optimal_frame_width * 0.1:
+                # likely two joinable frames, try harder
+                if shrink_gap(frames[0], frames[1], thr_sigma2/4):
+                    frames[0]["end"] = frames[1]["end"]
+                    del frames[1]
+                    extend_frame(frames[0], 0, len(profile)-1, thr_sigma2/2)
 
         for idx in range(len(frames)):
             frames[idx]["start"] += offsetx
@@ -681,7 +773,8 @@ class ImageAnalysis:
                     return ImageAnalysisError(f"No frame gap detected")
                 move_by = center_frame(0)
             elif len(frames) == 2:
-                move_by = center_frame(1 if frames[-1]["start"] < w / 2 or w - frames[-1]["end"] - 1 > 0 else 0)
+                #print(f"w: {w}, frames[-1]: {frames[-1]['start']}-{frames[-1]['end']}")
+                move_by = center_frame(1 if frames[-1]["start"] < w / 2 or w - frames[-1]["end"] - 1 > 0 or frames[-1]["end"] - frames[-1]["start"] > frames[0]["end"] - frames[0]["start"] else 0)
             else:
                 return ImageAnalysisError(f"Too many frames detected {len(frames)}")
         else:
@@ -764,18 +857,26 @@ class ImageAnalysis:
         top_depth = -1
         bottom_depth = -1
         if not self._result["contrast"] is None:   # base intensity is mandatory
+            top_base_intensity = None
             if top_perf:
                 depths = self._check_result(self._detect_hole_depth(self._gray[top_dead:top_dead+margin2, :], top_perf, "top", **self._result))
                 for idx, hole in enumerate(top_perf["holes"]["bounds"]):
                     self._result["holes"].append((hole[0], top_dead, hole[0]+hole[1], top_dead+depths[idx]))  # bounding box
                     if depths[idx] > top_depth:
-                        top_depth = depths[idx] + 5   # add some pixels as hole border can provide a shade
+                        top_depth = depths[idx]   # add some pixels as hole border can provide a shade
+                if top_depth >= 0:
+                    top_base_intensity = self._check_result(self._calculate_mean_value(self._gray[top_dead:top_dead+top_depth, :], top_perf["bridges"]["bounds"], **self._result))
+            bottom_base_intensity = None
             if bottom_perf:
                 depths = self._check_result(self._detect_hole_depth(self._gray[-bottom_dead-1:-bottom_dead-margin2-1:-1, :], bottom_perf, "bottom", **self._result))
                 for idx, hole in enumerate(bottom_perf["holes"]["bounds"]):
                     self._result["holes"].append((hole[0], self._result["height"]-depths[idx]-bottom_dead, hole[0]+hole[1], self._result["height"]-bottom_dead))  # bounding box
                     if depths[idx] > bottom_depth:
-                        bottom_depth = depths[idx] + 5   # dtto
+                        bottom_depth = depths[idx]   # dtto
+                if bottom_depth >= 0:
+                    bottom_base_intensity = self._check_result(self._calculate_mean_value(self._gray[-bottom_dead-1:-bottom_dead-bottom_depth-1:-1, :], bottom_perf["bridges"]["bounds"], **self._result))
+            if not top_base_intensity is None or not bottom_base_intensity is None:
+                self._result["film_base_intensity"] = self._calc_weighted_mean(top_base_intensity, top_perf.get("base_weight") if top_perf else None, bottom_base_intensity, bottom_perf.get("base_weight") if bottom_perf else None)
 
         calc_vert_res = top_depth >= 0 and bottom_depth >= 0
         top_depth = max(0, top_depth) + top_dead
@@ -812,23 +913,28 @@ class ImageAnalysis:
             pass
         elif top_margin is None:
             self._result |= {
-                "band_focus_score": bottom_margin["focus_score"],
+                "band_focus_score": self._focus_score(self._gray[-bottom_depth-bottom_margin["band_width"]-1:-bottom_dead-1, bottom_margin["start"]:bottom_margin["end"]]),
                 "negative": bottom_margin["negative"],
-                #"film_base_intensity": bottom_margin["film_base_intensity"],
+                "film_base_intensity": self._calc_weighted_mean(self._result["film_base_intensity"], 1, bottom_margin["film_base_intensity"], 1)
             }
         elif bottom_margin is None:
             self._result |= {
-                "band_focus_score": top_margin["focus_score"],
+                "band_focus_score": self._focus_score(self._gray[top_dead:top_depth+top_margin["band_width"], top_margin["start"]:top_margin["end"]]),
                 "negative": top_margin["negative"],
-                #"film_base_intensity": top_margin["film_base_intensity"],
+                "film_base_intensity": self._calc_weighted_mean(self._result["film_base_intensity"], 1, top_margin["film_base_intensity"], 1)
             }
         else:
             pixel_per_mm = (self._result["height"] - top_depth - bottom_depth - top_margin["band_width"] - bottom_margin["band_width"]) / self._FRAME_HEIGHT
             if (pixel_per_mm - self._pixel_per_mm) / self._pixel_per_mm > 0.2:  # band width depends on image
                     pixel_per_mm = None
             self._result |= {
-                "band_focus_score": self._calc_weighted_mean(top_margin["focus_score"], 1, bottom_margin["focus_score"], 1),
-                #"film_base_intensity": (top_margin["film_base_intensity"] + bottom_margin["film_base_intensity"]) / 2,
+                "band_focus_score": self._calc_weighted_mean(
+                    self._focus_score(self._gray[top_dead:top_depth+top_margin["band_width"], top_margin["start"]:top_margin["end"]]), top_margin["band_width"],
+                    self._focus_score(self._gray[-bottom_depth-bottom_margin["band_width"]-1:-bottom_dead-1, bottom_margin["start"]:bottom_margin["end"]]), bottom_margin["band_width"]
+                ),
+                "film_base_intensity": self._calc_weighted_mean(self._result["film_base_intensity"], 1,
+                    self._calc_weighted_mean(top_margin["film_base_intensity"], top_margin["band_width"], bottom_margin["film_base_intensity"], bottom_margin["band_width"])
+                    , 2),
                 "pixel_per_mm": self._calc_weighted_mean(self._result["pixel_per_mm"], resolution_weight, pixel_per_mm, 3)
             }
             if top_margin["negative"] == bottom_margin["negative"]:
@@ -887,6 +993,7 @@ class ImageAnalysis:
             uniformity: relative uniformity (0 .. optimal)
             intensity_map: normalized intensity map, optimal is 1, <1 darker, >1 lighter
         """
+        self._gray = cv2.cvtColor(self._image, cv2.COLOR_BGR2GRAY)
         h, w = self._gray.shape[:2]
         step_h = h // grid
         step_w = w // grid
