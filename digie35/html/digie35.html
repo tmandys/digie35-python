@@ -1131,7 +1131,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Play sound when an error occurs</small>
+                        <small class="hint">Trigger audible alert when an error occurs</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1259,6 +1259,9 @@
                                 <small>Note: Focusing is done with the lens wide open - minimal f-number - for best accuracy.</small>
                             </li>
                             <li>
+                                The film passes symetrically under the lens and perforation holes are partially visible on both sides.
+                            </li>
+                            <li>
                                 Focus somewhere between the center and edges to compensate for any film curvature
                             </li>
                             <li>
@@ -1293,7 +1296,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Auto increment film id when lead-in film. Switch off in case of wrong perforation or a few frame strips which were cut from one film</small>
+                        <small class="hint">Automatically assigns a new film ID when a lead-in is detected. A new folder is created unless an empty one already exists. Disable this feature when scanning cut strips from the same film or when perforation is faulty, which may interfere with detection</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1302,7 +1305,7 @@
                                 <option value="" selected>--default--</option>
                             </select>
                         </div>
-                        <small class="hint">Define pattern which is used for image file name. Also a side effect as LED or preset setting is supported. Recipies are defined at server side</small>
+                        <small class="hint">Define the pattern used for image file naming. Additionally, control values can trigger side effects such as LED behaviour or <i>Preset</i> selection. Recipies are defined at server-side</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1314,7 +1317,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Notify visually user that next film id has been created. If <i>auto-Inc</i> option is enabled then id is created automatically when next film is detected in motorized adapter but it might not be reliable in case of damaged perforation or so.</small>
+                        <small class="hint">Visually notify the user when a new film ID has been created. If <i>Auto increment</i> option is enabled, the ID is assigned automatically upon detecting the next film in the motorized adapter. Note: detection may be unreliable in case of damaged perforation or irregular film feed</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1326,7 +1329,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Notify visually image file name when being downloaded from camera.</small>
+                        <small class="hint">Visually displays the image file name while it is being downloaded from the camera</small>
                     </div>
                 </div>
             </div>
@@ -1352,7 +1355,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Reverse sense of film movement versus button control direction</small>
+                        <small class="hint">Invert film movement direction relative to button control. Expected film motion is right to left.</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1364,7 +1367,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Autolead-in film into adapter when film is detected by front sensor</small>
+                        <small class="hint">Film is automatically loaded into the adapter when the front sensor detects its presense</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1376,7 +1379,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Sticky movement buttons, i.e.movement in progress till button is being pressed (key, mouse, touch). Otherwise stop movement by <i>Stop</i> button</small>
+                        <small class="hint">Sticky movement buttons: film moves while the button is actively pressed (via key, mouse or touch). Otherwise movement continues until manually stopped using <i>Stop</i> button</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1388,7 +1391,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Start film moving when picture captured</small>
+                        <small class="hint">Automatically advance the film after a picture is captured. Has no effect in <i>Serial</i> mode, where film movement starts regardless of this setting</small>
                     </div>
 
                     <div class="form-group vertical-spacer">
@@ -1414,7 +1417,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Set <i>Frame correction</i> from consequent capture positions</small>
+                        <small class="hint">Adjusts frame spacing based on the actual distance between consecutive captured images. Assumes consistent but non-standard frame pitch across the film</small>
                     </div>
 
                     <div class="form-group vertical-spacer">
@@ -1427,7 +1430,7 @@
                                 </label>
                             </div>
                         </div>
-                        <small class="hint">Move frame down and press against film plane to flatten surface</small>
+                        <small class="hint">Lowers the frame to press the film against the surrounding support surface, flattening it around the edges. During film movement, the press is lifted to create clearance and prevent scratching</small>
                     </div>
                 </div>
             </div>
@@ -1463,7 +1466,7 @@
                             <label for="capture-multi" accesskey="m"><u>M</u>ulti count</label>
                             <input type="number" step="1" min="1" max="99" id="capture-multi" value="1" style="width:5ch" />
                         </div>
-                        <small class="hint">Multiple capture with or without auto move</small>
+                        <small class="hint">Captures a defined number of frames. If <i>Auto move</i> is enables, the film advances between shots; otherwise, all captures target the same frame position</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1486,7 +1489,7 @@
                                 <option value="trigger|f-fs">Wire trigger (F-F+S)</option>
                             </select>
                         </div>
-                        <small class="hint">Download or leave image on camera SD card, wire remote control (focus-shutter or focus-focus+shutter)</small>
+                        <small class="hint">Defines where the captured image is stored - either downloaded to disk (which may introduce delay) or left on the camera's SD card. Applies also to wired remote triggers (focus-shutter or focus-focus+shutter), which operate without additional communication. Note: most cameras do not support saving to SD card when controlled by USB</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1496,7 +1499,7 @@
                                 <span id="trigger-delay-value" class="range-value"></span>
                             </span>
                         </div>
-                        <small class="hint">Delay after shoot is triggered by wire to delay any action till capture is finished</small>
+                        <small class="hint">Defines a pause after a wired trigger to allow the camera to complete the capture. This compensates for the lack of feedback from the camera, ensuring timing-sensitive movement doesn't occur prematurely</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1505,7 +1508,7 @@
                                 <option value="" selected>--no XMP file--</option>
                             </select>
                         </div>
-                        <small class="hint">Create XMP file related to image, e.g. preview orientation is referenced. Alternatively info can be merged to a preset so e.g. negative can be automatically inverted when browsing gallery</small>
+                        <small class="hint">Create an XMP file linked to the image, referencing metadata such as preview orientation. Alternatively, this information can be embedded into a preset, allowing actions like automatic negative inversion during gallery browsing (e.g. in <i>Adobe Bridge</i>)</small>
                     </div>
 
                     <div class="form-group vertical-spacer">
