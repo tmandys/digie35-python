@@ -82,6 +82,33 @@ class ImageAnalysis:
         if self._image is None:
             raise ValueError("Wrong JPEG image")
         h, w = self._image.shape[:2]
+        # when image comes from grabber that ration might not be 3:2. So we need crop original image
+        target_ratio = 3 / 2
+        current_ratio = w / h
+        self._crop = {
+            "offset": {
+                "x": 0,
+                "y": 0,
+            }
+        }
+        self._crop_offset_y = 0
+        if current_ratio != target_ratio:
+            if current_ratio > target_ratio:
+                new_w = int(h * target_ratio)
+                x1 = (w - new_w) // 2
+                x2 = x1 + new_w
+                y1, y2 = 0, h
+                w = new_w
+                self._crop["offset"]["x"] = x1
+            else:
+                new_h = int(w / target_ratio)
+                y1 = (h - h_new) // 2
+                y2 = y1 + new_h
+                x1, x2 = 0, w
+                h = new_h
+                self._crop["offset"]["y"] = y1
+            self._image = self._image[y1:y2, x1:x2]
+
         self._pixel_per_mm = h / self._FRAME_HEIGHT * self._MAGNIFICATION
         #print(f"Image: {w}x{h}, ratio: {self._pixel_per_mm}, Frame: {self._FRAME_WIDTH}x{self._FRAME_HEIGHT}, Magnify: {self._MAGNIFICATION}")
         self._filename = filename
@@ -241,8 +268,11 @@ class ImageAnalysis:
         while film_start < film_end and profile[film_end-1] >= max_intensity * 0.95:
             film_end -= 1
 
+        h, w = self._gray.shape[:2]
+
         result |= {
             "film_bounds": {"start": film_start, "end": film_end, },
+            "center_focus_score": self._focus_score(self._gray[int(h/3):-int(h/3), int(w/3):-int(w/3)]),
         }
         return result
 
@@ -742,11 +772,12 @@ class ImageAnalysis:
         result = {}
         move_by = 0
         w = self._gray.shape[1]
-
+        print(f"Params: {params}")
         optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
         optimal_margin = max(int((w - optimal_frame_width) / 2), 0)
         minimal_margin = int(optimal_margin / 4)
         frames = params.get("frames", [])
+        print(f"Frames len: {len(frames)}")
         if frames:
 
             def center_frame(idx):
@@ -773,7 +804,7 @@ class ImageAnalysis:
                     return ImageAnalysisError(f"No frame gap detected")
                 move_by = center_frame(0)
             elif len(frames) == 2:
-                #print(f"w: {w}, frames[-1]: {frames[-1]['start']}-{frames[-1]['end']}")
+                print(f"w: {w}, frames[-1]: {frames[-1]['start']}-{frames[-1]['end']}")
                 move_by = center_frame(1 if frames[-1]["start"] < w / 2 or w - frames[-1]["end"] - 1 > 0 or frames[-1]["end"] - frames[-1]["start"] > frames[0]["end"] - frames[0]["start"] else 0)
             else:
                 return ImageAnalysisError(f"Too many frames detected {len(frames)}")
@@ -790,6 +821,7 @@ class ImageAnalysis:
         self._result |= {
             "width": self._image.shape[1],
             "height": self._image.shape[0],
+            "crop_offset": self._crop["offset"],
         }
 
         # preanalyze picture
@@ -1093,7 +1125,7 @@ class ImageAnalysis:
         putText(f"Size: {result['width']}x{result['height']}, Pixel/mm: {result.get('pixel_per_mm', None)}")
         putText(f"Color mode: {result.get('color_mode', None)} ({result.get('color_uniformity', None)}), Negative: {result.get('negative', None)}")
         putText(f"Film base: {result.get('film_base_intensity', None)}, Naked: {result.get('naked_intensity', None)}, Contrast: {result.get('contrast', None)}")
-        putText(f"Focus score: Band: {result.get('band_focus_score', None)}, Payload: {result.get('payload_focus_score', None)}")
+        putText(f"Focus score: Band: {result.get('band_focus_score', None)}, Payload: {result.get('payload_focus_score', None)}, Center: {result.get('center_focus_score', None)}")
         move_by = result.get("move_by", None)
         if move_by is None:
             putText(f"Status: {result.get('status', None)}")

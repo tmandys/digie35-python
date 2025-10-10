@@ -2970,13 +2970,15 @@
     function snapshot_draw_analysis(ctx, analysis) {
 
         function get_x(x) {
-            return Number(ctx.canvas.width * x / analysis.width);
+            return Number(ctx.canvas.width * (x + crop_offset_x) / (analysis.width + 2 * crop_offset_x));
         }
         function get_y(y) {
-            return Number(ctx.canvas.height * y / analysis.height);
+            return Number(ctx.canvas.height * (y + crop_offset_y) / (analysis.height + 2 * crop_offset_y));
         }
         ctx.strokeStyle = "green";
         ctx.lineWidth = 1;
+        const crop_offset_x = analysis?.crop_offset.x ?? 0
+        const crop_offset_y = analysis?.crop_offset.y ?? 0
         let x = 0;
         let y = 0;
         // js optional chaining ?.
@@ -3016,17 +3018,17 @@
             ctx.strokeRect(
                 get_x(frame.start)+ctx.lineWidth/2,
                 get_y(analysis?.band_width?.top ?? 0)+ctx.lineWidth/2,
-                get_x(frame.end-frame.start)-ctx.lineWidth,
-                get_y(analysis.height-(analysis?.band_width?.top ?? 0)-(analysis?.band_width?.bottom ?? 0))-ctx.lineWidth
+                get_x(frame.end)-get_x(frame.start)-ctx.lineWidth,
+                get_y(analysis.height-(analysis?.band_width?.bottom ?? 0))-get_y(analysis?.band_width?.top ?? 0)-ctx.lineWidth
             );
         }
         for (const hole of analysis?.holes ?? []) {
             ctx.fillStyle = "magenta";
-            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
+            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2])-get_x(hole[0]), get_y(hole[3])-get_y(hole[1]));
         }
         for (const hole of analysis?.bridges ?? []) {
             ctx.fillStyle = "yellow";
-            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2]-hole[0]), get_y(hole[3]-hole[1]));
+            ctx.fillRect(get_x(hole[0]), get_y(hole[1]), get_x(hole[2])-get_x(hole[0]), get_y(hole[3])-get_y(hole[1]));
         }
         x = analysis?.move_by ?? 0;
         if (x != 0) {
@@ -3034,7 +3036,7 @@
             ctx.beginPath();
             let w = 25;
             const x1 = get_x((x > 0) ?analysis.width-x:-x);
-            const x2 = x > 0 ? ctx.canvas.width-1 : 0;
+            const x2 = get_x(x > 0 ? analysis.width-1 : 0);
             y = ctx.canvas.height / 2;
             ctx.moveTo(x1, y - w);
             ctx.lineTo(x1, y + w);
@@ -3046,10 +3048,10 @@
             ctx.stroke();
         }
 
-        x = 20;
+        x = 20 + crop_offset_x;
         y = get_y(analysis?.band_width?.top ?? -1);
         if (y < 0) {
-            y = 50;
+            y = 50 + crop_offset_y
         }
         y += 20;
 
@@ -3067,7 +3069,7 @@
         write_line(`Size: ${analysis.width}x${analysis.height}, Pixel/mm: ${NaN('pixel_per_mm')}`);
         write_line(`Color mode: ${NaN('color_mode')} (${NaN('color_uniformity')}), Negative: ${NaN('negative')}`);
         write_line(`Film base: ${NaN('film_base_intensity')}, Naked: ${NaN('naked_intensity')}, Contrast: ${NaN('contrast')}`);
-        write_line(`Focus score: Band: ${NaN('band_focus_score')}, Payload: ${NaN('payload_focus_score')}`);
+        write_line(`Focus score: Band: ${NaN('band_focus_score')}, Payload: ${NaN('payload_focus_score')}, Center: ${NaN('center_focus_score')}`);
         if ("move_by" in analysis) {
             write_line(`Status: ${NaN('status')}, Move by: ${NaN('move_by')}`);
         } else {
