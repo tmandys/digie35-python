@@ -772,12 +772,12 @@ class ImageAnalysis:
         result = {}
         move_by = 0
         w = self._gray.shape[1]
-        print(f"Params: {params}")
+        #print(f"Params: {params}")
         optimal_frame_width = self._FRAME_WIDTH * params["pixel_per_mm"]
         optimal_margin = max(int((w - optimal_frame_width) / 2), 0)
         minimal_margin = int(optimal_margin / 4)
         frames = params.get("frames", [])
-        print(f"Frames len: {len(frames)}")
+        #print(f"Frames len: {len(frames)}")
         if frames:
 
             def center_frame(idx):
@@ -785,11 +785,17 @@ class ImageAnalysis:
                 frame_start_gap = frames[idx]["start"]
                 frame_end_gap = w - frames[idx]["end"] - 1
                 #print(f"center: {idx}, frame_width: {frame_width}, start:{frame_start_gap}, end:{frame_end_gap}, minimal: {minimal_margin}, optimal:{optimal_frame_width}, optimal_margin:{optimal_margin}, pixel_per_mm:{params['pixel_per_mm']}")
-                if (frame_width >= optimal_frame_width or (frame_start_gap > 0 and frame_end_gap > 0)):
-                    # we have at least full picture, slightly center to make some gap
-                    # should work also in case of panorama when called recursively
+                if frame_start_gap > 0 and frame_end_gap > 0:
                     if frame_end_gap < minimal_margin or frame_start_gap < minimal_margin:
                         return int((frame_start_gap + frame_end_gap) / 2) - frame_start_gap
+                    else:
+                        return 0
+                elif frame_width >= optimal_frame_width:
+                    # we have at least full picture, we cannot slightly center to make some gap at both sides as panorama will cause recursive shift
+                    if frame_start_gap > 0 and frame_start_gap < minimal_margin:
+                        return minimal_margin - frame_start_gap
+                    elif frame_end_gap > 0 and frame_end_gap < minimal_margin:
+                        return -(minimal_margin-frame_end_gap)
                     else:
                         return 0
                 elif frame_start_gap <= 0:
@@ -804,7 +810,7 @@ class ImageAnalysis:
                     return ImageAnalysisError(f"No frame gap detected")
                 move_by = center_frame(0)
             elif len(frames) == 2:
-                print(f"w: {w}, frames[-1]: {frames[-1]['start']}-{frames[-1]['end']}")
+                #print(f"w: {w}, frames[-1]: {frames[-1]['start']}-{frames[-1]['end']}")
                 move_by = center_frame(1 if frames[-1]["start"] < w / 2 or w - frames[-1]["end"] - 1 > 0 or frames[-1]["end"] - frames[-1]["start"] > frames[0]["end"] - frames[0]["start"] else 0)
             else:
                 return ImageAnalysisError(f"Too many frames detected {len(frames)}")
