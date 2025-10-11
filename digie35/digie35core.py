@@ -1017,10 +1017,12 @@ class StepperMotorAdapter(Adapter):
         counters = {"motor": self._motor_position, }
         for key in list(self._frame_counters):
             counters[key] = self._frame_counters[key]["counter"]
+        #logging.getLogger().debug(f"Film sensing: {self._film_sensing['state']}")
         result = {
             "movement": self._motor_current_dir,   # atomic ?
             "frame_ready": self._film_sensing["state"]["shot_ready"],
             "film_detected": self._film_sensing["state"]["front"] or self._film_sensing["state"]["rear"],
+            "film_controlled": self._film_sensing["state"]["controlled"],
             "film_position": round(self._film_position, 3),
             "insert_ready":  self._film_sensing["state"]["insert_ready"],
             #"counters": counters,

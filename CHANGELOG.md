@@ -16,6 +16,7 @@ Features
   - postponed backlight switch off after no film detected
   - test server controls all I/O
   - play sound on error
+  - autocapture on load
 
 Fixes
 -----

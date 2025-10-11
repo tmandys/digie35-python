@@ -1409,6 +1409,19 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
+                            <label for="vision-capture-on-load-cb" accesskey="p">Auto ca<u>p</u>ture on load</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="vision-capture-on-load-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">When a film is inserted, the system evaluates its position using <i>Vision</i> and triggers capture if conditions are met</small>
+                    </div>
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
                             <label for="autocorrection-cb" accesskey="c" >Auto <u>c</u>orrection</label>
                             <div class="switch-container">
                                 <label class="switch">
@@ -2132,7 +2145,7 @@
                                 if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
 					                sendCommandAnalyze(ANALYZE_ALIGN | ANALYZE_CAPTURE);
                                 } else {
-                                    window.adapter_buttons.shoot.action(undefined);
+                                    get_adapter_button("shoot", "").click();
                                 }
                                 delete window.automove_in_progress;
                             }
@@ -2230,8 +2243,14 @@
                                 }
                                 adjust_adapter(data.payload);
                                 if (typeof window.capabilities != "undefined" && window.capabilities.motorized) {
+                                    if (data.payload.eof) {
+                                        update_status_info("End of film detected", "FILM");
+                                    } else if (data.payload.movement != 0) {
+                                        update_status_info("", "FILM", true);
+                                    }
                                     if (document.getElementById("autolead-cb").checked && data.payload.film_inserted) {
                                         window.adapter_buttons.insert.action(undefined);
+                                        update_status_info("", "FILM", true);
                                     }
                                     if ((data.payload.movement == 0) && (typeof window.automove_in_progress != "undefined")) {
                                         if (data.payload.frame_ready) {
@@ -2239,6 +2258,7 @@
                                             check_multicapture();
                                         } else {
                                             delete window.automove_in_progress;
+                                            update_status_info("Frame is not ready", "FILM");
                                         }
                                     }
                                 }
@@ -2261,7 +2281,17 @@
                             if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
                                 let reason = 0;
                                 if (data.payload.action=="LEAD_IN") {
-                                    reason = ANALYZE_ALIGN;
+                                    const elem = document.getElementById("backlight-cb");
+                                    if (!elem.chacked) {   // switch on backlight to get image quickly from camera
+                                        elem.checked = true;
+                                        adjust_backlight();
+                                    }
+                                    if (data.payload.movement == 0 && data.payload.frame_ready) {
+                                        reason = ANALYZE_ALIGN;
+                                        if (document.getElementById("vision-capture-on-load-cb").checked) {
+    	    				                reason |= ANALYZE_CAPTURE;
+                                        }
+                                    }
                                 } else if (data.payload.action=="MOVE_BY" && data.payload.movement == 0) {
                                     switch (data.payload.client_context) {
                                         case "frame":
@@ -2472,7 +2502,7 @@
                                         if (window.analyze_in_progress & ANALYZE_CAPTURE) {
                                             if (!window.stop_multicapture) {
     								            window.analyze_in_progress = 0;
-                                                window.adapter_buttons.shoot.action(undefined);
+                                                get_adapter_button("shoot", "").click();
                                             }
                                         }
                                     }
@@ -3375,6 +3405,7 @@
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
             "control.vision.alignment": "vision-alignment-cb",
+            "control.vision.capture-on-load": "vision-capture-on-load-cb",
             "control.autolead": "autolead-cb",
             "control.reverse": "reverse-cb",
             "control.sticky": "sticky-cb",
@@ -3458,6 +3489,8 @@
             "insert": {
                 "action": function(dir) {
                     window.stop_multicapture = true;
+                    check_multicapture();   // to reset immediately because we need capture on load
+                    window.stop_multicapture = false;
 					if (!document.getElementById("film-fieldset").disabled && document.getElementById("autoinc-cb").checked) {
 						const film_list = document.getElementById("film-list");
 						if (film_list.selectedIndex == 0 || film_list.options[film_list.selectedIndex]._custom_data.captured.length > 0) {

@@ -1785,23 +1785,28 @@ def broadcast(message):
 
         insert_detected = False
         if not send_flag:
-            send_flag = last_adapter["movement"] != message["movement"] or \
-                last_adapter["action"] != message["action"]
+            send_flag = last_adapter.get("movement") != message["movement"] or \
+                last_adapter.get("action") != message["action"]
         if not send_flag and "frame_ready" in last_adapter:  # when changing adapters
-            send_flag = last_adapter["frame_ready"] != message["frame_ready"] or \
-                last_adapter["film_detected"] != message["film_detected"]
+            send_flag = last_adapter.get("frame_ready") != message["frame_ready"] or \
+                last_adapter.get("film_detected") != message["film_detected"]
         # TODO: it may generate oscillating level, the signal should be stable for some time
         insert_detected = (message["movement"] == 0 and \
             # not message["film_detected"] and \
-            not last_adapter["io"]["sensor_f"] and message["io"]["sensor_f"] and \
+            not last_adapter["io"].get("sensor_f") and message["io"]["sensor_f"] and \
             message["insert_ready"])
-            #not last_adapter["io"]["sensor_r"] and not message["io"]["sensor_r"] and \
-            #not last_adapter["io"]["sensor_m"] and not message["io"]["sensor_m"])
+            #not last_adapter["io"].get("sensor_r") and not message["io"]["sensor_r"] and \
+            #not last_adapter["io"].get("sensor_m") and not message["io"]["sensor_m"])
         send_flag |= insert_detected
-
+        eof_detected = message["movement"] != 0 and \
+            last_adapter.get("film_controlled") != message["film_controlled"] and \
+            not message["film_controlled"]
+        send_flag != eof_detected
         message2 |= {
             "film_position": message["film_position"],
             "film_inserted": insert_detected,
+            "eof": eof_detected,
+            #"film_detected": message["film_detected"],
             #"motor_position": message["counters"]["motor"],  # for debugging
         }
     last_adapter = message
