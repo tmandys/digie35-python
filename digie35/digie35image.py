@@ -92,7 +92,7 @@ class ImageAnalysis:
             }
         }
         self._crop_offset_y = 0
-        if current_ratio != target_ratio:
+        if round(current_ratio, 2) != round(target_ratio, 2):
             if current_ratio > target_ratio:
                 new_w = int(h * target_ratio)
                 x1 = (w - new_w) // 2
@@ -102,7 +102,7 @@ class ImageAnalysis:
                 self._crop["offset"]["x"] = x1
             else:
                 new_h = int(w / target_ratio)
-                y1 = (h - h_new) // 2
+                y1 = (h - new_h) // 2
                 y2 = y1 + new_h
                 x1, x2 = 0, w
                 h = new_h
@@ -110,7 +110,7 @@ class ImageAnalysis:
             self._image = self._image[y1:y2, x1:x2]
 
         self._pixel_per_mm = h / self._FRAME_HEIGHT * self._MAGNIFICATION
-        #print(f"Image: {w}x{h}, ratio: {self._pixel_per_mm}, Frame: {self._FRAME_WIDTH}x{self._FRAME_HEIGHT}, Magnify: {self._MAGNIFICATION}")
+        #print(f"Image: {w}x{h}, ratio: {current_ratio}/{target_ratio} {self._pixel_per_mm}, Frame: {self._FRAME_WIDTH}x{self._FRAME_HEIGHT}, Magnify: {self._MAGNIFICATION}")
         self._filename = filename
         np.set_printoptions(threshold=np.inf)  # debug complete arrays
         self._reset()
