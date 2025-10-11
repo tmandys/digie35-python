@@ -439,9 +439,9 @@ class ExtensionBoard:
         self._call_notify_callback(source)
 
     def _do_pending_notification(self, source, postpone_interval):
-        if self._pending_notification.wait(timeout=postpone_interval):
-            # logging.getLogger().debug("Pending notification: %s" % (source))
-            self._notify_callback({"source": source} | self.get_state())
+        self._pending_notification.wait(timeout=postpone_interval)
+        # logging.getLogger().debug(f"Pending notification: {source}")
+        self._notify_callback({"source": source} | self.get_state())
 
     def _call_notify_callback(self, source, new_thread = False, postpone_interval = 0, params = {}):
         if not self._initialized:
@@ -977,7 +977,7 @@ class StepperMotorAdapter(Adapter):
                 "pending": {},
             }
         self.props.set("MAX_MOTOR_RUN", 180.0)  # to avoid overheating
-        self.props.set("BL_NO_FILM_OFF_DELAY", 4)   # after some timeout to avoid confusing sudden switch off 
+        self.props.set("BL_NO_FILM_OFF_DELAY", 4)   # after some timeout to avoid confusing sudden switch off
         self._no_film_job = None   # use job instead of timer to simplify implementation
 
     def close(self):
