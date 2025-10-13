@@ -708,6 +708,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self.props.set("FP_TRUST_INTERVAL", 30.0)  # do not believe flattening state forever
         self.props.set("FP_PRESS_DELAY", 10.0)   # wait some time till press down when stopped
         self.props.set("FP_BACKLIGHT_OFF", True)  # switch off light to reduce power load at 24V
+        self.props.set("FP_DOWN_COUNT", 3)    # repeat pull down to increase force
         self.props.set("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
         self.props.set("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
 
@@ -760,14 +761,17 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 
                 self._xboard.set_io_state("stepper_dir", not down)
                 self._xboard.set_io_state("stepper_enable", False)
-                cnt = self.props.get("FP_PULSE_COUNT")
-                width = self.props.get("FP_PULSE_WIDTH")
-                while cnt > 0:
-                    cnt -= 1
-                    self._xboard.set_io_state("stepper_step", True)
-                    time.sleep(width)   # short pulse to limit heating
-                    self._xboard.set_io_state("stepper_step", False)
-                    time.sleep(width)
+                cnt1 = self.props.get("FP_DOWN_COUNT") if down else 1
+                while cnt1 > 0:
+                    cnt = self.props.get("FP_PULSE_COUNT")
+                    width = self.props.get("FP_PULSE_WIDTH")
+                    while cnt > 0:
+                        cnt -= 1
+                        self._xboard.set_io_state("stepper_step", True)
+                        time.sleep(width)   # short pulse to limit heating
+                        self._xboard.set_io_state("stepper_step", False)
+                        time.sleep(width)
+                    cnt1 -= 1
                 # logging.getLogger().debug("end pulse")
                 self._xboard.set_io_state("stepper_dir", save_dir)
                 self._xboard.set_io_state("stepper_step", save_step)
