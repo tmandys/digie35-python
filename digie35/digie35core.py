@@ -918,8 +918,9 @@ class Adapter:
         return {}
 
     def get_capabilities(self):
-        # logging.getLogger().debug("%s::get_capabilities" % self.__class__.__name__)
-        return {}
+        result = {
+        }
+        return result
 
     def on_gpio_change(self, source):
         pass

@@ -104,12 +104,18 @@ Examples or args:
     -b AOT -w --default --h_adapter_id NIKON --h_version 103 --h_serial_number 123456789
   Manual adapter init
     -b AOT -w --default --h_adapter_id MANUAL --h_version 103 --h_serial_number 123456789
+  Lightbox adapter init
+    -b AOT -w --default --h_adapter_id LGHTBOX --h_version 106 --h_serial_number 123456789
+  Manual adapter for middle format init
+    -b AOT -w --default --h_adapter_id MAN120 --h_version 106 --h_serial_number 123456789
   Light internal adapter init (white LED only)
     -b LIGHT -w --default --h_adapter_id LGHT8PWM --h_version 103 --h_serial_number 123456789 --la_led1 1
+  External light connected as adapter under another adapter
+    -b X_LIGHT -w --default --h_adapter_id ALGH8PWM --h_version 103 --h_serial_number 123456789
 ''',
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    argParser.add_argument("-b", "--board", choices=["MAIN", "M", "AOT", "A", "LIGHT", "L"], type=str.upper, default="MAIN", help=f"Board type, default: %(default)s")
+    argParser.add_argument("-b", "--board", choices=["MAIN", "M", "AOT", "A", "LIGHT", "L", "X_LIGHT", "X"], type=str.upper, default="MAIN", help=f"Board type, default: %(default)s")
     argParser.add_argument("-w", "--write", action="store_true", help=f"Write values")
     argParser.add_argument("--erase", action="store_true", help=f"Erase all values first")
     argParser.add_argument("--default", action="store_true", help=f"Write default values not specified as parameter")
@@ -150,6 +156,8 @@ Examples or args:
         if args.board[0] != "M":
             if args.board[0] == "A":
                 eeprom = xboard._aot_memory
+            elif args.board[0] == "X":
+                eeprom = xboard._aot_light_memory
             #elif args.board[0] == "L":
             else:
                 eeprom = xboard._light_memory

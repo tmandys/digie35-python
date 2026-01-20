@@ -1025,9 +1025,9 @@
                                     <input type="range" id="backlight-ir-rng" value="60" min="0" max="255" class="color-range" title="Backlight infrared LED intensity" />
                                     <input type="number" id="backlight-ir-num" min="0" max="255" />
                                 </div>
-                                <div id="backlight-external-container" class="hidden">
-                                    <input type="range" id="backlight-external-rng" value="60" min="0" max="255" class="color-range" title="Backlight manual adapter LED intensity" />
-                                    <input type="number" id="backlight-external-num" min="0" max="255" />
+                                <div id="backlight-preview-container" class="hidden">
+                                    <input type="range" id="backlight-preview-rng" value="60" min="0" max="255" class="color-range" title="Backlight preview LED intensity on separate lifghtbox" />
+                                    <input type="number" id="backlight-preview-num" min="0" max="255" />
                                 </div>
                             </div>
                         </div>
@@ -1468,7 +1468,7 @@
                                 <option value="white+red+green+blue">RGBW</option>
                                 <option value="amber+white+red+green+blue">RGBAW</option>
                                 <option value="ir">IR</option>
-                                <option value="external">Manual</option>
+                                <option value="preview">Preview</option>
                             </select>
                         </div>
                         <small class="hint">Set backlight LED set to illuminate film. Each color intensity can be adjusted individually. In case of color negative orange mask can be masked off.</small>
@@ -1811,7 +1811,7 @@
                 opt.disabled = !window.capabilities.white_backlight;
             } else if (opt.value == "ir") {
                 opt.disabled = !window.capabilities.ir_backlight;
-            } else if (opt.value == "external") {
+            } else if (opt.value == "preview") {
                 opt.disabled = !window.capabilities.preview_backlight;
             } else if (opt.value == "amber+white+red+green+blue") {
                 opt.disabled = !window.capabilities.rgbaw_backlight;
@@ -3422,7 +3422,7 @@
 			"control.backlight.green": "backlight-green-rng",
 			"control.backlight.blue": "backlight-blue-rng",
 			"control.backlight.ir": "backlight-ir-rng",
-			"control.backlight.external": "backlight-external-rng",
+			"control.backlight.preview": "backlight-preview-rng",
             "control.focus_warning_interval": "focus-warning-list",
             "capture.multi": "capture-multi",
             "capture.shoot.mode": "shoot-mode-list",

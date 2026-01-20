@@ -686,7 +686,7 @@ class CameraWrapper:
         digitizer.props.set("BL_AUTO_OFF_ENABLE", False)
         try:
             color = digitizer.get_current_backlight_color()
-            if color == None or color == "external":
+            if color == None or color == "preview":
                 raise CameraControlError("Backlight is switched off")
             file_template = kwargs.get("file_template", {"template_id": "", "values": {}})
             # prevalidate template values

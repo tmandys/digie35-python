@@ -398,6 +398,10 @@ class GulpAdapterMemory(GulpBoardMemory):
         logging.getLogger().debug("%s custom data: %s", type(adapter).__name__, res)
         return res
 
+## Add to inheritance for all AOT adapter. It enabvles to implement light box internally in Adapte
+class GulpLightSupportMixin:
+    LightAdapterClass: type | None = None
+
 ## Adapter for Nikon SA-21 with unipolar 5V stepper motor
 class GulpNikonStepperMotorAdapterMemory(GulpAdapterMemory):
 
@@ -411,7 +415,7 @@ class GulpNikonStepperMotorAdapterMemory(GulpAdapterMemory):
         ("acceleration", "int", 2, "Max.acceleration mm/100/sec^2", 5000),
     ]
 
-class GulpNikonStepperMotorAdapter(NikonStepperMotorAdapter):
+class GulpNikonStepperMotorAdapter(NikonStepperMotorAdapter, GulpLightSupportMixin):
     ID = "NIKON"
     BOARD_MEMORY_CLASS = GulpNikonStepperMotorAdapterMemory
 
@@ -475,7 +479,7 @@ class GulpNikonStepperMotorAdapter_0103(GulpNikonStepperMotorAdapter):
 
 
 ## Motorized adapter with 24V bipolar stepper motor controlled by STEP/DIR interface
-class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
+class GulpStepperMotorAdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
     DRIVER_A4988 = 0
     DRIVER_DRV8825 = 1
     DRIVER_TMC2208_COMP = 2
@@ -794,7 +798,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         return result
 
 
-## Manual sledge adapter with own light box
+## Manual sledge adapter with own preview light box
 
 class GulpManualAdapterMemory(GulpAdapterMemory):
 
@@ -802,7 +806,7 @@ class GulpManualAdapterMemory(GulpAdapterMemory):
         ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
     ]
 
-class GulpManualAdapter(Adapter):
+class GulpManualAdapter(Adapter, GulpLightSupportMixin):
     ID = "MANUAL"
     BOARD_MEMORY_CLASS = GulpManualAdapterMemory
 
@@ -811,9 +815,9 @@ class GulpManualAdapter(Adapter):
         custom = self._xboard._aot_memory.get_adapter_custom(self)
         self._max_backlight = custom["max_backlight"]
         self._save_backlight_color = self._xboard.get_current_backlight_color()
-        if self._save_backlight_color == None or self._save_backlight_color == "external":
+        if self._save_backlight_color == None or self._save_backlight_color == "preview":
             self._save_backlight_color = "white"
-        self._xlight = self._save_backlight_color == "external"
+        self._xlight = self._save_backlight_color == "preview"
         self._last_sensor_states = None
         self._shot_ready = False
 
@@ -839,8 +843,8 @@ class GulpManualAdapter(Adapter):
         # TODO: adjust backlight
 
         color = self._xboard.get_current_backlight_color()
-        is_backlight = color != None and color != "external"
-        is_preview = color == "external"
+        is_backlight = color != None and color != "preview"
+        is_preview = color == "preview"
         if is_backlight and not inputs["sensor_f"]:
             # backlight till front sensor
             self._save_backlight_color = color
@@ -850,7 +854,7 @@ class GulpManualAdapter(Adapter):
             self._xboard.set_backlight(None)
         elif not is_preview and not is_backlight and not inputs["sensor_f"] and inputs["sensor_r"] and not inputs["sensor_m"]:
             # also sensor_m because finger over ra sensor can unintetionally switch on preview during movement
-            self._xboard.set_backlight("external", -1)
+            self._xboard.set_backlight("preview", -1)
         elif not is_preview and not is_backlight and inputs["sensor_f"] and not inputs["sensor_m"]: # and not inputs["sensor_r"]:
             self._xboard.set_backlight(self._save_backlight_color, -1)
         if not self._shot_ready and inputs["sensor_f"] and not inputs["sensor_m"] and not inputs["sensor_r"]:
@@ -867,12 +871,12 @@ class GulpManualAdapter(Adapter):
 
     def _get_io_configuration(self):
         result = super()._get_io_configuration()
-        result["led_external"] = {}
+        result["led_preview"] = {}
         result["psu_sensor"] = {}
         result["sensor_r"] = {}
         result["sensor_f"] = {}
         result["sensor_m"] = {}
-        result["led_external"]["max_duty_cycle"] = self._max_backlight
+        result["led_preview"]["max_duty_cycle"] = self._max_backlight
         return result
 
 ## Light control board
@@ -888,26 +892,11 @@ class GulpLightAdapterMemory(GulpAdapterMemory):
         ("led3", "number", 1, "LED connected to slot 3", 0, {0: "None", 3: "RGB", 4: "RGBAW"}),
     ]
 
-class GulpLightAdapter(Adapter):
-    # ID = "LIGHT"
-    BOARD_MEMORY_CLASS = GulpLightAdapterMemory
-
-    def set_backlight(self, color, intensity=None):
-        pass
-
-class GulpLight8xPWMAdapter(GulpLightAdapter):
-    ID = "LGHT8PWM"
-
-    def __init__(self, xboard):
-        super().__init__(xboard)
-        custom = self._xboard._light_memory.get_adapter_custom(self)
-        self._led = (
-            custom["led1"],
-            custom["led2"],
-            custom["led3"]
-        )
-
-        self._i2c_addr = 0x6C
+# PCA9634 8-bit 8 channel PWM driver
+class PCA9634Driver:
+    def __init__(self, xboard, i2c_addr):
+        self._xboard = xboard
+        self._i2c_addr = i2c_addr
         data = [
             0, # MODE1
             0b00010101, # MODE2 Mode register 2    (totem, /oe..hi-Z)
@@ -921,8 +910,44 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
 
     def _write_to_driver(self, addr, data):
         buf = [0x80 | addr] + data
-        logging.getLogger().debug("PCA9634 write: %s" % buf)
+        logging.getLogger().debug(f"PCA9634 ({self._i2c_addr:#x}) write: {buf}")
         self._xboard._mainboard.i2c_write_read(self._i2c_addr, buf, 0)
+
+    # 8 channels, 8-bit value
+    def set_pwm(self, pwm):
+        self._write_to_driver(0x02, pwm)  # PWM addr
+        # enable/disable drivers
+        out = 0
+        for i in (range(0, len(pwm))):
+            out = out << 2
+            if pwm[len(pwm)-i-1] > 0:
+                out |= 0b10
+        self._write_to_driver(0x0C, [out & 0xFF, out >> 8])  # LED driver output state registers
+
+class GulpLightAdapter(Adapter):
+    # ID = "LIGHT"
+    BOARD_MEMORY_CLASS = GulpLightAdapterMemory
+
+    def set_backlight(self, color, intensity=None):
+        pass
+
+    def close(self):
+        try:
+            self.set_backlight(None)
+        except:
+            pass
+
+class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
+
+    def __init__(self, xboard, light_memory, pca_i2c_address):
+        super().__init__(xboard)
+        custom = light_memory.get_adapter_custom(self)
+        self._led = (
+            custom["led1"],
+            custom["led2"],
+            custom["led3"]
+        )
+        self._driver = PCA9634Driver(xboard, pca_i2c_address)
 
     def get_capabilities(self):
         result = super().get_capabilities()
@@ -935,13 +960,13 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
         }
         return result
 
-    def set_backlight(self, color, intensity=None):
+    def color2pwm(self, color, intensity):
+
         if intensity != None:
             logging.getLogger().debug("set_backlight(%s, 0x%x)" % (color, intensity))
-        # PCA9634 I2C=0x6C
         # 0 .. res / general on/off in v0103
         # 1 .. white (standalone)
-        # 2 .. ir
+        # 2 .. ir/preview
         # 3 .. white
         # 4 .. red
         # 5 .. green
@@ -952,7 +977,7 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             pass
         elif color == "white":
             pwm[1] = intensity
-        elif color == "ir":
+        elif color in ["ir", "preview"]:
             pwm[2] = intensity
         elif color in ["red+green+blue", "white+red+green+blue", "amber+white+red+green+blue"]:
             pwm[4] = (intensity >> 16) & 0xFF
@@ -965,21 +990,129 @@ class GulpLight8xPWMAdapter(GulpLightAdapter):
             elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
                 pwm[1] = white
         else:
-            raise DigitizerError("Unknown color: %s" % (color))
+            raise DigitizerError(f"Unknown color: {color}")
+        return pwm
 
-        self._write_to_driver(0x02, pwm)  # PWM addr
-        # enable/disable drivers
-        out = 0
-        for i in (range(0, len(pwm))):
-            out = out << 2
-            if pwm[len(pwm)-i-1] > 0:
-                out |= 0b10
-        self._write_to_driver(0x0C, [out & 0xFF, out >> 8])  # LED driver output state registers
+    def set_backlight(self, color, intensity=None):
+        pwm = self.color2pwm(color, intensity)
+        self._driver.set_pwm(pwm)
+
+class GulpLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+    ID = "LGHT8PWM"
+
+    def __init__(self, xboard):
+        super().__init__(xboard, xboard._light_memory, 0x6C)
 
 class GulpLight8xPWMAdapter_0103(GulpLight8xPWMAdapter):
     # channel #0 is used for general on/off because default output level is 5V after power cycle.
     # Class code will switch off which is what we need.
     pass
+
+class GulpAotLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+    ID = "ALGH8PWM"
+
+    def __init__(self, xboard):
+        super().__init__(xboard, xboard._aot_light_memory, 0x6D)
+
+
+# light implemented directly on manual120 adapter
+class GulpManual120Light8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+
+    def __init__(self, xboard):
+        super().__init__(xboard, xboard._aot_memory, 0x6D)
+
+# external light box as regular AOT adapter
+class GulpLightBoxAdapter(Adapter, GulpLightSupportMixin):
+    ID = "LGHTBOX"
+    BOARD_MEMORY_CLASS = GulpLightAdapterMemory
+    LightAdapterClass = GulpManual120Light8xPWMAdapter
+
+    def __init__(self, xboard):
+        super().__init__(xboard)
+
+    def _get_io_configuration(self):
+        result = super()._get_io_configuration()
+        return result
+
+## Manual sledge adapter for middle format with own full&preview light boxes
+class GulpManual120AdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
+
+    CUSTOM_MAP = GulpLightAdapterMemory.CUSTOM_MAP + [
+        ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
+    ]
+
+class GulpManual120Adapter(Adapter, GulpLightSupportMixin):
+    ID = "MAN120"
+    BOARD_MEMORY_CLASS = GulpManual120AdapterMemory
+    LightAdapterClass = GulpManual120Light8xPWMAdapter
+
+    def __init__(self, xboard):
+        super().__init__(xboard)
+        custom = self._xboard._aot_memory.get_adapter_custom(self)
+        self._max_backlight = custom["max_backlight"]
+        self._save_backlight_color = self._xboard.get_current_backlight_color()
+        if self._save_backlight_color == None or self._save_backlight_color == "preview":
+            self._save_backlight_color = "white"
+        self._xlight = self._save_backlight_color == "preview"
+        self._last_sensor_states = None
+        self._shot_ready = False
+
+    def get_state(self, force=False):
+        result = {
+            "frame_ready": self._shot_ready,
+        }
+        return result
+
+    def on_gpio_change(self, source):
+        """
+            Sensor state has changed
+        """
+        logging.getLogger().debug("%s" % __name__)
+        super().on_gpio_change(source)
+        self._xboard._get_xio(True)
+        input_names = ["sensor_f", "sensor_r", "sensor_m"]
+        inputs = self._xboard.get_io_states(input_names)
+        logging.getLogger().debug("sensor states: %s" % inputs)
+        if inputs == self._last_sensor_states:
+            return
+        self._last_sensor_states = inputs
+        # TODO: adjust backlight
+
+        color = self._xboard.get_current_backlight_color()
+        is_backlight = color != None and color != "preview"
+        is_preview = color == "preview"
+        if is_backlight and inputs["sensor_m"] and inputs["sensor_r"]:
+            # backlight till not middle sensor
+            self._save_backlight_color = color
+            self._xboard.set_backlight(None)
+        elif is_preview and inputs["sensor_m"] and inputs["sensor_f"]:
+            self._xboard.set_backlight(None)
+        elif not is_preview and not is_backlight and not inputs["sensor_f"] and inputs["sensor_r"] and not inputs["sensor_m"]:
+            self._xboard.set_backlight("preview", -1)
+        elif not is_preview and not is_backlight and inputs["sensor_f"] and not inputs["sensor_r"] and not inputs["sensor_m"]:
+            self._xboard.set_backlight(self._save_backlight_color, -1)
+        if not self._shot_ready and inputs["sensor_f"] and not inputs["sensor_m"] and not inputs["sensor_r"]:
+            self._shot_ready = True
+        elif self._shot_ready and inputs["sensor_m"]:
+            self._shot_ready = False
+
+    def get_capabilities(self):
+        result = {
+            "preview_backlight": True,
+            "preview_backlight_control": True,
+        }
+        return result
+
+    def _get_io_configuration(self):
+        result = super()._get_io_configuration()
+        result["led_preview"] = {}
+        result["psu_sensor"] = {}
+        result["sensor_r"] = {}
+        result["sensor_f"] = {}
+        result["sensor_m"] = {}
+        result["led_preview"]["max_duty_cycle"] = self._max_backlight
+        return result
+
 
 ## First board with 20-pin header, powered by 24V. Hotplug AOT (adapter-on-top) adapters
 class GulpExtensionBoardMemory(GulpBoardMemory):
@@ -1005,9 +1138,9 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
         self._xboard_memory = self.BOARD_MEMORY_CLASS(mainboard, i2c["addr"]["main_eeprom"], i2c["eeprom_page_size"])
         self._aot_memory = GulpAdapterMemory(mainboard, i2c["addr"]["aot_eeprom"], i2c["eeprom_page_size"])
         self._light_memory = GulpAdapterMemory(mainboard, i2c["addr"]["light_eeprom"], i2c["eeprom_page_size"])
+        self._aot_light_memory = GulpAdapterMemory(mainboard, i2c["addr"]["aot_light_eeprom"], i2c["eeprom_page_size"])
         self._custom_data = self._xboard_memory.read_custom()
         super().__init__(mainboard, callback)
-        self._light_adapter = self.get_adapter(self.LIGHT_NAME)
 
     def get_xboard_class_by_version(version):
         if version == None:
@@ -1031,15 +1164,15 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 
     def _set_backlight_impl(self, color, intensity):
 
-        led_off = {"led_white": 0, "led_ir": 0, "led_external": 0, "led_pwm": 0, }
+        led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, }
         if color == None:
             self.set_io_states(led_off)
         elif color == "white":
             self.set_io_states(led_off | {"led_white": intensity > 0, "led_pwm": intensity, })
         elif color == "ir":
             self.set_io_states(led_off | {"led_ir": intensity > 0, "led_pwm": intensity, })
-        elif color == "external":
-            self.set_io_states(led_off | {"led_external": intensity > 0, "led_pwm": intensity, })
+        elif color == "preview":
+            self.set_io_states(led_off | {"led_preview": intensity > 0, "led_pwm": intensity, })
         else:
             raise DigitizerError("Color '%s' is not supported" % color)
 
@@ -1061,12 +1194,12 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
     def get_adapter_class_by_name(id_ver):
         id = id_ver[0]
         ver = id_ver[1]
-        if id == "NIKON":
+        if id == GulpNikonStepperMotorAdapter.ID:
             if ver >= 103:
                 res = GulpNikonStepperMotorAdapter_0103
             else:
                 res = GulpNikonStepperMotorAdapter
-        elif id == "STEPPER":
+        elif id == GulpStepperMotorAdapter.ID:
             if ver >= 105:
                 res = GulpStepperMotorAdapter_0105
             elif ver >= 103:
@@ -1075,13 +1208,19 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
                 res = GulpStepperMotorAdapter_0101
             else:
                 res = GulpStepperMotorAdapter
-        elif id == "MANUAL":
+        elif id == GulpManualAdapter.ID:
             res = GulpManualAdapter
-        elif id == "LGHT8PWM":
+        elif id == GulpManual120Adapter.ID:
+            res = GulpManual120Adapter
+        elif id == GulpLightBoxAdapter.ID:
+            res = GulpLightBoxAdapter
+        elif id == GulpLight8xPWMAdapter.ID:
             if ver >= 103:
                 res = GulpLight8xPWMAdapter_0103
             else:
                 res = GulpLight8xPWMAdapter
+        elif id == GulpAotLight8xPWMAdapter.ID:
+            res = GulpAotLight8xPWMAdapter
         else:
             res = None
         logging.getLogger().debug("Id: %s resolved as %s" % (id_ver, res))
@@ -1089,22 +1228,40 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 
     def _get_connected_adapter_class_impl(self):
         adapters = {}
+        light_class = None
         try:
             logging.getLogger().debug("%s checking hotplug adapter" % (__name__))
             id_ver = self._aot_memory.get_id_version()
             logging.getLogger().debug("got: id_ver:%s" % (id_ver, ))
             if id_ver != None:
-                adapters[super().AOT_NAME] = GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+                adapter_class = GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+                adapters[super().AOT_NAME] = adapter_class
+                light_class = adapter_class.LightAdapterClass
+
         except OSError:
             pass
-        try:
-            logging.getLogger().debug("%s checking light adapter" % (__name__))
-            id_ver = self._light_memory.get_id_version()
-            logging.getLogger().debug("got: id_ver: %s" % (id_ver, ))
-            if id_ver != None:
-                adapters[self.LIGHT_NAME] = GulpExtensionBoard.get_adapter_class_by_name(id_ver)
-        except OSError:
-            pass
+        if not light_class:
+            # check light adapter or AOT
+            try:
+                logging.getLogger().debug("%s checking aot light adapter" % (__name__))
+                id_ver = self._aot_light_memory.get_id_version()
+                logging.getLogger().debug("got: id_ver: %s" % (id_ver, ))
+                if id_ver != None:
+                    light_class = GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+            except OSError:
+                pass
+        if not light_class:
+            # check internal light adapter
+            try:
+                logging.getLogger().debug("%s checking light adapter" % (__name__))
+                id_ver = self._light_memory.get_id_version()
+                logging.getLogger().debug("got: id_ver: %s" % (id_ver, ))
+                if id_ver != None:
+                    light_class = GulpExtensionBoard.get_adapter_class_by_name(id_ver)
+            except OSError:
+                pass
+        if light_class:
+            adapters[self.LIGHT_NAME] = light_class
         return adapters
 
     def _get_i2c_configuration(self):
@@ -1115,7 +1272,8 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
                 "rtc_eeprom": 0b1010111, # MCP79400 EEPROM
                 "main_eeprom": self.XBOARD_MEMORY_ADDR,
                 "aot_eeprom": 0b1010101, # 24LCxx EEPROM on adapter board
-                "light_eeprom": 0b1010110, # 24LCxx EEPROM on light adapter board
+                "light_eeprom": 0b1010110, # 24LCxx EEPROM on light adapter board (connected to 10-pin header not intended as plugin)
+                "aot_light_eeprom": 0b1010111, # 24LCxx EEPROM on external light board (connected to aot 20-pin connector)
             },
             "eeprom_page_size": 8,
         }
@@ -1149,7 +1307,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
                 "num": 27,
                 "init": 0,
             },
-            "led_external": {
+            "led_preview": {
                 "dir": "o",
                 "type": "gpio",
                 "num": 22,
@@ -1223,7 +1381,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 class GulpExtensionBoard_0101(GulpExtensionBoard):
 
     def _set_backlight_impl(self, color, intensity):
-        led_off = {"led_white": 0, "led_ir": 0, "led_external": 0, "led_pwm": 0, "led_red": 0, "led_green": 0, "led_blue": 0, }
+        led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, "led_red": 0, "led_green": 0, "led_blue": 0, }
         if color == None:
             self.set_io_states(led_off)
         elif color == "white":
@@ -1233,8 +1391,8 @@ class GulpExtensionBoard_0101(GulpExtensionBoard):
                 self.set_io_states(led_off | {"led_white": intensity > 0, "led_pwm": intensity, })
         elif color == "ir":
             self.set_io_states(led_off | {"led_ir": intensity > 0, "led_pwm": intensity, })
-        elif color == "external":
-            self.set_io_states(led_off | {"led_external": intensity, })
+        elif color == "preview":
+            self.set_io_states(led_off | {"led_preview": intensity, })
         elif color == "red":
             self.set_io_states(led_off | {"led_red": intensity > 0, "led_pwm": intensity, })
         elif color == "green":
@@ -1275,7 +1433,7 @@ class GulpExtensionBoard_0101(GulpExtensionBoard):
                 "num": 10,
                 "init": 0,
             },
-            "led_external": {
+            "led_preview": {
                 "dir": "o",
                 "type": "pwm",
                 "num": 0,
@@ -1310,30 +1468,28 @@ class GulpExtensionBoard_0101(GulpExtensionBoard):
         }
         return result
 
-# Board with extranal light control board and adapter detection signal
+# Board with external light control board and adapter detection signal
 class GulpExtensionBoard_0102(GulpExtensionBoard):
     def __init__(self, mainboard, callback):
         super().__init__(mainboard, callback)
-        self._light_adapter = self.get_adapter(self.LIGHT_NAME)
-        if self._light_adapter != None:
-            self._light_adapter_capabilities = self._light_adapter.get_capabilities()
 
     def _set_backlight_impl(self, color, intensity):
-        led_off = {"led_white": 0, "led_external": 0, }
-        if self._light_adapter != None:
-            if color == "external":
-                self._light_adapter.set_backlight(None)
-                self.set_io_states(led_off | {"led_external": intensity, })
+        led_off = {"led_white": 0, "led_preview": 0, }
+        light_adapter = self.get_adapter(self.LIGHT_NAME)
+        if light_adapter != None:
+            if color == "preview" and not light_adapter.get_capabilities("preview_backlight"):
+                light_adapter.set_backlight(None)
+                self.set_io_states(led_off | {"led_preview": intensity, })
             else:
-                self._light_adapter.set_backlight(color, intensity)
+                light_adapter.set_backlight(color, intensity)
                 self.set_io_states(led_off)
         else:
             if color == None:
                 self.set_io_states(led_off)
             elif color == "white":
                 self.set_io_states(led_off | {"led_white": intensity, })
-            elif color == "external":
-                self.set_io_states(led_off | {"led_external": intensity, })
+            elif color == "preview":
+                self.set_io_states(led_off | {"led_preview": intensity, })
             else:
                 raise DigitizerError("Color '%s' is not supported" % color)
 
@@ -1356,7 +1512,7 @@ class GulpExtensionBoard_0102(GulpExtensionBoard):
                 "num": 17,
                 "init": 0,
             },
-            "led_external": {
+            "led_preview": {
                 "dir": "o",
                 "type": "pwm",
                 "num": 0,
@@ -1436,7 +1592,10 @@ registered_boards = [
     GulpNikonStepperMotorAdapter,
     GulpStepperMotorAdapter,
     GulpManualAdapter,
+    GulpManual120Adapter,
     GulpLight8xPWMAdapter,
+    GulpAotLight8xPWMAdapter,
+    GulpLightBoxAdapter,
 ]
 
 
