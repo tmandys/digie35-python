@@ -479,7 +479,7 @@ class GulpNikonStepperMotorAdapter_0103(GulpNikonStepperMotorAdapter):
 
 
 ## Motorized adapter with 24V bipolar stepper motor controlled by STEP/DIR interface
-class GulpStepperMotorAdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
+class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
     DRIVER_A4988 = 0
     DRIVER_DRV8825 = 1
     DRIVER_TMC2208_COMP = 2
@@ -504,7 +504,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
         ("reverse_dir", "number", 1, "Reverse sense of motor rotation", 0),
     ]
 
-class GulpStepperMotorAdapter(StepperMotorAdapter):
+class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin):
     ID = "STEPPER"
     BOARD_MEMORY_CLASS = GulpStepperMotorAdapterMemory
 
@@ -711,7 +711,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self.props.set("FP_AUTO", False)  # control press
         self.props.set("FP_TRUST_INTERVAL", 30.0)  # do not believe flattening state forever
         self.props.set("FP_PRESS_DELAY", 10.0)   # wait some time till press down when stopped
-        self.props.set("FP_BACKLIGHT_OFF", True)  # switch off light to reduce power load at 24V
+        self.props.set("FP_BACKLIGHT_OFF", False)  # switch off light to reduce power load at 24V
         self.props.set("FP_DOWN_COUNT", 3)    # repeat pull down to increase force
         self.props.set("FP_PULSE_COUNT", 2)   # simulate PWM to avoid voltage drop
         self.props.set("FP_PULSE_WIDTH", 0.01)   # short pulse to pull selenoid
@@ -897,6 +897,12 @@ class PCA9634Driver:
     def __init__(self, xboard, i2c_addr):
         self._xboard = xboard
         self._i2c_addr = i2c_addr
+        self._initialized = False
+        self._check_init()
+
+    def _check_init(self):
+        if self._initialized:
+            return
         data = [
             0, # MODE1
             0b00010101, # MODE2 Mode register 2    (totem, /oe..hi-Z)
@@ -906,7 +912,11 @@ class PCA9634Driver:
             0x0, # LEDOUT0 LED output state 0
             0x0, # LEDOUT1 LED output state 1
         ]
-        self._write_to_driver(0, data)
+        try:
+            self._write_to_driver(0, data)
+            self._initialized = True
+        except:
+            pass
 
     def _write_to_driver(self, addr, data):
         buf = [0x80 | addr] + data
@@ -915,6 +925,7 @@ class PCA9634Driver:
 
     # 8 channels, 8-bit value
     def set_pwm(self, pwm):
+        self._check_init()
         self._write_to_driver(0x02, pwm)  # PWM addr
         # enable/disable drivers
         out = 0
