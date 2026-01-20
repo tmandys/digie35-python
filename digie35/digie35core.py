@@ -676,9 +676,13 @@ class ExtensionBoard:
                 if change_flag and intensity > 0 and self.props.get("BL_AUTO_OFF_ENABLE"):
                     if self._backlight_job and not self._backlight_job.is_alive():
                         self._backlight_job.start()
-                    self._backlight_on_timestamp = default_timer()
+                    self.prolongBacklight()
         if change_flag:
             self._call_notify_callback("backlight", True, 0.2)
+
+    def prolongBacklight(self):
+        self._backlight_on_timestamp = default_timer()
+
 
     def get_current_backlight_color(self):
         return self._current_backlight_color

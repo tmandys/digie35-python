@@ -14,7 +14,7 @@ def package_info(name: str):
     try:
         dist = metadata.distribution(name)
         print(f"Name: {dist.metadata['name']}")
-        print(f"Vesrion: {dist.version}")
+        print(f"Version: {dist.version}")
         location = dist.locate_file('')
         print(f"Installed from: {location}")
         editable = os.path.exists(os.path.join(location, name, "__init__.py"))

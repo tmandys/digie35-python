@@ -1587,6 +1587,7 @@ async def ws_control_handler(websocket, path):
                     elif cmd == "CAPTURE":
                         if digitizer.get_capability("motorized"):
                             check_motorized_command(**params)
+                        digitizer.prolongBacklight()
                         reply = camera.capture(websocket, **params)
                         status = digitizer.get_state()
                         if "film_position" in list(status):
@@ -1597,6 +1598,7 @@ async def ws_control_handler(websocket, path):
                         reply = safe_call(camera.set_camera, **params)
 
                     elif cmd == "START_PREVIEW":
+                        digitizer.prolongBacklight()
                         reply = safe_call(camera.start_preview, **params)
                     elif cmd == "STOP_PREVIEW":
                         reply = safe_call(camera.stop_preview, **params)
@@ -1605,12 +1607,14 @@ async def ws_control_handler(websocket, path):
                         safe_call(digitizer.set_backlight, **params)
                         reply_status = True
                     elif cmd == "LEVEL":
+                        digitizer.prolongBacklight()
                         safe_call(digitizer.set_io_state, **params)
                         reply_status = True
                     elif cmd == "WAIT":
                         time.sleep(float(params.sed))
                         reply_status = True
                     elif cmd == "PULSE":
+                        digitizer.prolongBacklight()
                         safe_call(digitizer.pulse_output, **params)
                         reply_status = True
                     elif cmd == "SENSOR":
@@ -1618,6 +1622,7 @@ async def ws_control_handler(websocket, path):
                         reply_status = True
                     elif cmd == "MOVE":
                         check_motorized_command(**params)
+                        digitizer.prolongBacklight()
                         safe_call(digitizer.get_adapter().set_motor, **params)
                         reply_status = True
                     elif cmd == "STOP":
@@ -1630,10 +1635,12 @@ async def ws_control_handler(websocket, path):
                         reply_status = True
                     elif cmd == "INSERT":
                         check_motorized_command(**params)
+                        digitizer.prolongBacklight()
                         digitizer.get_adapter().lead_in()
                         reply_status = True
                     elif cmd == "MOVE_BY":
                         check_motorized_command(**params)
+                        digitizer.prolongBacklight()
                         safe_call(digitizer.get_adapter().move_by, **params)
                         reply_status = True
                     elif cmd == "FLATTEN":
@@ -1739,6 +1746,8 @@ async def send(websocket, message):
 def broadcast(message):
     global last_adapter   # should be per ws_client but it is corner case
     logging.getLogger().debug("broadcast: %s", message)
+    if not globals().get("digitizer"):   ## race when shutdown
+        return
     send_flag = not ("last_adapter" in globals())
     try:
         last_adapter   # initialization pain
@@ -1782,7 +1791,6 @@ def broadcast(message):
             message2["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()
 
     elif caps["motorized"]:
-
         insert_detected = False
         if not send_flag:
             send_flag = last_adapter.get("movement") != message["movement"] or \
