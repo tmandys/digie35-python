@@ -89,6 +89,7 @@ class CameraWrapper:
     _FLATTEN_TIMEOUT = 0.2
     _WIRE_FOCUS_TIMEOUT = 0.500
     _WIRE_SHUTTER_TIMEOUT = 0.300
+    _AUTOFOCUS_TIMEOUT = 5.0  # seconds to wait for autofocus to complete
 
     def __init__(self, frame_buffer, snapshot_list, **kwargs):
         #logging.getLogger().debug("CameraWrapper(%s)" % (kwargs))
@@ -368,6 +369,69 @@ class CameraWrapper:
             self._camera_battery = batterylevel_cfg.get_value()
         else:
             self._camera_battery = None
+
+    def _wait_for_autofocus(self, camera_config):
+        """
+        Check if camera is in autofocus mode and wait for autofocus to complete.
+        This prevents USB communication issues when autofocus is enabled on Sony cameras.
+        """
+        # Check if focusmode config exists
+        if 'focusmode' not in self._camera_config_list:
+            return True
+
+        try:
+            OK, focusmode_cfg = gp.gp_widget_get_child_by_name(camera_config, 'focusmode')
+            if OK < gp.GP_OK:
+                return True
+
+            focusmode = focusmode_cfg.get_value()
+            logging.getLogger().debug("Focus mode: %s" % focusmode)
+
+            # Manual focus mode - no autofocus needed
+            if focusmode in ('Manual', 'MF', 'MF (fixed)'):
+                return True
+
+            # Camera is in autofocus mode - trigger autofocus and wait
+            logging.getLogger().info("Camera is in autofocus mode (%s), triggering autofocus before capture" % focusmode)
+
+            # Check if autofocus action is available
+            if 'autofocus' not in self._camera_config_list:
+                logging.getLogger().warning("Autofocus action not available, proceeding with capture")
+                return True
+
+            # Trigger autofocus
+            OK, autofocus_cfg = gp.gp_widget_get_child_by_name(camera_config, 'autofocus')
+            if OK < gp.GP_OK:
+                logging.getLogger().warning("Cannot get autofocus config, proceeding with capture")
+                return True
+
+            # Set autofocus to 1 (on) to trigger focusing
+            autofocus_cfg.set_value(1)
+            self._camera.set_config(camera_config)
+
+            # Wait for autofocus to complete by polling focus status or waiting
+            start_time = time.monotonic()
+            while time.monotonic() - start_time < self._AUTOFOCUS_TIMEOUT:
+                time.sleep(0.1)
+                # Re-read config to check autofocus status
+                camera_config = self._camera.get_config()
+                OK, autofocus_cfg = gp.gp_widget_get_child_by_name(camera_config, 'autofocus')
+                if OK >= gp.GP_OK:
+                    af_value = autofocus_cfg.get_value()
+                    logging.getLogger().debug("Autofocus status: %s" % af_value)
+                    # Value 2 typically means autofocus completed
+                    if af_value == 2:
+                        logging.getLogger().debug("Autofocus completed")
+                        return True
+                else:
+                    break
+
+            logging.getLogger().warning("Autofocus timeout after %.1fs" % self._AUTOFOCUS_TIMEOUT)
+            return True
+
+        except Exception as e:
+            logging.getLogger().warning("Error during autofocus handling: %s" % e)
+            return True
 
     def list_cameras(self):
         logging.getLogger().debug("gp.Camera.autodetect()")
@@ -766,6 +830,9 @@ class CameraWrapper:
                             else:
                                 save_capturetarget = None
                             # self._get_battery(camera_config)
+
+                            # Handle autofocus before capture to prevent USB communication issues
+                            self._wait_for_autofocus(camera_config)
 
                             try:
                                 if (self._camera_abilities.operations & gp.GP_OPERATION_CAPTURE_IMAGE) != 0:
