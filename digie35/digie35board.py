@@ -402,6 +402,23 @@ class GulpAdapterMemory(GulpBoardMemory):
 class GulpLightSupportMixin:
     LightAdapterClass: type | None = None
 
+## To get memory instance from xboard instance
+class GulpAdapterMemorySelectorMixin:
+    def get_memory(self):
+        pass
+
+class GulpAdapterAotMemorySelectorMixin:
+    def get_memory(self):
+        return self._xboard._aot_memory
+
+class GulpAdapterLightMemorySelectorMixin:
+    def get_memory(self):
+        return self._xboard._light_memory
+
+class GulpAdapterAotLightMemorySelectorMixin:
+    def get_memory(self):
+        return self._xboard._aot_light_memory
+
 ## Adapter for Nikon SA-21 with unipolar 5V stepper motor
 class GulpNikonStepperMotorAdapterMemory(GulpAdapterMemory):
 
@@ -415,13 +432,13 @@ class GulpNikonStepperMotorAdapterMemory(GulpAdapterMemory):
         ("acceleration", "int", 2, "Max.acceleration mm/100/sec^2", 5000),
     ]
 
-class GulpNikonStepperMotorAdapter(NikonStepperMotorAdapter, GulpLightSupportMixin):
+class GulpNikonStepperMotorAdapter(NikonStepperMotorAdapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
     ID = "NIKON"
     BOARD_MEMORY_CLASS = GulpNikonStepperMotorAdapterMemory
 
     def __init__(self, xboard):
         super().__init__(xboard)
-        custom = xboard._aot_memory.get_adapter_custom(self)
+        custom = self.get_memory().get_adapter_custom(self)
         self._backlash["compensation"] = custom["backlash_compensation"]
         arr = []
         for i in range(1, 5):
@@ -504,7 +521,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
         ("reverse_dir", "number", 1, "Reverse sense of motor rotation", 0),
     ]
 
-class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin):
+class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
     ID = "STEPPER"
     BOARD_MEMORY_CLASS = GulpStepperMotorAdapterMemory
 
@@ -519,7 +536,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin):
 
     def __init__(self, xboard):
         super().__init__(xboard)
-        custom = self._xboard._aot_memory.get_adapter_custom(self)
+        custom = self.get_memory().get_adapter_custom(self)
         self._DRIVER = custom["driver"]
         self._MICROSTEPPING = custom["microstepping"]
         if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
@@ -806,13 +823,13 @@ class GulpManualAdapterMemory(GulpAdapterMemory):
         ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
     ]
 
-class GulpManualAdapter(Adapter, GulpLightSupportMixin):
+class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
     ID = "MANUAL"
     BOARD_MEMORY_CLASS = GulpManualAdapterMemory
 
     def __init__(self, xboard):
         super().__init__(xboard)
-        custom = self._xboard._aot_memory.get_adapter_custom(self)
+        custom = self.get_memory().get_adapter_custom(self)
         self._max_backlight = custom["max_backlight"]
         self._save_backlight_color = self._xboard.get_current_backlight_color()
         if self._save_backlight_color == None or self._save_backlight_color == "preview":
@@ -950,9 +967,9 @@ class GulpLightAdapter(Adapter):
 
 class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
 
-    def __init__(self, xboard, light_memory, pca_i2c_address):
+    def __init__(self, xboard, pca_i2c_address):
         super().__init__(xboard)
-        custom = light_memory.get_adapter_custom(self)
+        custom = self.get_memory().get_adapter_custom(self)
         self._led = (
             custom["led1"],
             custom["led2"],
@@ -1008,29 +1025,29 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
         pwm = self.color2pwm(color, intensity)
         self._driver.set_pwm(pwm)
 
-class GulpLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+class GulpLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterLightMemorySelectorMixin):
     ID = "LGHT8PWM"
 
     def __init__(self, xboard):
-        super().__init__(xboard, xboard._light_memory, 0x6C)
+        super().__init__(xboard, 0x6C)
 
 class GulpLight8xPWMAdapter_0103(GulpLight8xPWMAdapter):
     # channel #0 is used for general on/off because default output level is 5V after power cycle.
     # Class code will switch off which is what we need.
     pass
 
-class GulpAotLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+class GulpAotLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterAotLightMemorySelectorMixin):
     ID = "ALGH8PWM"
 
     def __init__(self, xboard):
-        super().__init__(xboard, xboard._aot_light_memory, 0x6D)
+        super().__init__(xboard, 0x6D)
 
 
 # light implemented directly on manual120 adapter
-class GulpManual120Light8xPWMAdapter(GulpGeneralLight8xPWMAdapter):
+class GulpManual120Light8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterAotMemorySelectorMixin):
 
     def __init__(self, xboard):
-        super().__init__(xboard, xboard._aot_memory, 0x6D)
+        super().__init__(xboard, 0x6D)
 
 # external light box as regular AOT adapter
 class GulpLightBoxAdapter(Adapter, GulpLightSupportMixin):
@@ -1052,14 +1069,14 @@ class GulpManual120AdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
         ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
     ]
 
-class GulpManual120Adapter(Adapter, GulpLightSupportMixin):
+class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
     ID = "MAN120"
     BOARD_MEMORY_CLASS = GulpManual120AdapterMemory
     LightAdapterClass = GulpManual120Light8xPWMAdapter
 
     def __init__(self, xboard):
         super().__init__(xboard)
-        custom = self._xboard._aot_memory.get_adapter_custom(self)
+        custom = self.get_memory().get_adapter_custom(self)
         self._max_backlight = custom["max_backlight"]
         self._save_backlight_color = self._xboard.get_current_backlight_color()
         if self._save_backlight_color == None or self._save_backlight_color == "preview":

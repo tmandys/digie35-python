@@ -258,6 +258,9 @@
                     <li>
                         <a href="#" onclick="showSection('eeprom-LIGHT')">Light</a>
                     </li>
+                    <li>
+                        <a href="#" onclick="showSection('eeprom-XLIGHT')">X-Light</a>
+                    </li>
                 </ul>
             </li>
             <li>
@@ -320,6 +323,14 @@
                             <legend>Manual</legend>
                             <div class="control-container form-container"></div>
                         </fieldset>
+                        <fieldset id="eeprom-ADAPTER-MAN120" class="eeprom-board hidden-tab">
+                            <legend>Manual 120</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                        <fieldset id="eeprom-ADAPTER-LGHTBOX" class="eeprom-board hidden-tab">
+                            <legend>Lightbox</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
                     </div>
                 </div>
                 <div class="button-container">
@@ -348,6 +359,29 @@
                         <button onclick="eepromSetDefault('LIGHT');" title="Set default values">Default</button>
                         <button onclick="eepromLoad('LIGHT');" title="Load values from board">Load</button>
                         <button onclick="eepromSave('LIGHT');" title="Save values to board">Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="eeprom-XLIGHT" class="section eeprom">
+                <div class="header">X-Light board configuration</div>
+                <div class="box-container">
+                    <div class="box">
+                        <fieldset id="eeprom-XLIGHT-COMMON" class="eeprom-common">
+                            <legend>Common</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="box">
+                        <fieldset id="eeprom-XLIGHT-ALGH8PWM" class="eeprom-board hidden-tab">
+                            <legend>8xPWM</legend>
+                            <div class="control-container form-container"></div>
+                        </fieldset>
+                    </div>
+                    <div class="button-container">
+                        <button onclick="eepromSetDefault('XLIGHT');" title="Set default values">Default</button>
+                        <button onclick="eepromLoad('XLIGHT');" title="Load values from board">Load</button>
+                        <button onclick="eepromSave('XLIGHT');" title="Save values to board">Save</button>
                     </div>
                 </div>
             </div>
@@ -776,7 +810,7 @@
 		}
 	}
 
-    const BOARD_TYPES = ["XBOARD", "ADAPTER", "LIGHT"]
+    const BOARD_TYPES = ["XBOARD", "ADAPTER", "LIGHT", "XLIGHT", ]
 
     function connect() {
         if (typeof window.socket == "undefined") {
@@ -811,10 +845,14 @@
                         data.light_boards.forEach(board_id => {
                             prepareEepromSection("LIGHT-" + board_id, data.eeprom[board_id]);
                         });
+                        data.xlight_boards.forEach(board_id => {
+                            prepareEepromSection("XLIGHT-" + board_id, data.eeprom[board_id]);
+                        });
                         var adapter_ids = {
                             "XBOARD": ["MAIN"],
                             "ADAPTER": data.adapter_boards,
                             "LIGHT": data.light_boards,
+                            "XLIGHT": data.xlight_boards,
                         };
                         var adapter_id_idx = -1;
                         for (var i=0; i < data.eeprom["COMMON"].length; i++) {
@@ -973,7 +1011,7 @@
                         updateEepromControls(data.board_type, board_id, data.board);
                         adjustAdapterId();
                     } else if (cmd == "GET_IO") {
-						if (typeof data.definition != "undefined") {
+						if (data?.definition !== undefined) {
 							prepareIoSection("XBOARD", data.definition["XBOARD"]);
 							prepareIoSection("ADAPTER", typeof data.definition["AOT"] != "undefined" ? data.definition["AOT"] : []);
 							document.querySelectorAll("#io-section input").forEach(el => {
@@ -992,7 +1030,9 @@
 						}
 						updateIoState(data.state);
                     }
-                    document.getElementById("movement").value = data["movement"];
+                    if (data?.movement !== undefined) {
+                        document.getElementById("movement").value = data["movement"];
+                    }
                     document.getElementById("frame_ready").checked = data["frame_ready"];
                     document.getElementById("film_detected").checked = data["film_detected"];
                     for (const k2 in data.io) {

@@ -64,6 +64,8 @@ def get_board_memory_class(board_type, board_id = None, version = None):
             eeprom = xboard._aot_memory
         elif board_type == "LIGHT":
             eeprom = xboard._light_memory
+        elif board_type == "XLIGHT":
+            eeprom = xboard._aot_light_memory
         else:
             raise Digie35ServerError(f"Unknown board type {board_type}")
         if board_id == None:
@@ -243,7 +245,8 @@ async def ws_handler(websocket, path):
                                     "COMMON": process_map(header_map),
                                     } | {cls.ID: process_map(cls.BOARD_MEMORY_CLASS.CUSTOM_MAP) for cls in digie35board.registered_boards},
                                 "adapter_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35core.Adapter) and not issubclass(cls, digie35board.GulpLightAdapter)],
-                                "light_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter)],
+                                "light_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterLightMemorySelectorMixin)],
+                                "xlight_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterAotLightMemorySelectorMixin)],
                             }
                             for id in list(reply["eeprom"]):
                                 for i in range(len(reply["eeprom"][id])):
