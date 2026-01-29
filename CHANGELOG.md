@@ -17,6 +17,8 @@ Features
   - test server controls all I/O
   - play sound on error
   - autocapture on load
+  - AOT light box, Digie120 support
+  - external light adapter on AOT bus (for Digie120 using Digie35 adapters)
 
 Fixes
 -----

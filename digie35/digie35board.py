@@ -943,27 +943,33 @@ class PCA9634Driver:
     # 8 channels, 8-bit value
     def set_pwm(self, pwm):
         self._check_init()
-        self._write_to_driver(0x02, pwm)  # PWM addr
-        # enable/disable drivers
-        out = 0
-        for i in (range(0, len(pwm))):
-            out = out << 2
-            if pwm[len(pwm)-i-1] > 0:
-                out |= 0b10
-        self._write_to_driver(0x0C, [out & 0xFF, out >> 8])  # LED driver output state registers
+        try:
+            self._write_to_driver(0x02, pwm)  # PWM addr
+            # enable/disable drivers
+            out = 0
+            for i in (range(0, len(pwm))):
+                out = out << 2
+                if pwm[len(pwm)-i-1] > 0:
+                    out |= 0b10
+            self._write_to_driver(0x0C, [out & 0xFF, out >> 8])  # LED driver output state registers
+        except:
+            self._initialized = False
+            raise
 
 class GulpLightAdapter(Adapter):
     # ID = "LIGHT"
     BOARD_MEMORY_CLASS = GulpLightAdapterMemory
 
+    def __init__(self, xboard):
+        super().__init__(xboard)
+        self._close_flag = False
+
     def set_backlight(self, color, intensity=None):
         pass
 
     def close(self):
-        try:
-            self.set_backlight(None)
-        except:
-            pass
+        self._close_flag = True
+        self._xboard.set_backlight(None)
 
 class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
 
@@ -1023,7 +1029,12 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
 
     def set_backlight(self, color, intensity=None):
         pwm = self.color2pwm(color, intensity)
-        self._driver.set_pwm(pwm)
+        try:
+            self._driver.set_pwm(pwm)
+        except:
+            if not self._close_flag:
+                # ignore error when destroying adapter, might have no power or so
+                raise
 
 class GulpLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterLightMemorySelectorMixin):
     ID = "LGHT8PWM"
@@ -1041,7 +1052,6 @@ class GulpAotLight8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterAotLight
 
     def __init__(self, xboard):
         super().__init__(xboard, 0x6D)
-
 
 # light implemented directly on manual120 adapter
 class GulpManual120Light8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterAotMemorySelectorMixin):
@@ -1256,6 +1266,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 
     def _get_connected_adapter_class_impl(self):
         adapters = {}
+        adapter_class = None
         light_class = None
         try:
             logging.getLogger().debug("%s checking hotplug adapter" % (__name__))
@@ -1268,7 +1279,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 
         except OSError:
             pass
-        if not light_class:
+        if not light_class and adapter_class:   # aot light requires an adapter (at least to have 24V when adapter detection is implemented at board)
             # check light adapter or AOT
             try:
                 logging.getLogger().debug("%s checking aot light adapter" % (__name__))
