@@ -1516,7 +1516,7 @@ class GulpExtensionBoard_0102(GulpExtensionBoard):
         led_off = {"led_white": 0, "led_preview": 0, }
         light_adapter = self.get_adapter(self.LIGHT_NAME)
         if light_adapter != None:
-            if color == "preview" and not light_adapter.get_capabilities("preview_backlight"):
+            if color == "preview" and not light_adapter.get_capability("preview_backlight"):
                 light_adapter.set_backlight(None)
                 self.set_io_states(led_off | {"led_preview": intensity, })
             else:

@@ -926,6 +926,10 @@ class Adapter:
         }
         return result
 
+    def get_capability(self, cap):
+        caps = self.get_capabilities()
+        return caps.get(cap, False)
+
     def on_gpio_change(self, source):
         pass
 
