@@ -880,7 +880,8 @@ class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySele
             self._shot_ready = False
 
     def get_capabilities(self):
-        result = {
+        result = super().get_capabilities()
+        result |= {
             "preview_backlight": True,
             "preview_backlight_control": True,
         }
@@ -1065,11 +1066,34 @@ class GulpLightBoxAdapter(Adapter, GulpLightSupportMixin):
     BOARD_MEMORY_CLASS = GulpLightAdapterMemory
     LightAdapterClass = GulpManual120Light8xPWMAdapter
 
+    TRIGGER_SENSOR = "sensor_m"
+
     def __init__(self, xboard):
         super().__init__(xboard)
+        self._trigger_handler = ButtonHandler(self.on_trigger)
+
+    def on_trigger(self, event_type):
+        logging.getLogger().debug(f"{__name__}: event: {event_type}")
+        self._xboard._call_notify_callback("input", params={"action": "TRIGGER", "event": event_type, })
+        pass
+
+    def on_gpio_change(self, source):
+        """
+            Sensor state has changed
+        """
+        self._trigger_handler.raw_change(self._xboard.get_io_state(self.TRIGGER_SENSOR))
+
+    def get_capabilities(self):
+        result = super().get_capabilities()
+        result |= {
+            "external_trigger": True,
+        }
+        return result
 
     def _get_io_configuration(self):
         result = super()._get_io_configuration()
+        result[self.TRIGGER_SENSOR] = {}
+        result["psu_sensor"] = {}
         return result
 
 ## Manual sledge adapter for middle format with own full&preview light boxes
@@ -1135,7 +1159,8 @@ class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemoryS
             self._shot_ready = False
 
     def get_capabilities(self):
-        result = {
+        result = super().get_capabilities()
+        result |= {
             "preview_backlight": True,
             "preview_backlight_control": True,
         }

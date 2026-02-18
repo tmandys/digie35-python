@@ -481,6 +481,7 @@ class ExtensionBoard:
             # "motorized": isinstance(self.get_adapter(), StepperMotorAdapter),
             "flattening": False,
             "camera_remote_control": True,  # RC via jack
+            "external_trigger": False,
 
             "white_backlight": False,
             "ir_backlight": False,
@@ -888,6 +889,116 @@ class SerialEeprom(BoardMemory):
             count -= l
             time.sleep(0.01)   # 5ms EEPROM write delay (otherwise check ACK)
 
+## Implements button up, down, click, double click, long press
+class ButtonHandler:
+    EVENT_UP = "up"
+    EVENT_DOWN = "down"
+    EVENT_CLICK = "click"
+    EVENT_DOUBLE = "double_click"
+    EVENT_LONG = "long_press"
+
+    def __init__(self, event_callback, double_click_ms=250, long_press_ms=600, debounce_ms=20):
+
+        self._callback = event_callback
+
+        self._double_click_sec = double_click_ms / 1000
+        self._long_press_sec = long_press_ms / 1000
+        self._debounce_sec = debounce_ms / 1000
+
+        self._raw_state = False
+        self._last_raw_state = self._raw_state
+        self._last_raw_change_timestamp = default_timer()
+
+        self._state = False
+
+        self._down_timestamp = None
+        self._first_click_timestamp = None
+        self._waiting_for_second = False
+        self._long_press_fired = False
+
+        self._debounce_timer = None
+        self._long_press_timer = None
+        self._click_timer = None
+
+    def raw_change(self, new_state):
+        if new_state != self._last_raw_state:
+            self._last_raw_state = new_state
+            self._last_raw_change_timestamp = default_timer()
+
+            if self._debounce_timer:
+                self._debounce_timer.cancel()
+            self._debounce_timer = Timer(self._debounce_sec, self._debounce_check)
+            self._debounce_timer.start()
+
+    def cancel_all(self):
+        if self._debounce_timer:
+            self._debounce_timer.cancel()
+        if self._long_press_timer:
+            self._long_press_timer.cancel()
+        if self._click_timer:
+            self._click_timer.cancel()
+
+    def _debounce_check(self):
+        if default_timer() - self._last_raw_change_timestamp >= self._debounce_sec:
+            if self._raw_state != self._last_raw_state:
+                self._raw_state = self._last_raw_state
+                if self._raw_state:
+                    self._down()
+                else:
+                    self._up()
+        self._debounce_timer = None
+
+    def _down(self):
+        if self._state:
+            return
+        self._state = True
+        self._down_timestamp = default_timer()
+        self._long_press_fired = False
+        self._long_press_timer = Timer(self._long_press_sec, self._long_press_chack)
+        self._long_press_timer.start()
+
+        self._callback(ButtonHandler.EVENT_DOWN)
+
+    def _up(self):
+        if not self._state:
+            return
+        self._state = False
+        if self._long_press_timer:
+            self._long_press_timer.cancel()
+            self._long_press_timer = None
+        self._callback(ButtonHandler.EVENT_UP)
+
+        if self._long_press_fired:
+            return
+        ts = default_timer()
+        if self._waiting_for_second:
+            if ts - self._first_click_timestamp <= self._double_click_sec:
+                self._waiting_for_second = False
+                if self._click_timer:
+                    self._click_timer.cancel()
+                self._callback(ButtonHandler.EVENT_DOUBLE)
+            else:
+                self._first_click_timestamp = ts
+        else:
+            self._waiting_for_second = True
+            self._first_click_timestamp = ts
+            self._click_timer = Timer(self._double_click_sec, self._single_click)
+            self._click_timer.start()
+
+    def _long_press_chack(self):
+        if self._state:
+            self._long_press_fired = True
+            self._waiting_for_second = False
+            if self._click_timer:
+                self._click_timer.cancel()
+                self._click_timer = None
+            self._callback(ButtonHandler.EVENT_LONG)
+
+    def _single_click(self):
+        if self._waiting_for_second:
+            self._waiting_for_second = False
+            self._callback(ButtonHandler.EVENT_CLICK)
+            self._click_timer = None
 
 class Adapter:
     ID = "_abstract_"

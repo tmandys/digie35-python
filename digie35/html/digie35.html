@@ -1548,6 +1548,18 @@
                         </div>
                         <small class="hint">Show a checklist reminder before capturing an image to avoid common setup mistakes (focus, aperture, mode, ...).</small>
                     </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="external-trigger-cb" accesskey="E"><u>E</u>xternal trigger</label>
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="external-trigger-cb" value="1" />
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="hint">External trigger on the adapter, if implemented, enables exposure triggering and light control directly from the adapter.</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2311,6 +2323,18 @@
                                     }, Number(document.getElementById("preview-latency-rng").value) * 500);
                                 }
                             }
+                            if (data.payload.action=="TRIGGER" && document.getElementById("external-trigger-cb").checked) {
+                                if (data.payload.input_event == "long_press") {
+                                    const cb_elem = document.getElementById("backlight-cb");
+                                    if (!cb_elem.disabled) {
+                                        cb_elem.checked = !cb_elem.checked;
+                                        cb_elem.onchange();
+                                    }
+                                } else if (data.payload.input_event == "click") {
+                                    get_adapter_button("shoot", "").click();
+                                }
+                            }
+
                             adjust_backlight(true, false);
                         } else if (data.cmd == "CAMERA") {
                             document.getElementById("usb-preview-cb").checked = data.payload.usbpreview;
@@ -3424,6 +3448,7 @@
 			"control.backlight.ir": "backlight-ir-rng",
 			"control.backlight.preview": "backlight-preview-rng",
             "control.focus_warning_interval": "focus-warning-list",
+            "control.external_trigger": "external-trigger-cb",
             "capture.multi": "capture-multi",
             "capture.shoot.mode": "shoot-mode-list",
             "capture.preview.latency": "preview-latency-rng",

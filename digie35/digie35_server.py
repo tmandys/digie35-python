@@ -1817,6 +1817,12 @@ def broadcast(message):
             #"film_detected": message["film_detected"],
             #"motor_position": message["counters"]["motor"],  # for debugging
         }
+    if message["source"] == "input":
+        send_flag = True
+        message2 |= {
+            "input_event": message["event"],
+        }
+
     last_adapter = message
     if not send_flag:
         return

@@ -19,6 +19,7 @@ Features
   - autocapture on load
   - AOT light box, Digie120 support
   - external light adapter on AOT bus (for Digie120 using Digie35 adapters)
+  - external trigger support
 
 Fixes
 -----

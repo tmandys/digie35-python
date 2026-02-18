@@ -105,7 +105,7 @@ Examples or args:
   Manual adapter init
     -b AOT -w --default --h_adapter_id MANUAL --h_version 103 --h_serial_number 123456789
   Lightbox adapter init
-    -b AOT -w --default --h_adapter_id LGHTBOX --h_version 106 --h_serial_number 123456789
+    -b AOT -w --default --h_adapter_id LGHTBOX --h_version 106 --h_serial_number 123456789 --la_led1 1 --la_led3 3
   Manual adapter for middle format init
     -b AOT -w --default --h_adapter_id MAN120 --h_version 106 --h_serial_number 123456789
   Light internal adapter init (white LED only)
