@@ -1011,7 +1011,7 @@ class CameraWrapper:
             raise CameraControlError(f"Empty %s value" % fld)
         reg = re.compile("^[a-zA-Z0-9_\-]+$")
         if not reg.match(id):
-            raise CameraControlError(f"Wrong %s value" % fld)
+            raise CameraControlError(f"Wrong {fld} value: {id}")
 
     def create_project(self, project_id, project_descr):
         self._check_project_exists(project_id, True)
@@ -1040,7 +1040,10 @@ class CameraWrapper:
                     continue
                 path = self._get_path(project_id, filename)
                 if os.path.isdir(path):
-                    films.append(self.get_film(project_id, filename))
+                    try:
+                        films.append(self.get_film(project_id, filename))
+                    except Exception as e:
+                        logging.getLogger().error(f"Cannot append film: {project_id}/{filename}")
             result["film_list"] = films
         return result
 
@@ -1071,7 +1074,10 @@ class CameraWrapper:
             path = self._get_path(filename)
             if os.path.isdir(path):
                 if os.path.isfile(os.path.join(path, self._DESCRIPTION_FILENAME)):
-                    projects.append(self.get_project(filename))
+                    try:
+                        projects.append(self.get_project(filename))
+                    except Exception as e:
+                        logging.getLogger().error(f"Cannot add project: {filename}")
         return {"project_list": projects}
 
     def create_film(self, project_id, film_id, film_descr):
