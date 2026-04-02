@@ -2279,7 +2279,7 @@
                             if (data.payload.backlight.color != "") {
                                 const color_list = document.getElementById("backlight-color-list");
                                 if (Array.from(color_list.options).filter(
-                                    opt => (opt.value == data.payload.backlight.color))
+                                    opt => (opt.value == data.payload.backlight.color && !opt.disabled))
                                 .length > 0) {
                                     color_list.value = data.payload.backlight.color;
                                     const colors = data.payload.backlight.color.split("+");
@@ -4079,10 +4079,12 @@
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
         const color_list = document.getElementById("backlight-color-list");
         const idx = color_list.selectedIndex;
-        if (idx < 0) {
-            var color = "";
-        } else {
-            var color = color_list.options[idx].value;
+        var color = "";
+        if (idx >= 0) {
+            opt = color_list.options[idx];
+            if (!opt.disabled) {
+                color = opt.value;
+            }
         }
         let val = 0;
 		const is_on = (color != "") && document.getElementById("backlight-cb").checked;

@@ -897,6 +897,11 @@ class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySele
         result["led_preview"]["max_duty_cycle"] = self._max_backlight
         return result
 
+    def close(self):
+        color = self._xboard.get_current_backlight_color()
+        if color == "preview":
+            self._xboard.set_backlight(None)
+
 ## Light control board
 class GulpLightAdapterMemory(GulpAdapterMemory):
     LED_WHITE = 1
