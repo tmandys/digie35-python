@@ -989,13 +989,13 @@
 
             <div class="accordion">
                 <div class="header">
-                    <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
-                    <span class="title">Capture<span class="subtitle" id="header-capture-filename"></span></span>
+                    <button class="modal-open" data-modal_id="backlight-settings-modal" title="Click to show backlight setting">&#9881</button>
+                    <span class="title">Backlight<span class="subtitle" id="header-backlight-color"></span></span>
                     <span class="arrow">&#9660;</span>
                 </div>
-                <fieldset id="capture-fieldset">
+                <fieldset id="backlight-fieldset">
                     <div class="control-set">
-                        <div id="backlight-fieldset" class="centered-btn">
+                        <div id="backlight-intensity-fieldset" class="centered-btn">
                             <div class="horizontal-spacer">
                                 <span><input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label></span>
                             </div>
@@ -1031,6 +1031,17 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </fieldset>
+            </div>
+            <div class="accordion">
+                <div class="header">
+                    <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
+                    <span class="title">Capture<span class="subtitle" id="header-capture-filename"></span></span>
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <fieldset id="capture-fieldset">
+                    <div class="control-set">
                         <div class="centered-btn vertical-spacer">
                             <input type="radio" name="capture-mode" id="capture-mode-single-rb" value="single" checked /><label for="capture-mode-single-rb" accesskey="n" title="It will capture one photo and move in case of Auto-move is set">Si<u>n</u>gle</label>
                             <input type="radio" name="capture-mode" id="capture-mode-serial-rb" value="serial" /><label for="capture-mode-serial-rb" accesskey="s" title="It will capture when film frame is ready and is available for motorized adapters only and implies auto move"><u>S</u>erial</label>
@@ -1449,11 +1460,11 @@
             </div>
         </div>
 
-        <div id="capture-settings-modal" class="modal-overlay">
+        <div id="backlight-settings-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
                     <span class="title">
-                        Capture settings
+                        Backlight settings
                     </span>
                     <button class="close">&times;</button>
                 </div>
@@ -1473,6 +1484,19 @@
                         </div>
                         <small class="hint">Set backlight LED set to illuminate film. Each color intensity can be adjusted individually. In case of color negative orange mask can be masked off.</small>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="capture-settings-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header">
+                    <span class="title">
+                        Capture settings
+                    </span>
+                    <button class="close">&times;</button>
+                </div>
+                <div class="content">
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1751,6 +1775,7 @@
         document.getElementById("delete-film-btn").disabled = document.getElementById("update-film-btn").disabled || (cnt >0);
 
         document.getElementById("motion-fieldset").disabled = !connected || typeof window.capabilities == "undefined" || !window.capabilities.motorized;
+        document.getElementById("backlight-fieldset").disabled = !connected;
         document.getElementById("capture-fieldset").disabled = !connected;
         elem = document.getElementById("shoot-mode-list");
         document.getElementById("shoot-btn").disabled = (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
@@ -1806,7 +1831,7 @@
         let elem = document.getElementById("motion-fieldset");
         set_visible(elem, window.capabilities.motorized);
         elem.disabled = !window.capabilities.motorized;
-        elem = document.getElementById("backlight-fieldset");
+        elem = document.getElementById("backlight-intensity-fieldset");
         set_visible(elem, window.capabilities.backlight_control);
         elem.disabled = !window.capabilities.backlight_control;
         // TODO: setup backlight stuff, white,RGB,IR,preview...
@@ -4080,14 +4105,21 @@
         const color_list = document.getElementById("backlight-color-list");
         const idx = color_list.selectedIndex;
         var color = "";
+		var is_on = document.getElementById("backlight-cb").checked;
+        var color_txt = "OFF";
         if (idx >= 0) {
             opt = color_list.options[idx];
             if (!opt.disabled) {
                 color = opt.value;
+                if (is_on) {
+                    color_txt = opt.text;
+                }
             }
         }
         let val = 0;
-		const is_on = (color != "") && document.getElementById("backlight-cb").checked;
+		is_on = is_on && document.getElementById("backlight-cb").checked;
+        document.getElementById("header-backlight-color").innerHTML = color_txt;
+
         const elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
         for (let i = 0; i < elems.length; i++) {
             const elem_color = elems[i].id.split("-")[1];
