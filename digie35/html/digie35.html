@@ -664,6 +664,21 @@
             border-radius: 50%;
         }
 
+        .slider-ticks-container {
+            width: 100%;
+        }
+
+        .slider-ticks-container input[type="range"] {
+            width: 100%;
+        }
+
+        .slider-ticks-container .ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            width: 100%;
+        }
+
         #backlight-color-ranges input[type="number"] {
             width: 5ch;
         }
@@ -995,39 +1010,34 @@
                 </div>
                 <fieldset id="backlight-fieldset">
                     <div class="control-set">
-                        <div id="backlight-intensity-fieldset" class="centered-btn">
+                        <div id="backlight-exposure-fieldset" class="centered-btn">
                             <div class="horizontal-spacer">
-                                <span><input type="checkbox" id="backlight-cb" value="1" onchange="adjust_backlight()" /><label for="backlight-cb" accesskey="b" title="Switch on/off backlight, KeyB"><u>B</u>acklight</label></span>
+                                <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)" title="Set backlight LED to illuminate film. RGB color gain can be adjusted individually to mask off color negative orange mask. KeyB to on/off">
+                                    <option value="">OFF</option>
+                                    <option value="white" selected>White</option>
+                                    <option value="red+green+blue">RGB</option>
+                                    <option value="white+red+green+blue">RGBW</option>
+                                    <option value="amber+white+red+green+blue">RGBAW</option>
+                                    <option value="ir">IR</option>
+                                    <option value="preview">Preview</option>
+                                </select>
                             </div>
                             <div id="backlight-color-ranges" class="vertical-spacer">
-                                <!-- order a-w-b-g-r is important -->
                                 <div id="backlight-amber-container" class="hidden">
-                                    <input type="range" id="backlight-amber-rng" value="60" min="0" max="255" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED intensity" />
-                                    <input type="number" id="backlight-amber-num" min="0" max="255" />
-                                </div>
-                                <div id="backlight-white-container" class="hidden">
-                                    <input type="range" id="backlight-white-rng" value="60" min="0" max="255" class="color-range" style="accent-color: white" title="Backlight white LED intensity" />
-                                    <input type="number" id="backlight-white-num" min="0" max="255" />
+                                    <input type="range" id="backlight-amber-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED gain" />
+                                    <input type="number" id="backlight-amber-num" min="0" max="10" step="0.01" />
                                 </div>
                                 <div id="backlight-red-container" class="hidden">
-                                    <input type="range" id="backlight-red-rng" value="60" min="0" max="255" class="color-range" style="accent-color: red" title="Backlight red LED intensity" />
-                                    <input type="number" id="backlight-red-num" min="0" max="255" />
+                                    <input type="range" id="backlight-red-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: red" title="Backlight red LED gain" />
+                                    <input type="number" id="backlight-red-num" min="0" max="10" step="0.01" />
                                 </div>
                                 <div id="backlight-green-container" class="hidden">
-                                    <input type="range" id="backlight-green-rng" value="60" min="0" max="255" class="color-range" style="accent-color: green" title="Backlight green LED intensity" />
-                                    <input type="number" id="backlight-green-num" min="0" max="255" />
+                                    <input type="range" id="backlight-green-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: green" title="Backlight green LED gain" />
+                                    <input type="number" id="backlight-green-num" min="0" max="10" step="0.01" />
                                 </div>
                                 <div id="backlight-blue-container" class="hidden">
-                                    <input type="range" id="backlight-blue-rng" value="60" min="0" max="255" class="color-range" style="accent-color: blue" title="Backlight blue LED intensity" />
-                                    <input type="number" id="backlight-blue-num" min="0" max="255" />
-                                </div>
-                                <div id="backlight-ir-container" class="hidden">
-                                    <input type="range" id="backlight-ir-rng" value="60" min="0" max="255" class="color-range" title="Backlight infrared LED intensity" />
-                                    <input type="number" id="backlight-ir-num" min="0" max="255" />
-                                </div>
-                                <div id="backlight-preview-container" class="hidden">
-                                    <input type="range" id="backlight-preview-rng" value="60" min="0" max="255" class="color-range" title="Backlight preview LED intensity on separate lifghtbox" />
-                                    <input type="number" id="backlight-preview-num" min="0" max="255" />
+                                    <input type="range" id="backlight-blue-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: blue" title="Backlight blue LED gain" />
+                                    <input type="number" id="backlight-blue-num" min="0" max="10" step="0.01" />
                                 </div>
                             </div>
                         </div>
@@ -1182,6 +1192,14 @@
                                 </li>
                             </ul>
                         </small>
+                    </div>
+
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label>Factory reset</label>
+                            <button onclick="localStorage.clear()">Reset</button>
+                        </div>
+                        <small class="hint">Clears all locally stored settings and restores default values. This only affects this browser and does not change any hardware configuration.</small>
                     </div>
 
                     <div id="remote-control">
@@ -1472,17 +1490,71 @@
 
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="backlight-color-list" accesskey="l"><u>L</u>ED colors</label>
-                            <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)">
-                                <option value="white" selected>White</option>
-                                <option value="red+green+blue">RGB</option>
-                                <option value="white+red+green+blue">RGBW</option>
-                                <option value="amber+white+red+green+blue">RGBAW</option>
-                                <option value="ir">IR</option>
-                                <option value="preview">Preview</option>
-                            </select>
+                            <label for="backlight-exposure" accesskey="e"><u>E</u>xposure (Ev)</label>
+                            <div class="slider-ticks-container">
+                                <input id="backlight-exposure" type="range" min="-5" max="5" step="1" value="0" data-ev_step="0.5" onchange="adjust_backlight(true)" />
+                                <div class="ticks">
+                                    <span></span>
+                                    <span>-2</span>
+                                    <span></span>
+                                    <span>-1</span>
+                                    <span></span>
+                                    <span>0</span>
+                                    <span></span>
+                                    <span>1</span>
+                                    <span></span>
+                                    <span>2</span>
+                                    <span></span>
+                                </div>
+                            </div>
                         </div>
-                        <small class="hint">Set backlight LED set to illuminate film. Each color intensity can be adjusted individually. In case of color negative orange mask can be masked off.</small>
+                        <small class="hint">Control overall brightness without changing color balance. Use RGB channels to correct color tint.</small>
+                    </div>
+
+                    <div id="backlight-ir-exposure-container" class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="backlight-ir-exposure" accesskey="i"><u>I</u>R exposure (Ev)</label>
+                            <div class="slider-ticks-container">
+                                <input id="backlight-ir-exposure" type="range" min="-5" max="5" step="1" value="0" data-ev_step="0.5" onchange="adjust_backlight(true)" />
+                                <div class="ticks">
+                                    <span></span>
+                                    <span>-2</span>
+                                    <span></span>
+                                    <span>-1</span>
+                                    <span></span>
+                                    <span>0</span>
+                                    <span></span>
+                                    <span>1</span>
+                                    <span></span>
+                                    <span>2</span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="hint">Control IR brightness when IR LEDs are installed.</small>
+                    </div>
+
+                    <div id="backlight-preview-exposure-container" class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="backlight-preview-exposure" accesskey="p"><u>P</u>review (Ev)</label>
+                            <div class="slider-ticks-container">
+                                <input id="backlight-preview-exposure" type="range" min="-5" max="5" step="1" value="0" data-ev_step="0.5" onchange="adjust_backlight(true)" />
+                                <div class="ticks">
+                                    <span></span>
+                                    <span>-2</span>
+                                    <span></span>
+                                    <span>-1</span>
+                                    <span></span>
+                                    <span>0</span>
+                                    <span></span>
+                                    <span>1</span>
+                                    <span></span>
+                                    <span>2</span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="hint">Control backlight brightness on preview panel.</small>
                     </div>
                 </div>
             </div>
@@ -1831,7 +1903,7 @@
         let elem = document.getElementById("motion-fieldset");
         set_visible(elem, window.capabilities.motorized);
         elem.disabled = !window.capabilities.motorized;
-        elem = document.getElementById("backlight-intensity-fieldset");
+        elem = document.getElementById("backlight-exposure-fieldset");
         set_visible(elem, window.capabilities.backlight_control);
         elem.disabled = !window.capabilities.backlight_control;
         // TODO: setup backlight stuff, white,RGB,IR,preview...
@@ -2300,27 +2372,40 @@
                                     }
                                 }
                             }
-                            document.getElementById("backlight-cb").checked = data.payload.backlight.color != "";
+                            const color_list = document.getElementById("backlight-color-list");
                             if (data.payload.backlight.color != "") {
-                                const color_list = document.getElementById("backlight-color-list");
                                 if (Array.from(color_list.options).filter(
                                     opt => (opt.value == data.payload.backlight.color && !opt.disabled))
                                 .length > 0) {
                                     color_list.value = data.payload.backlight.color;
-                                    const colors = data.payload.backlight.color.split("+");
-                                    let intensity = data.payload.backlight.intensity;
-                                    for (let i = colors.length-1; i >= 0; i--) {
-                                        document.getElementById("backlight-"+colors[i]+"-rng").value = intensity % 256;
-                                        intensity = Math.trunc(intensity / 256);  // bitwise operations limited to 32-bit
+                                    switch (data.payload.backlight.color) {
+                                        case "preset":
+                                        case "ir":
+                                            col = data.payload.backlight.color+"-";
+                                            break;
+                                        default:
+                                            col = "";
+                                    }
+                                    const elem = document.getElementById("backlight-"+col+"exposure");
+                                    elem.value = Math.round(data.payload.backlight.exposure / Number(elem.getAttribute("data-ev_step")));
+                                    if (typeof data.payload.backlight.gain != "undefined") {
+                                        for (const [color, gain] of Object.entries(data.payload.backlight.gain)) {
+                                            if (is_color_active(color)) {
+                                                document.getElementById("backlight-"+color+"-rng").value = gain;
+                                            }
+                                        }
                                     }
                                 }
+                            } else {
+                                color_list.value = ""
                             }
+
                             if (window.capabilities.vision && document.getElementById("vision-alignment-cb").checked) {
                                 let reason = 0;
                                 if (data.payload.action=="LEAD_IN") {
-                                    const elem = document.getElementById("backlight-cb");
-                                    if (!elem.chacked) {   // switch on backlight to get image quickly from camera
-                                        elem.checked = true;
+                                    if (color_list.value == "") {
+                                        // switch on backlight to get image quickly from camera
+                                        color_list.value = window.last_backlight_color;
                                         adjust_backlight();
                                     }
                                     if (data.payload.movement == 0 && data.payload.frame_ready) {
@@ -2350,10 +2435,9 @@
                             }
                             if (data.payload.action=="TRIGGER" && document.getElementById("external-trigger-cb").checked) {
                                 if (data.payload.input_event == "long_press") {
-                                    const cb_elem = document.getElementById("backlight-cb");
-                                    if (!cb_elem.disabled) {
-                                        cb_elem.checked = !cb_elem.checked;
-                                        cb_elem.onchange();
+                                    if (!color_list.disabled) {
+                                        color_list.value = color_list.value ? "" : window.last_backlight_color;
+                                        color_list.onchange();
                                     }
                                 } else if (data.payload.input_event == "click") {
                                     get_adapter_button("shoot", "").click();
@@ -3237,6 +3321,7 @@
         window.last_project_list_idx = null;
         window.last_film_list_idx = null;
         window.last_backlight = null;
+        window.last_backlight_color = "white";
         window.modal_stack = [];
         window.snapshot_timer = null;
         window.current_adapter = "";
@@ -3314,7 +3399,7 @@
         });
 
         const _listener_backlight_color_ranges_input_range = function(event) {
-            adjust_backlight();
+            adjust_backlight(false, is_color_active(event.target.id.split("-")[1]));
         };
         document.querySelectorAll('#backlight-color-ranges input[type="range"]').forEach(element=> {
             element.addEventListener("input", _listener_backlight_color_ranges_input_range);
@@ -3325,7 +3410,7 @@
             const elem_color = num_elem.id.split("-")[1];
             const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
             range_elem.value = num_elem.value;
-            adjust_backlight();
+            adjust_backlight(false, is_color_active(elem_color));
             localStorage.setItem("control.backlight."+elem_color, num_elem.value);  // registered is range
         };
         document.querySelectorAll('#backlight-color-ranges input[type="number"]').forEach(element=> {
@@ -3464,14 +3549,14 @@
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
             "control.flattening": "flattening-cb",
-			"control.backlight": "backlight-cb",
 			"control.backlight.color": "backlight-color-list",
-			"control.backlight.white": "backlight-white-rng",
-			"control.backlight.red": "backlight-red-rng",
-			"control.backlight.green": "backlight-green-rng",
-			"control.backlight.blue": "backlight-blue-rng",
-			"control.backlight.ir": "backlight-ir-rng",
-			"control.backlight.preview": "backlight-preview-rng",
+			"control.backlight.exposure": "backlight-exposure",
+			"control.backlight.exposure.ir": "backlight-ir-exposure",
+			"control.backlight.exposure.preview": "backlight-preview-exposure",
+			"control.backlight.gain.red": "backlight-red-rng",
+			"control.backlight.gain.green": "backlight-green-rng",
+			"control.backlight.gain.blue": "backlight-blue-rng",
+			"control.backlight.gain.amber": "backlight-amber-rng",
             "control.focus_warning_interval": "focus-warning-list",
             "control.external_trigger": "external-trigger-cb",
             "capture.multi": "capture-multi",
@@ -3902,10 +3987,10 @@
                 btn = "shoot";
                 break;
             case "KeyB":
-                const cb_elem = document.getElementById("backlight-cb");
-                cb_elem.checked = !cb_elem.checked;
-                if (!cb_elem.disabled) {
-                    cb_elem.onchange();
+                const color_list = document.getElementById("backlight-color-list");
+                if (!color_list.disabled) {
+                    color_list.value = color_list.value ? "" : window.last_backlight_color;
+                    color_list.onchange();
                 }
                 break;
             case "KeyP":
@@ -4101,49 +4186,73 @@
         }
     }
 
+    function is_color_active(color) {
+        const color_list = document.getElementById("backlight-color-list");
+        const active_colors = color_list.value.split("+");
+        return active_colors.includes(color);
+    }
+
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
         const color_list = document.getElementById("backlight-color-list");
         const idx = color_list.selectedIndex;
-        var color = "";
-		var is_on = document.getElementById("backlight-cb").checked;
-        var color_txt = "OFF";
-        if (idx >= 0) {
-            opt = color_list.options[idx];
-            if (!opt.disabled) {
-                color = opt.value;
-                if (is_on) {
-                    color_txt = opt.text;
+        if (color_list.selectedIndex < 0) {
+            color_list.selectedIndex = 0;
+        } else {
+            if (color_list.options[color_list.selectedIndex].disabled) {
+                color_list.selectedIndex = 0;
+                for (let i=1; i < color_list.options.length; i++) {
+                    if (!color_list.options[i].disabled) {
+                        color_list.selectedIndex = i;
+                        break;
+                    }
                 }
             }
         }
-        let val = 0;
-		is_on = is_on && document.getElementById("backlight-cb").checked;
-        document.getElementById("header-backlight-color").innerHTML = color_txt;
+        const color = color_list.value;
+        const is_on = color != "";
+        var exposure = null;
+        if (is_on) {
+            window.last_backlight_color = color;
+            var exposure_elem_name = "";
+            switch (color) {
+                case "preview":
+                    exposure_elem_name = "backlight-preview-exposure";
+                    break;
+                case "ir":
+                    exposure_elem_name = "backlight-ir-exposure";
+                    break;
+                default:
+                    exposure_elem_name = "backlight-exposure";
+            }
+            const elem = document.getElementById(exposure_elem_name);
+            exposure = Number(elem.getAttribute("data-ev_step")) * Number(elem.value);
+        }
+        document.getElementById("header-backlight-color").innerHTML = color_list.options[color_list.selectedIndex].text;
 
+        gain = {}
         const elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
         for (let i = 0; i < elems.length; i++) {
             const elem_color = elems[i].id.split("-")[1];
-            const is_visible = color.includes(elem_color);
+            const is_visible = is_color_active(elem_color);
             if (adjust_range) {
                 set_visible(elems[i], is_visible, "");
             }
             const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
             document.getElementById("backlight-"+elem_color+"-num").value = range_elem.value;
             if (is_on && is_visible) {
-                val *= 256;  // bitwise operators are 32-bit only!
-                val += Number(range_elem.value);
+                gain[elem_color] = Number(range_elem.value)
             }
         }
         let bck = `${is_on}`;
         if (is_on) {
-            bck += `:${val}`;
+            bck += `:${exposure}:`+ JSON.stringify(gain);
         }
         if (send_cmd) {
             if (window.last_backlight !== bck) {
                 // avoid flooding when switched off and moving slidebar
                 window.last_backlight = bck;
                 if (is_on) {
-                    sendCommand2("SET_BACKLIGHT", {"color": color, "intensity": val});
+                    sendCommand2("SET_BACKLIGHT", {"color": color, "exposure": exposure, "gain": gain});
                 } else {
                     sendCommand2("SET_BACKLIGHT");
                 }

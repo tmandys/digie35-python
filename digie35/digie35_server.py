@@ -535,10 +535,11 @@ class CameraWrapper:
                                 dev_info["device"] = digitizer.__class__.__name__
                             dev_info["adapters"] = ",".join(f"{value.ID}" for key, value in digitizer._adapters.items())
 
-                            color = digitizer.get_current_backlight_color_and_intensity()
+                            color = digitizer.get_current_backlight_color_and_exposure()
                             if color[0] != None:
                                 dev_info["bl_color"] = color[0]
-                                dev_info["bl_intensity"] = color[1]
+                                dev_info["bl_exposure"] = color[1]
+                                dev_info["bl_gain"] = color[2]
                             dev_info["preset"] = kwargs["preset"]
                             etree.SubElement(description, "{%s}Instructions" % (namespaces["photoshop"])).text = ";".join(f"{key}:{value}" for key, value in dev_info.items())
 
@@ -1764,8 +1765,11 @@ def broadcast(message):
         if (on_sleep_button()):
             send_flag = True
             message["backlight"]["color"] = digitizer.get_current_backlight_color() if digitizer.get_current_backlight_color() != None else ""  # on_sleep switched off backlight
-            if (message["backlight"]["color"] == "" and "intensity" in message["backlight"]):
-                del message["backlight"]["intensity"]
+            if message["backlight"]["color"] == "":
+                if "exposure" in message["backlight"]:
+                    del message["backlight"]["exposure"]
+                if "gain" in message["backlight"]:
+                    del message["backlight"]["gain"]
     if message["source"] == "backlight":
         send_flag |= True
         message["action"] = "BACKLIGHT"
@@ -1918,7 +1922,7 @@ def on_sleep_button():
     }
     return result
 
-def on_terminate(signal_no, frame):    
+def on_terminate(signal_no, frame):
     logging.getLogger().debug(f"Terminate shutdown helper, signal: %d" % (signal_no))
     # force KeyboardInterrupt
     os.kill(os.getpid(), signal.SIGINT)

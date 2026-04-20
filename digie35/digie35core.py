@@ -159,7 +159,8 @@ class ExtensionBoard:
         self._notify_callback = callback
         self._adapters = {}
         self._callback_per_gpio = {}
-        self._save_backlight_intensity = {}
+        self._save_backlight_exposure = {}
+        self._save_backlight_gain = {}
         self._current_backlight_color = None
         self._pending_notification = Event()
         self._backlight_job = None   # use job instead of timer to simplify implementation
@@ -401,7 +402,7 @@ class ExtensionBoard:
 
 
 
-    def _set_backlight_impl(self, color, intensity):
+    def _set_backlight_impl(self, color, exposure, gain):
         pass
 
     def _set_xio(self, val):
@@ -549,7 +550,10 @@ class ExtensionBoard:
             },
         }
         if result["backlight"]["color"] != "":
-            result["backlight"]["intensity"] = self._save_backlight_intensity[self._current_backlight_color]
+            result["backlight"]["exposure"] = self._save_backlight_exposure.get(color, 0)
+            gain = self._save_backlight_gain.get(color, None)
+            if gain:
+                result["backlight"]["gain"] = gain
 
         for adapter_type in list(self._adapters):
             result |= self.get_adapter(adapter_type).get_state()
@@ -652,32 +656,39 @@ class ExtensionBoard:
             self._add_and_start_timer(name, Timer(on_secs, self._pulse_on_handler, kwargs={"name":name}))
 
     def _backlight_auto_off_handler(self, *args, **kwargs):
-        # logging.getLogger().debug("Backlight auto off handler (%s, %s, %s, %s)" % (self.props.get("BL_AUTO_OFF_ENABLE"), default_timer(), self._backlight_on_timestamp, self.props.get("BL_AUTO_OFF_TIMEOUT")))
+        # logging.getLogger().debug(f"Backlight auto off handler ({self.props.get('BL_AUTO_OFF_ENABLE')}, {default_timer()}, {self._backlight_on_timestamp}, {self.props.get('BL_AUTO_OFF_TIMEOUT')})")
         if self.props.get("BL_AUTO_OFF_ENABLE"):
             color = self._current_backlight_color
-            if color != None and self._save_backlight_intensity[color] > 0:
+            if color is not None
+                and (self._save_backlight_exposure[color] is not None
+                or (any(bool(x) for x in self._save_backlight_gain[color].values())))
+
                 diff = default_timer() - self._backlight_on_timestamp
                 if diff >= self.props.get("BL_AUTO_OFF_TIMEOUT"):
-                    logging.getLogger().debug("Backlight auto off (%s)" % (diff))
+                    logging.getLogger().debug(f"Backlight auto off ({diff})")
                     self.set_backlight()
 
-    def set_backlight(self, color = None, intensity = None):
+    ## revert == True use previous value, exposure is Ev, if exposure is none then gain is 0-1 (0-100%), otherwise multiplies exposure
+    def set_backlight(self, color = None, revert: bool = False, exposure: float = None, gain: dict = {}):
+        if revert and (exposure is not None or gain is not None):
+            raise ValueError(f"Exposure/gain provided when reverting backlight")
         with self._backlight_lock:
-            if color != None and intensity == -1:
-                if color in self._save_backlight_intensity:
-                    intensity = self._save_backlight_intensity[color]
-                else:
-                    intensity = 50
-            self._set_backlight_impl(color, intensity)
+            if color is not None and revert:
+                exposure = self._save_backlight_exposure.get(color, 0)
+                gain = self._save_backlight_gain(color, {})
+            self._set_backlight_impl(color=color, exposure=exposure, gain=gain)
             change_flag = self._current_backlight_color != color
             self._current_backlight_color = color
-            if color != None:
-                change_flag |= not color in self._save_backlight_intensity or self._save_backlight_intensity[color] != intensity
-                self._save_backlight_intensity[color] = intensity
-                if change_flag and intensity > 0 and self.props.get("BL_AUTO_OFF_ENABLE"):
-                    if self._backlight_job and not self._backlight_job.is_alive():
-                        self._backlight_job.start()
-                    self.prolongBacklight()
+            if color is not None:
+                change_flag |= self._save_backlight_exposure.get(color, None) != exposure or self._save_backlight_gain(color, {}) != gain
+                self._save_backlight_exposure[color] = exposure
+                self._save_backlight_gain[color] = gain
+                if change_flag and self.props.get("BL_AUTO_OFF_ENABLE"):
+                    is_on = exposure is not None or any(bool(x) for x in gain.values())
+                    if is_on:
+                        if self._backlight_job and not self._backlight_job.is_alive():
+                            self._backlight_job.start()
+                        self.prolongBacklight()
         if change_flag:
             self._call_notify_callback("backlight", True, 0.2)
 
@@ -688,12 +699,12 @@ class ExtensionBoard:
     def get_current_backlight_color(self):
         return self._current_backlight_color
 
-    def get_current_backlight_color_and_intensity(self):
+    def get_current_backlight_color_and_exposure(self):
         color = self._current_backlight_color
-        if color != None:
-            return (color, self._save_backlight_intensity[color])
+        if color is not None:
+            return (color, self._save_backlight_exposure[color], self._save_backlight_gain[color])
         else:
-            return (None, None)
+            return (None, None, None)
 
     def _get_io_configuration(self):
         return {
@@ -1404,7 +1415,7 @@ class StepperMotorAdapter(Adapter):
                     # cancel backlight switch off
                     self._no_film_job.pause()
                 if self._save_backlight_color != None:
-                    self._xboard.set_backlight(self._save_backlight_color, -1)
+                    self._xboard.set_backlight(color=self._save_backlight_color, revert=True)
             if self._film_sensing["state"]["controlled"] and \
                 ((not self._film_sensing["state"]["rear"] and not self._film_sensing["state"]["front"]) or \
                 (self._film_sensing["state"]["rear"] and self._film_sensing["state"]["front"] and not self._film_sensing["state"]["window"])):  # pushed next film, i.e. 2 strips in adapter

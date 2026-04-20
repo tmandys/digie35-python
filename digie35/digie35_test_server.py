@@ -171,7 +171,7 @@ async def ws_handler(websocket, path):
                             xboard.get_adapter().flatten_plane(int(get_param(0, 1)))
 
                         elif cmd == "SET_BACKLIGHT":
-                            xboard.set_backlight(get_param(0, 1).lower(), int(get_param(1, 1)))
+                            xboard.set_backlight(color=get_param(0, 1).lower(), pwm=int(get_param(1, 1)))
 
                         elif cmd == "HOTPLUG":
                             xboard.check_connected_adapter()
