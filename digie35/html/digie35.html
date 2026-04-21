@@ -2460,11 +2460,16 @@
                                 let vl = [];
                                 let act = false;
                                 let act_id = "";
+                                const volume_candidate = localStorage.getItem("select.volume") ?? false;
+                                let volume_candidate_exists = false;
                                 data.payload.volume_list.forEach((vol)=>{
                                     vl.push({"id": vol.name, "name": format_volume_info(vol, false)});
                                     if (vol.active) {
                                         act = vol;
                                         act_id = vol.name;
+                                    }
+                                    if (vol.name === volume_candidate) {
+                                        volume_candidate_exists = true;
                                     }
                                 });
                                 update_select_options("volume-list", vl, "id", "name");
@@ -2479,6 +2484,11 @@
                                     if (act !== false) {
                                         sendCommand("LIST_PROJECTS");
                                     }
+                                }
+                                if (act === false && volume_candidate_exists) {
+                                    // when server is restarted and current volume is null at server
+                                    document.getElementById("volume-list").value = volume_candidate;
+                                    set_volume();
                                 }
                             }
 
