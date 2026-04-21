@@ -42,6 +42,7 @@ import re
 import inspect
 import requests
 import gc
+import traceback
 
 import websockets.legacy
 import websockets.legacy.framing
@@ -1542,7 +1543,7 @@ async def ws_control_handler(websocket, path):
         while True:
             try:
                 data = await websocket.recv()
-                log.debug("ws: %s", data)
+                log.debug(f"ws: {data}")
 
                 l = data.split(PARAM_DELIMITER, 1)
                 cmd = l[0]
@@ -1560,148 +1561,149 @@ async def ws_control_handler(websocket, path):
                 reply = ""
                 reply_status = False
                 try:
-                    if "":
-                        pass
-                    elif cmd == "LIST_VOLUMES":
-                        reply = camera.list_volumes()
-                    elif cmd == "SET_VOLUME":
-                        reply = safe_call(camera.set_volume, **params)
-                    elif cmd == "LIST_PROJECTS":
-                        reply = camera.list_projects()
-                    elif cmd == "CREATE_PROJECT":
-                        reply = safe_call(camera.create_project, **params)
-                    elif cmd == "UPDATE_PROJECT":
-                        reply = safe_call(camera.update_project, **params)
-                    elif cmd == "DELETE_PROJECT":
-                        reply = safe_call(camera.delete_project, **params)
-                    elif cmd == "GET_PROJECT":
-                        reply = safe_call(camera.get_project, **params)
+                    match cmd:
+                        case "":
+                            pass
+                        case "LIST_VOLUMES":
+                            reply = camera.list_volumes()
+                        case "SET_VOLUME":
+                            reply = safe_call(camera.set_volume, **params)
+                        case "LIST_PROJECTS":
+                            reply = camera.list_projects()
+                        case "CREATE_PROJECT":
+                            reply = safe_call(camera.create_project, **params)
+                        case "UPDATE_PROJECT":
+                            reply = safe_call(camera.update_project, **params)
+                        case "DELETE_PROJECT":
+                            reply = safe_call(camera.delete_project, **params)
+                        case "GET_PROJECT":
+                            reply = safe_call(camera.get_project, **params)
 
-                    elif cmd == "CREATE_FILM":
-                        reply = safe_call(camera.create_film, **params)
-                    elif cmd == "UPDATE_FILM":
-                        reply = safe_call(camera.update_film, **params)
-                    elif cmd == "DELETE_FILM":
-                        reply = safe_call(camera.delete_film, **params)
-                    elif cmd == "GET_FILM":
-                        reply = safe_call(camera.get_film, **params)
+                        case "CREATE_FILM":
+                            reply = safe_call(camera.create_film, **params)
+                        case "UPDATE_FILM":
+                            reply = safe_call(camera.update_film, **params)
+                        case "DELETE_FILM":
+                            reply = safe_call(camera.delete_film, **params)
+                        case "GET_FILM":
+                            reply = safe_call(camera.get_film, **params)
 
-                    elif cmd == "GET_TEMPLATE":
-                        reply = safe_call(camera.get_file_template_options, **params)
-                    elif cmd == "VALIDATE_TEMPLATE":
-                        reply = safe_call(camera.validate_file_template, **params)
+                        case "GET_TEMPLATE":
+                            reply = safe_call(camera.get_file_template_options, **params)
+                        case "VALIDATE_TEMPLATE":
+                            reply = safe_call(camera.validate_file_template, **params)
 
-                    elif cmd == "CAPTURE":
-                        if digitizer.get_capability("motorized"):
+                        case "CAPTURE":
+                            if digitizer.get_capability("motorized"):
+                                check_motorized_command(**params)
+                            digitizer.prolongBacklight()
+                            reply = camera.capture(websocket, **params)
+                            status = digitizer.get_state()
+                            if "film_position" in list(status):
+                                reply["film_position"] = round(status["film_position"], 3)
+                        case "LIST_CAMERAS":
+                            reply = camera.list_cameras()
+                        case "SET_CAMERA":
+                            reply = safe_call(camera.set_camera, **params)
+
+                        case "START_PREVIEW":
+                            digitizer.prolongBacklight()
+                            reply = safe_call(camera.start_preview, **params)
+                        case "STOP_PREVIEW":
+                            reply = safe_call(camera.stop_preview, **params)
+
+                        case "SET_BACKLIGHT":
+                            safe_call(digitizer.set_backlight, **params)
+                            reply_status = True
+
+                        case "LEVEL":
+                            digitizer.prolongBacklight()
+                            safe_call(digitizer.set_io_state, **params)
+                            reply_status = True
+                        case "WAIT":
+                            time.sleep(float(params.sed))
+                            reply_status = True
+                        case "PULSE":
+                            digitizer.prolongBacklight()
+                            safe_call(digitizer.pulse_output, **params)
+                            reply_status = True
+                        case "SENSOR":
+                            safe_call(digitizer.set_io_state, **params)
+                            reply_status = True
+                        case "MOVE":
                             check_motorized_command(**params)
-                        digitizer.prolongBacklight()
-                        reply = camera.capture(websocket, **params)
-                        status = digitizer.get_state()
-                        if "film_position" in list(status):
-                            reply["film_position"] = round(status["film_position"], 3)
-                    elif cmd == "LIST_CAMERAS":
-                        reply = camera.list_cameras()
-                    elif cmd == "SET_CAMERA":
-                        reply = safe_call(camera.set_camera, **params)
+                            digitizer.prolongBacklight()
+                            safe_call(digitizer.get_adapter().set_motor, **params)
+                            reply_status = True
+                        case "STOP":
+                            check_motorized_command(**params)
+                            digitizer.get_adapter().set_motor(0)
+                            reply_status = True
+                        case "EJECT":
+                            check_motorized_command(**params)
+                            safe_call(digitizer.get_adapter().eject, **params)
+                            reply_status = True
+                        case "INSERT":
+                            check_motorized_command(**params)
+                            digitizer.prolongBacklight()
+                            digitizer.get_adapter().lead_in()
+                            reply_status = True
+                        case "MOVE_BY":
+                            check_motorized_command(**params)
+                            digitizer.prolongBacklight()
+                            safe_call(digitizer.get_adapter().move_by, **params)
+                            reply_status = True
+                        case "FLATTEN":
+                            digitizer.check_capability("flattening")
+                            safe_call(digitizer.get_adapter().flatten_plane, **params)
+                            reply_status = True
+                        case "GET":
+                            reply_status = True
+                        case "VERBOSE":
+                            logger_helper.setLevel(int(params["level"]))
+                            reply = {"verbosity": logger_helper.getLevel()}
+                        case "ANALYZE":
+                            reply = camera.analyze(**params)
+                        case "HELLO" | "HOTPLUG":
+                            digitizer.check_connected_adapter()
+                            reply = VERSION_INFO.copy()
+                            reply["mainboard_class"] = digitizer._mainboard.__class__.__name__
+                            reply["xboard_class"] = digitizer.__class__.__name__
+                            if digitizer_info != None and "serial_number" in digitizer_info:
+                                reply["serial_number"] = digitizer_info["serial_number"]
+                            reply["adapter_class"] = {}
+                            for name in list(digitizer._adapters):
+                                reply["adapter_class"][name] = digitizer.get_adapter(name).__class__.__name__
+                            reply["capabilities"] = digitizer.get_capabilities()
+                            reply["capabilities"]["vision"] = "digie35image" in globals();
+                            if reply["capabilities"]["motorized"]:
+                                reply["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()
+                            reply |= camera.list_volumes()
+                            ifaces = netifaces.interfaces()
 
-                    elif cmd == "START_PREVIEW":
-                        digitizer.prolongBacklight()
-                        reply = safe_call(camera.start_preview, **params)
-                    elif cmd == "STOP_PREVIEW":
-                        reply = safe_call(camera.stop_preview, **params)
+                            for iface in ["eth0", "wlan0", ]:
+                                if iface in ifaces:
+                                    ifc = netifaces.ifaddresses(iface)
+                                    if netifaces.AF_INET in ifc:
+                                        reply["lan_ip"] = ifc[netifaces.AF_INET][0]["addr"]
+                                        break
+                            reply["verbosity"] = logger_helper.getLevel()
+                            if cmd == "HELLO":
+                                reply["client_count"] = len(ws_control_clients)
+                                reply["usbpreview"] = camera._camera_preview
+                                reply["preset_list"] = camera.list_presets()
+                                reply["file_template_list"] = camera.list_file_templates()
+                        case "BYE":
+                            reply = ""
+                            break
+                        case _:
+                            reply = f"Unknown command: {cmd}"
 
-                    elif cmd == "SET_BACKLIGHT":
-                        safe_call(digitizer.set_backlight, **params)
-                        reply_status = True
-                    elif cmd == "LEVEL":
-                        digitizer.prolongBacklight()
-                        safe_call(digitizer.set_io_state, **params)
-                        reply_status = True
-                    elif cmd == "WAIT":
-                        time.sleep(float(params.sed))
-                        reply_status = True
-                    elif cmd == "PULSE":
-                        digitizer.prolongBacklight()
-                        safe_call(digitizer.pulse_output, **params)
-                        reply_status = True
-                    elif cmd == "SENSOR":
-                        safe_call(digitizer.set_io_state, **params)
-                        reply_status = True
-                    elif cmd == "MOVE":
-                        check_motorized_command(**params)
-                        digitizer.prolongBacklight()
-                        safe_call(digitizer.get_adapter().set_motor, **params)
-                        reply_status = True
-                    elif cmd == "STOP":
-                        check_motorized_command(**params)
-                        digitizer.get_adapter().set_motor(0)
-                        reply_status = True
-                    elif cmd == "EJECT":
-                        check_motorized_command(**params)
-                        safe_call(digitizer.get_adapter().eject, **params)
-                        reply_status = True
-                    elif cmd == "INSERT":
-                        check_motorized_command(**params)
-                        digitizer.prolongBacklight()
-                        digitizer.get_adapter().lead_in()
-                        reply_status = True
-                    elif cmd == "MOVE_BY":
-                        check_motorized_command(**params)
-                        digitizer.prolongBacklight()
-                        safe_call(digitizer.get_adapter().move_by, **params)
-                        reply_status = True
-                    elif cmd == "FLATTEN":
-                        digitizer.check_capability("flattening")
-                        safe_call(digitizer.get_adapter().flatten_plane, **params)
-                        reply_status = True
-                    elif cmd == "GET":
-                        reply_status = True
-                    elif cmd == "VERBOSE":
-                        logger_helper.setLevel(int(params["level"]))
-                        reply = {"verbosity": logger_helper.getLevel()}
-                    elif cmd == "ANALYZE":
-                        reply = camera.analyze(**params)
-                    elif cmd in ["HELLO", "HOTPLUG"]:
-                        digitizer.check_connected_adapter()
-                        reply = VERSION_INFO.copy()
-                        reply["mainboard_class"] = digitizer._mainboard.__class__.__name__
-                        reply["xboard_class"] = digitizer.__class__.__name__
-                        if digitizer_info != None and "serial_number" in digitizer_info:
-                            reply["serial_number"] = digitizer_info["serial_number"]
-                        reply["adapter_class"] = {}
-                        for name in list(digitizer._adapters):
-                            reply["adapter_class"][name] = digitizer.get_adapter(name).__class__.__name__
-                        reply["capabilities"] = digitizer.get_capabilities()
-                        reply["capabilities"]["vision"] = "digie35image" in globals();
-                        if reply["capabilities"]["motorized"]:
-                            reply["steps_per_mm"] = digitizer.get_adapter().get_steps_per_mm()
-                        reply |= camera.list_volumes()
-                        ifaces = netifaces.interfaces()
-
-                        for iface in ["eth0", "wlan0", ]:
-                            if iface in ifaces:
-                                ifc = netifaces.ifaddresses(iface)
-                                if netifaces.AF_INET in ifc:
-                                    reply["lan_ip"] = ifc[netifaces.AF_INET][0]["addr"]
-                                    break
-                        reply["verbosity"] = logger_helper.getLevel()
-                        if cmd == "HELLO":
-                            reply["client_count"] = len(ws_control_clients)
-                            reply["usbpreview"] = camera._camera_preview
-                            reply["preset_list"] = camera.list_presets()
-                            reply["file_template_list"] = camera.list_file_templates()
-                    elif cmd == "BYE":
-                        reply = ""
-                        break
-                    else:
-                        reply = f"Unknown command: {cmd}"
-
+                    if reply_status and reply == "":
+                        reply = digitizer.get_state(True)
                 except Exception as e:
                     logging.getLogger().error(e, exc_info=True)
                     reply = repr(e)
-
-                if reply_status and reply == "":
-                    reply = digitizer.get_state(True)
 
                 if isinstance(reply, (dict, list, set)):
                     if client_context != None:
@@ -1836,7 +1838,7 @@ def broadcast(message):
     last_adapter = message
     if not send_flag:
         return
-    logging.getLogger().debug("broadcast2: %s", message2)
+    logging.getLogger().debug(f"broadcast2: {message2}")
 
     # eg. set_backlight triggers broadcast when is in running loop
     try:
@@ -1844,9 +1846,10 @@ def broadcast(message):
     except RuntimeError:  # 'RuntimeError: There is no current event loop...'
         loop = None
     msg_cmd = {"cmd": "ADAPTER", "payload": message2}
+
     for websocket in ws_control_clients.copy():
         if loop and loop.is_running():
-                logging.getLogger().debug("starting broadcast thread for: %s", message2)
+                logging.getLogger().debug(f"starting broadcast thread for: {message2}")
                 send_thread = Thread(target=run_send, kwargs={
                     "websocket": websocket,
                     "message": msg_cmd,

@@ -448,7 +448,7 @@
                     <button onclick="sendCommand('LEVEL:PSU_LED:0')">PSU LED OFF</button>
                     <br />
                     <br />
-                    <label for="led_pwm">PWM<input type="number" id="led_pwm" min="0" max="100" value="50" /></label>
+                    <label for="led_pwm">PWM<input type="number" id="led_pwm" min="0" max="1" step="0.05" value="0.5" /></label>
                     <button onclick="sendCommand('SET_BACKLIGHT:WHITE:'+document.getElementById('led_pwm').value)">SET WHITE</button>
                     <button onclick="sendCommand('SET_BACKLIGHT:EXTERNAL:'+document.getElementById('led_pwm').value)">SET EXTERNAL</button>
                 </fieldset>
@@ -762,7 +762,8 @@
 					input = document.createElement("input");
 					input.type = "range";
 					input.min = 0;
-					input.max = 255;
+					input.max = 1;
+                    input.step = 0.01;
 					input.id = `io-${name}`;
 					input.name = name;
 					label.appendChild(document.createTextNode(name));
@@ -1033,8 +1034,8 @@
                     if (data?.movement !== undefined) {
                         document.getElementById("movement").value = data["movement"];
                     }
-                    document.getElementById("frame_ready").checked = data["frame_ready"];
-                    document.getElementById("film_detected").checked = data["film_detected"];
+                    document.getElementById("frame_ready").checked = data.frame_ready ?? false;
+                    document.getElementById("film_detected").checked = data.film_detected ?? false;
                     for (const k2 in data.io) {
 						elem = document.getElementById("io."+k2);
 						if (elem) {

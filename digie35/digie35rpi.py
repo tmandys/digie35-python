@@ -95,14 +95,13 @@ class RpiMainboard(Mainboard):
         elif func == "gpio":
             return
         else:
-            raise DigitizerError("GPIO%d: Unknown function type '%s'" % (num, func))
+            raise ValueError(f"GPIO{num}: Unknown function type '{func}'")
         logging.getLogger().debug("exec: %s" % params)
         subprocess.call(params, shell=False)
 
-    ## RPi4 PWM frequency supported at least to 5MHz
+    ## RPi4 PWM frequency supported at least to 5MHz, duty cycle is 0-1
     def set_pwm(self, channel, duty_cycle, freq=None):
-        duty_cycle2 = duty_cycle / 255 * 100
-        logging.getLogger().debug("Set PWM(%d, %d, %s)", channel, duty_cycle2, freq)
+        logging.getLogger().debug(f"Set PWM({channel}, {duty_cycle}, {freq})")
         if duty_cycle == 0:
             if str(channel) in self._pwm:
                 self._pwm[str(channel)].stop()
@@ -117,7 +116,7 @@ class RpiMainboard(Mainboard):
                     chip_no = 0
                 logging.getLogger().debug("HardwarePWM(%d, %d, %s)", channel, freq, chip_no)
                 self._pwm[str(channel)] = HardwarePWM(pwm_channel=channel, hz=freq, chip=chip_no)
-            self._pwm[str(channel)].start(duty_cycle2)
+            self._pwm[str(channel)].start(duty_cycle * 100)
 
     def i2c_write_read(self, i2c_addr, out_data, in_count):
         # logging.getLogger().debug("%s(0x%x, %s, %s)" % (__name__, i2c_addr, out_data, in_count))
@@ -158,17 +157,17 @@ class RpiMainboard(Mainboard):
                     "thread": None,
                 }
                 return
-        raise DigitizerError(f"Input device '%s' not found" % (id_name))
+        raise DigitizerError(f"Input device '{id_name}' not found")
 
     def get_input_device_state(self, id_name, num):
         if not id_name in self._input_devices:
-            raise DigitizerError(f"Input device '%s' is not registered" % (id_name))
+            raise DigitizerError(f"Input device '{id_name}' is not registered")
         logging.getLogger().debug(f"get_input_device_state(%s, %s): device: %s, keys: %s" % (id_name, num, self._input_devices[id_name]["device"], self._input_devices[id_name]["device"].active_keys()))
         return ecodes.ecodes[num] in self._input_devices[id_name]["device"].active_keys()
 
     def set_input_device_handler(self, id_name, num, edge, name = None, handler = None):
         if not id_name in self._input_devices:
-            raise DigitizerError(f"Input device '%s' is not registered" % (id_name))
+            raise DigitizerError(f"Input device '{id_name}' is not registered")
         if edge == "none":
             if num in self._input_devices[id_name]["keys"]:
                 del self._input_devices[id_name]["keys"][num]

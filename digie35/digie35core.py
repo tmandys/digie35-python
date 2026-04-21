@@ -283,7 +283,7 @@ class ExtensionBoard:
         # logging.getLogger().debug("merged_adapter_io_map: %s" % (merged_adapter_io_map))
 
         if unknown != []:
-            raise DigitizerError("Unknown/wrong io map options: %s" % (unknown))
+            raise DigitizerError(f"Unknown/wrong io map options: {unknown}")
 
         self._io_map = {}
         # filter active io and merge adapter ones
@@ -510,7 +510,7 @@ class ExtensionBoard:
 
     def check_capability(self, cap):
         if not self.get_capability(cap):
-            raise DigitizerError("Capability %s not supported" % cap)
+            raise DigitizerError(f"Capability {cap} not supported")
 
     def reset(self):
         """
@@ -546,12 +546,13 @@ class ExtensionBoard:
         result = {
             "io": self.get_io_states(),
             "backlight": {
-                "color": self._current_backlight_color if self._current_backlight_color != None else "",
+                "color": self._current_backlight_color if self._current_backlight_color is not None else "",
             },
         }
-        if result["backlight"]["color"] != "":
-            result["backlight"]["exposure"] = self._save_backlight_exposure.get(color, 0)
-            gain = self._save_backlight_gain.get(color, None)
+
+        if self._current_backlight_color:
+            result["backlight"]["exposure"] = self._save_backlight_exposure.get(self._current_backlight_color)
+            gain = self._save_backlight_gain.get(self._current_backlight_color, None)
             if gain:
                 result["backlight"]["gain"] = gain
 
@@ -624,22 +625,15 @@ class ExtensionBoard:
         elif type == "gpio":
             self._set_gpio(self._io_map[name]["num"], val)
         elif type == "pwm":
-            max_pwm = 255
-            if val > max_pwm:
-                val = max_pwm
-            if "min_duty_cycle" in self._io_map[name]:
-                min_dc = self._io_map[name]["min_duty_cycle"]
-                val2 = (max_pwm - min_dc) / max_pwm * val + min_dc
-            else:
-                val2 = val
-            if "max_duty_cycle" in self._io_map[name]:
-                max_dc = self._io_map[name]["max_duty_cycle"]
-                val2 = val2 * max_dc / max_pwm
-            else:
-                val2 = val
-            freq = None
-            if "freq" in self._io_map[name]:
-                freq = self._io_map[name]["freq"]
+            if val < 0 or val > 1:
+                raise ValueError(f"Wrong pwm value '{name}': {val}. Allowed range (0-1)")
+            min_dc = self._io_map[name].get("min_duty_cycle", 0.0)
+            max_dc = self._io_map[name].get("max_duty_cycle", 1.0)
+            if max_dc <= min_dc:
+                raise ValueError(f"Wrong pwm duty cycle '{name}': {min_dc}, {max_dc}")
+            val2 = val * (max_dc - min_dc) + min_dc
+
+            freq = self._io_map[name].get("freq")
             self._mainboard.set_pwm(self._io_map[name]["num"], val2, freq)
             self._pwm_state[name] = val
 
@@ -659,9 +653,9 @@ class ExtensionBoard:
         # logging.getLogger().debug(f"Backlight auto off handler ({self.props.get('BL_AUTO_OFF_ENABLE')}, {default_timer()}, {self._backlight_on_timestamp}, {self.props.get('BL_AUTO_OFF_TIMEOUT')})")
         if self.props.get("BL_AUTO_OFF_ENABLE"):
             color = self._current_backlight_color
-            if color is not None
-                and (self._save_backlight_exposure[color] is not None
-                or (any(bool(x) for x in self._save_backlight_gain[color].values())))
+            if color is not None and \
+                (self._save_backlight_exposure[color] is not None or \
+                (any(bool(x) for x in self._save_backlight_gain[color].values()))):
 
                 diff = default_timer() - self._backlight_on_timestamp
                 if diff >= self.props.get("BL_AUTO_OFF_TIMEOUT"):
@@ -670,7 +664,7 @@ class ExtensionBoard:
 
     ## revert == True use previous value, exposure is Ev, if exposure is none then gain is 0-1 (0-100%), otherwise multiplies exposure
     def set_backlight(self, color = None, revert: bool = False, exposure: float = None, gain: dict = {}):
-        if revert and (exposure is not None or gain is not None):
+        if revert and (exposure is not None or gain):
             raise ValueError(f"Exposure/gain provided when reverting backlight")
         with self._backlight_lock:
             if color is not None and revert:
@@ -680,7 +674,7 @@ class ExtensionBoard:
             change_flag = self._current_backlight_color != color
             self._current_backlight_color = color
             if color is not None:
-                change_flag |= self._save_backlight_exposure.get(color, None) != exposure or self._save_backlight_gain(color, {}) != gain
+                change_flag |= self._save_backlight_exposure.get(color, None) != exposure or self._save_backlight_gain.get(color, {}) != gain
                 self._save_backlight_exposure[color] = exposure
                 self._save_backlight_gain[color] = gain
                 if change_flag and self.props.get("BL_AUTO_OFF_ENABLE"):
@@ -1454,7 +1448,7 @@ class StepperMotorAdapter(Adapter):
             # self._film_sensing["state"]["light_ready"] = self._film_sensing["state"]["shot_ready"]
             s2 = "%s" % (self._film_sensing, )
             if s1 != s2:
-                logging.getLogger().info("Film sensing: %s -> %s" %(s1, s2))
+                logging.getLogger().info(f"Film sensing: {s1} -> {s2}")
         except Exception as ex:
             logging.getLogger().info("Film sensing: %s, motor pos: %s, sensor distance: %s, frame_counters: %s" %(self._film_sensing, self._motor_position, self._sensor_distance, self._frame_counters))
             raise ex

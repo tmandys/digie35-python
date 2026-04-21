@@ -179,35 +179,43 @@ class AlphaExtensionBoard(ExtensionBoardWithI2C):
         }
         return result
 
-def split_backlight_intensity(colors: tuple|list, intensity, pwm_0ev: dict = {}):
-    channels = {}
-    if isinstance(intensity, (tuple, list)):
-        for idx, color in enumerate(colors):
-            if idx >= len(intensity) or intensity[idx] is None:
-                pwm = 0
-            else:
-                pwm = pwm_0ev.get(color, 32) * (2 ** intensity[idx])
-                pwm = round(pwm)
-                pwm = max(0, min(pwm, 255))
-            channels[color] = pwm
+def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: dict = {}, num_bits=8):
+    pwm = {}
+    max_val = (1 << num_bits) - 1
+    if exposure is None:
+        if isinstance(gain, int):
+            # RRGGBB, fallback
+            for color in reversed(colors):
+                pwm[color] = gain & max_val
+                gain >>= num_bits
+        else:
+            # gain is pwm value
+            for color in colors:
+                val = gain.get(color, 0)
+                if val is None:
+                    val = 0
+                val *= max_val
+                pwm[color] = max(0, min(max_val, int(val)))
     else:
         for color in reversed(colors):
-            channels[color] = intensity & 0xFF
-            intensity >>= 8
-    return channels
+            pwm[color] = (2 ** pwm_0ev.get(color, num_bits-3)) * (2 ** exposure)   # suppose 5 Ev range, i.e. num_bits - 3
+            pwm[color] *= gain.get(color, 1)
+            pwm[color] = max(0, min(max_val, round(pwm[color])))
+    logging.getLogger().debug(f"pwm_from_exposure({colors}, {exposure}, {gain}, {pwm_0ev}) -> {pwm}")
+    return pwm
 
 ## Nikon only board for 60mm rig, i.e. metal u-shape box. 10-pin extension connector and powered by 5V
 class NikiExtensionBoard(ExtensionBoard):
 
-    def _set_backlight_impl(self, color, intensity):
+    def _set_backlight_impl(self, color, exposure, gain):
         if color == None:
             self.set_io_states({"led_white": 0, "led_ir": 0, "psu_led": 0, })
         elif color == "white":
-            pwm = split_backlight_intensity((color, ), intensity)
-            self.set_io_states({"led_ir": 0, "led_white": pwm[color], "psu_led": pwm[color] > 0, })
+            pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+            self.set_io_states({"led_ir": 0, "led_white": pwm[color] / 255, "psu_led": pwm[color] > 0, })
         elif color == "ir":
-            pwm = split_backlight_intensity((color, ), intensity)
-            self.set_io_states({"led_white": 0, "led_ir": pwm[color], "psu_led": pwm[color] > 0, })
+            pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+            self.set_io_states({"led_white": 0, "led_ir": pwm[color] / 255, "psu_led": pwm[color] > 0, })
         else:
             raise ValueError(f"Color '{color}' is not supported")
 
@@ -798,7 +806,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
             color = self._xboard.get_current_backlight_color() if self.props.get("FP_BACKLIGHT_OFF") else None
             try:
                 if color != None:
-                    self._xboard.set_backlight(color=None)
+                    self._xboard.set_backlight()
 
                 self._xboard.set_io_state("stepper_dir", not down)
                 self._xboard.set_io_state("stepper_enable", False)
@@ -840,7 +848,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 class GulpManualAdapterMemory(GulpAdapterMemory):
 
     CUSTOM_MAP = [
-        ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
+        ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 64),
     ]
 
 class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
@@ -885,10 +893,10 @@ class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySele
         if is_backlight and not inputs["sensor_f"]:
             # backlight till front sensor
             self._save_backlight_color = color
-            self._xboard.set_backlight(color=None)
+            self._xboard.set_backlight()
         elif is_preview and inputs["sensor_f"] and not inputs["sensor_r"]:
             # moving back interrupts front sensor first but it may be interrupted by film strip so wait for rear sensor is off
-            self._xboard.set_backlight(color=None)
+            self._xboard.set_backlight()
         elif not is_preview and not is_backlight and not inputs["sensor_f"] and inputs["sensor_r"] and not inputs["sensor_m"]:
             # also sensor_m because finger over ra sensor can unintetionally switch on preview during movement
             self._xboard.set_backlight(color="preview", revert=True)
@@ -914,13 +922,13 @@ class GulpManualAdapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySele
         result["sensor_r"] = {}
         result["sensor_f"] = {}
         result["sensor_m"] = {}
-        result["led_preview"]["max_duty_cycle"] = self._max_backlight
+        result["led_preview"]["max_duty_cycle"] = self._max_backlight / 100
         return result
 
     def close(self):
         color = self._xboard.get_current_backlight_color()
         if color == "preview":
-            self._xboard.set_backlight(color=None)
+            self._xboard.set_backlight()
 
 ## Light control board
 class GulpLightAdapterMemory(GulpAdapterMemory):
@@ -990,12 +998,12 @@ class GulpLightAdapter(Adapter):
         super().__init__(xboard)
         self._close_flag = False
 
-    def set_backlight(self, color, intensity=None):
+    def set_backlight(self, color=None, exposure=None, gain={}):
         pass
 
     def close(self):
         self._close_flag = True
-        self._xboard.set_backlight(color=None)
+        self._xboard.set_backlight()
 
     def ev_to_pwm(ev, pwm_mid=32, pwm_min=1, pwm_max=255):
         pwm = pwm_mid * (2 ** ev)
@@ -1028,10 +1036,10 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
         }
         return result
 
-    def color2pwm(self, color, intensity):
 
-        if intensity in not None:
-            logging.getLogger().debug("set_backlight(%s, 0x%x)" % (color, intensity))
+    def set_backlight(self, color=None, exposure=None, gain={}):
+        if exposure is not None:
+            logging.getLogger().debug(f"set_backlight({color}, {exposure}, {gain})")
         # 0 .. res / general on/off in v0103
         # 1 .. white (standalone)
         # 2 .. ir/preview
@@ -1041,30 +1049,26 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
         # 6 .. blue
         # 7 .. amber
         pwm = [0, 0, 0, 0, 0, 0, 0, 0]
-        if color == None:
+        if color is None:
             pass
         elif color == "white":
-            pwm2 = split_backlight_intensity((color, ), intensity)
+            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
             pwm[1] = pwm2[color]
         elif color in ["ir", "preview"]:
-            pwm2 = split_backlight_intensity((color, ), intensity)
+            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
             pwm[2] = pwm2[color]
         elif color in ["red+green+blue", "white+red+green+blue", "amber+white+red+green+blue"]:
-            pwm2 = split_backlight_intensity(color.split("+"), intensity)
+            pwm2 = pwm_from_exposure(colors=color.split("+"), exposure=exposure, gain=gain)
             pwm[4] = pwm2["red"]
             pwm[5] = pwm2["green"]
             pwm[6] = pwm2["blue"]
-            pwm[7] = pwm2["amber"]
+            pwm[7] = pwm2.get("amber", 0)
             if self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
-                pwm[3] = pwm2["white"]
+                pwm[3] = pwm2.get("white", 0)
             elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
-                pwm[1] = pwm2["white"]
+                pwm[1] = pwm2.get("white", 0)
         else:
             raise ValueError(f"Unknown color: {color}")
-        return pwm
-
-    def set_backlight(self, color, intensity=None):
-        pwm = self.color2pwm(color, intensity)
         try:
             self._driver.set_pwm(pwm)
         except:
@@ -1135,7 +1139,6 @@ class GulpLightBoxAdapter(Adapter, GulpLightSupportMixin):
 class GulpManual120AdapterMemory(GulpAdapterMemory, GulpLightSupportMixin):
 
     CUSTOM_MAP = GulpLightAdapterMemory.CUSTOM_MAP + [
-        ("max_backlight", "number", 1, "Max.backlight pwm, (0..100)", 20),
     ]
 
 class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
@@ -1146,7 +1149,6 @@ class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemoryS
     def __init__(self, xboard):
         super().__init__(xboard)
         custom = self.get_memory().get_adapter_custom(self)
-        self._max_backlight = custom["max_backlight"]
         self._save_backlight_color = self._xboard.get_current_backlight_color()
         if self._save_backlight_color == None or self._save_backlight_color == "preview":
             self._save_backlight_color = "white"
@@ -1181,9 +1183,9 @@ class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemoryS
         if is_backlight and inputs["sensor_m"] and inputs["sensor_r"]:
             # backlight till not middle sensor
             self._save_backlight_color = color
-            self._xboard.set_backlight(color=None)
+            self._xboard.set_backlight()
         elif is_preview and inputs["sensor_m"] and inputs["sensor_f"]:
-            self._xboard.set_backlight(color=None)
+            self._xboard.set_backlight()
         elif not is_preview and not is_backlight and not inputs["sensor_f"] and inputs["sensor_r"] and not inputs["sensor_m"]:
             self._xboard.set_backlight(color="preview", revert=True)
         elif not is_preview and not is_backlight and inputs["sensor_f"] and not inputs["sensor_r"] and not inputs["sensor_m"]:
@@ -1208,7 +1210,6 @@ class GulpManual120Adapter(Adapter, GulpLightSupportMixin, GulpAdapterAotMemoryS
         result["sensor_r"] = {}
         result["sensor_f"] = {}
         result["sensor_m"] = {}
-        result["led_preview"]["max_duty_cycle"] = self._max_backlight
         return result
 
 
@@ -1261,14 +1262,14 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
         ver = eeprom.get_version()
         return GulpExtensionBoard.get_xboard_class_by_version(ver)
 
-    def _set_backlight_impl(self, color, intensity):
+    def _set_backlight_impl(self, color, exposure, gain):
 
         led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, }
         if color == None:
             self.set_io_states(led_off)
         elif color in ["white", "ir", "preview"]:
-            pwm = split_backlight_intensity((color, ), intensity)
-            self.set_io_states(led_off | {"led_"+color: pwm[color] > 0, "led_pwm": pwm[color], })
+            pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+            self.set_io_states(led_off | {"led_"+color: pwm[color] > 0, "led_pwm": pwm[color] / 255, })
         else:
             raise ValueError(f"Color '{color}' is not supported")
 
@@ -1477,39 +1478,41 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 # Board with RGB support
 class GulpExtensionBoard_0101(GulpExtensionBoard):
 
-    def _set_backlight_impl(self, color, intensity):
+    def _set_backlight_impl(self, color, exposure, gain):
         led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, "led_red": 0, "led_green": 0, "led_blue": 0, }
-        if color is not None:
-            pwm = split_backlight_intensity(("x", ), intensity)
-            intensity = pwm["x"]
         if color is None:
             self.set_io_states(led_off)
-        elif color == "white":
-            if self._white_as_rgb:
-                self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
-            else:
-                self.set_io_states(led_off | {"led_white": intensity > 0, "led_pwm": intensity, })
-        elif color == "ir":
-            self.set_io_states(led_off | {"led_ir": intensity > 0, "led_pwm": intensity, })
-        elif color == "preview":
-            self.set_io_states(led_off | {"led_preview": intensity, })
-        elif color == "red":
-            self.set_io_states(led_off | {"led_red": intensity > 0, "led_pwm": intensity, })
-        elif color == "green":
-            self.set_io_states(led_off | {"led_green": intensity > 0, "led_pwm": intensity, })
-        elif color == "blue":
-            self.set_io_states(led_off | {"led_blue": intensity > 0, "led_pwm": intensity, })
-        elif color == "red+green":
-            self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_pwm": intensity, })
-        elif color == "red+blue":
-            self.set_io_states(led_off | {"led_red": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
-        elif color == "green+blue":
-            self.set_io_states(led_off | {"led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
-        elif color == "red+green+blue":
-            self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
         else:
-            raise ValueError(f"Color '{color}' is not supported")
-        logging.getLogger().debug(f"LED: %s, wrgb: %s", self.get_io_states(list(led_off)), self._white_as_rgb)
+            # there is only one PWM for all LEDs so gain is useless
+            pwm = pwm_from_exposure(colors=("x", ), exposure=exposure, gain={})
+            intensity = pwm["x"] / 255
+            match color:
+                case "white":
+                    if self._white_as_rgb:
+                        self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
+                    else:
+                        self.set_io_states(led_off | {"led_white": intensity > 0, "led_pwm": intensity, })
+                case "ir":
+                    self.set_io_states(led_off | {"led_ir": intensity > 0, "led_pwm": intensity, })
+                case "preview":
+                    self.set_io_states(led_off | {"led_preview": intensity, })
+                case "red":
+                    self.set_io_states(led_off | {"led_red": intensity > 0, "led_pwm": intensity, })
+                case "green":
+                    self.set_io_states(led_off | {"led_green": intensity > 0, "led_pwm": intensity, })
+                case "blue":
+                    self.set_io_states(led_off | {"led_blue": intensity > 0, "led_pwm": intensity, })
+                case "red+green":
+                    self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_pwm": intensity, })
+                case "red+blue":
+                    self.set_io_states(led_off | {"led_red": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
+                case "green+blue":
+                    self.set_io_states(led_off | {"led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
+                case "red+green+blue":
+                    self.set_io_states(led_off | {"led_red": intensity > 0, "led_green": intensity > 0, "led_blue": intensity > 0, "led_pwm": intensity, })
+                case _:
+                    raise ValueError(f"Color '{color}' is not supported")
+        logging.getLogger().debug(f"LED: {self.get_io_states(list(led_off))}, wrgb: {self._white_as_rgb}")
 
     def _get_io_configuration(self):
         result = super()._get_io_configuration()
@@ -1573,23 +1576,24 @@ class GulpExtensionBoard_0102(GulpExtensionBoard):
     def __init__(self, mainboard, callback):
         super().__init__(mainboard, callback)
 
-    def _set_backlight_impl(self, color, intensity):
+    def _set_backlight_impl(self, color, exposure, gain):
+        logging.getLogger().debug(f"_set_backlight_impl({color}, {exposure}, {gain}")
         led_off = {"led_white": 0, "led_preview": 0, }
         light_adapter = self.get_adapter(self.LIGHT_NAME)
         if light_adapter != None:
             if color == "preview" and not light_adapter.get_capability("preview_backlight"):
-                light_adapter.set_backlight(None)
-                pwm = split_backlight_intensity((color, ), intensity)
-                self.set_io_states(led_off | {"led_preview": pwm[color], })
+                light_adapter.set_backlight()
+                pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+                self.set_io_states(led_off | {"led_preview": pwm[color] / 255, })
             else:
-                light_adapter.set_backlight(color=color, intensity)
+                light_adapter.set_backlight(color=color, exposure=exposure, gain=gain)
                 self.set_io_states(led_off)
         else:
             if color == None:
                 self.set_io_states(led_off)
             elif color in ["white", "preview"]:
-                pwm = split_backlight_intensity((color, ), intensity)
-                self.set_io_states(led_off | {"led_"+color: pwm[color], })
+                pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+                self.set_io_states(led_off | {"led_"+color: pwm[color] / 255, })
             else:
                 raise ValueError(f"Color '{color}' is not supported")
 

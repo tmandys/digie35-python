@@ -1023,21 +1023,25 @@
                                 </select>
                             </div>
                             <div id="backlight-color-ranges" class="vertical-spacer">
-                                <div id="backlight-amber-container" class="hidden">
-                                    <input type="range" id="backlight-amber-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED gain" />
-                                    <input type="number" id="backlight-amber-num" min="0" max="10" step="0.01" />
-                                </div>
                                 <div id="backlight-red-container" class="hidden">
-                                    <input type="range" id="backlight-red-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: red" title="Backlight red LED gain" />
-                                    <input type="number" id="backlight-red-num" min="0" max="10" step="0.01" />
+                                    <input type="range" id="backlight-red-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: red" title="Backlight red LED gain" />
+                                    <input type="number" id="backlight-red-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
+                                    <input type="checkbox" id="backlight-red-switch" title="Toggle red LED" />
                                 </div>
                                 <div id="backlight-green-container" class="hidden">
-                                    <input type="range" id="backlight-green-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: green" title="Backlight green LED gain" />
-                                    <input type="number" id="backlight-green-num" min="0" max="10" step="0.01" />
+                                    <input type="range" id="backlight-green-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: green" title="Backlight green LED gain" />
+                                    <input type="number" id="backlight-green-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
+                                    <input type="checkbox" id="backlight-green-switch" title="Toggle green LED" />
                                 </div>
                                 <div id="backlight-blue-container" class="hidden">
-                                    <input type="range" id="backlight-blue-rng" value="1" min="0" max="10" step="0.01" class="color-range" style="accent-color: blue" title="Backlight blue LED gain" />
-                                    <input type="number" id="backlight-blue-num" min="0" max="10" step="0.01" />
+                                    <input type="range" id="backlight-blue-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: blue" title="Backlight blue LED gain" />
+                                    <input type="number" id="backlight-blue-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset." />
+                                    <input type="checkbox" id="backlight-blue-switch" title="Toggle blue LED" />
+                                </div>
+                                <div id="backlight-amber-container" class="hidden">
+                                    <input type="range" id="backlight-amber-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED gain" />
+                                    <input type="number" id="backlight-amber-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
+                                    <input type="checkbox" id="backlight-amber-switch" title="Toggle amber LED" />
                                 </div>
                             </div>
                         </div>
@@ -2379,7 +2383,7 @@
                                 .length > 0) {
                                     color_list.value = data.payload.backlight.color;
                                     switch (data.payload.backlight.color) {
-                                        case "preset":
+                                        case "preview":
                                         case "ir":
                                             col = data.payload.backlight.color+"-";
                                             break;
@@ -2391,7 +2395,10 @@
                                     if (typeof data.payload.backlight.gain != "undefined") {
                                         for (const [color, gain] of Object.entries(data.payload.backlight.gain)) {
                                             if (is_color_active(color)) {
-                                                document.getElementById("backlight-"+color+"-rng").value = gain;
+                                                document.getElementById("backlight-"+color+"-switch").checked = gain > 0;
+                                                if (gain > 0) {
+                                                    document.getElementById("backlight-"+color+"-num").value = gain;
+                                                }
                                             }
                                         }
                                     }
@@ -2437,7 +2444,7 @@
                                 if (data.payload.input_event == "long_press") {
                                     if (!color_list.disabled) {
                                         color_list.value = color_list.value ? "" : window.last_backlight_color;
-                                        color_list.onchange();
+                                        color_list.dispatchEvent(new Event("change"));
                                     }
                                 } else if (data.payload.input_event == "click") {
                                     get_adapter_button("shoot", "").click();
@@ -3398,23 +3405,61 @@
             element.addEventListener("click", _listener_modal_container_close)
         });
 
-        const _listener_backlight_color_ranges_input_range = function(event) {
-            adjust_backlight(false, is_color_active(event.target.id.split("-")[1]));
+        const _listener_backlight_color_ranges_input_range_input = function(event) {
+            const range_elem = event.target;
+            const elem_color = range_elem.id.split("-")[1];
+            const num_elem = document.getElementById("backlight-"+elem_color+"-num");
+            num_elem.value = Math.pow(10, Number(range_elem.value)).toFixed(2);
+            num_elem.dispatchEvent(new Event("change"));
         };
+        const _listener_backlight_color_ranges_input_range_wheel = function(event) {
+            event.preventDefault();
+            const range_elem = event.target;
+            let val = Number(range_elem.value);
+            let step = (event.deltaY < 0 ? 1 : -1) * Number(range_elem.step);
+            if (!event.shiftKey) {
+                step *= 10;
+            }
+            val += step;
+            range_elem.value = Math.max(Number(range_elem.min), Math.min(Number(range_elem.max), val.toFixed(2)));
+            _listener_backlight_color_ranges_input_range_input(event);
+        }
         document.querySelectorAll('#backlight-color-ranges input[type="range"]').forEach(element=> {
-            element.addEventListener("input", _listener_backlight_color_ranges_input_range);
+            element.addEventListener("input", _listener_backlight_color_ranges_input_range_input);
+            element.addEventListener("wheel", _listener_backlight_color_ranges_input_range_wheel);
         });
 
-        const _listener_backlight_color_ranges_input_number = function(event) {
-            const num_elem = event.target;
-            const elem_color = num_elem.id.split("-")[1];
-            const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
-            range_elem.value = num_elem.value;
-            adjust_backlight(false, is_color_active(elem_color));
-            localStorage.setItem("control.backlight."+elem_color, num_elem.value);  // registered is range
+        const _listener_backlight_color_ranges_input_number_change = function(event) {
+            adjust_backlight(false, is_color_active(event.target.id.split("-")[1]));
         };
+        const _listener_backlight_color_ranges_input_number_wheel = function(event) {
+            event.preventDefault();
+            const num_elem = event.target;
+            let val = Number(num_elem.value);
+            let step = (event.deltaY < 0 ? 1 : -1) * Number(num_elem.step);
+            if (!event.shiftKey) {
+                step *= 10;
+            }
+            val += step;
+            num_elem.value = Math.max(Number(num_elem.min), Math.min(Number(num_elem.max), val.toFixed(2)));
+            num_elem.dispatchEvent(new Event("change"));
+        }
+        const _listener_backlight_color_ranges_input_number_dblclick = function(event) {
+            event.preventDefault();
+            const num_elem = event.target;
+            num_elem.value = 1;
+            num_elem.dispatchEvent(new Event("change"));
+        }
         document.querySelectorAll('#backlight-color-ranges input[type="number"]').forEach(element=> {
-            element.addEventListener("change", _listener_backlight_color_ranges_input_number)
+            element.addEventListener("change", _listener_backlight_color_ranges_input_number_change)
+            element.addEventListener("wheel", _listener_backlight_color_ranges_input_number_wheel)
+            element.addEventListener("dblclick", _listener_backlight_color_ranges_input_number_dblclick)
+        });
+        const _listener_backlight_color_ranges_input_checkbox = function(event) {
+            adjust_backlight(false, is_color_active(event.target.id.split("-")[1]));
+        };
+        document.querySelectorAll('#backlight-color-ranges input[type="checkbox"]').forEach(element=> {
+            element.addEventListener("change", _listener_backlight_color_ranges_input_checkbox)
         });
 
         var multi_container = document.getElementById("file-template-options-capture-multi");
@@ -3553,10 +3598,14 @@
 			"control.backlight.exposure": "backlight-exposure",
 			"control.backlight.exposure.ir": "backlight-ir-exposure",
 			"control.backlight.exposure.preview": "backlight-preview-exposure",
-			"control.backlight.gain.red": "backlight-red-rng",
-			"control.backlight.gain.green": "backlight-green-rng",
-			"control.backlight.gain.blue": "backlight-blue-rng",
-			"control.backlight.gain.amber": "backlight-amber-rng",
+			"control.backlight.gain.red": "backlight-red-num",
+			"control.backlight.gain.green": "backlight-green-num",
+			"control.backlight.gain.blue": "backlight-blue-num",
+			"control.backlight.gain.amber": "backlight-amber-num",
+			"control.backlight.on.red": "backlight-red-switch",
+			"control.backlight.on.green": "backlight-green-switch",
+			"control.backlight.on.blue": "backlight-blue-switch",
+			"control.backlight.on.amber": "backlight-amber-switch",
             "control.focus_warning_interval": "focus-warning-list",
             "control.external_trigger": "external-trigger-cb",
             "capture.multi": "capture-multi",
@@ -3990,7 +4039,7 @@
                 const color_list = document.getElementById("backlight-color-list");
                 if (!color_list.disabled) {
                     color_list.value = color_list.value ? "" : window.last_backlight_color;
-                    color_list.onchange();
+                    color_list.dispatchEvent(new Event("change"));
                 }
                 break;
             case "KeyP":
@@ -4237,10 +4286,15 @@
             if (adjust_range) {
                 set_visible(elems[i], is_visible, "");
             }
-            const range_elem = document.getElementById("backlight-"+elem_color+"-rng");
-            document.getElementById("backlight-"+elem_color+"-num").value = range_elem.value;
+            const num_elem = document.getElementById("backlight-"+elem_color+"-num");
+            const cb_elem = document.getElementById("backlight-"+elem_color+"-switch");
+            num_elem.value = Math.max(Number(num_elem.min), Math.min(Number(num_elem.max), Number(num_elem.value)));
+            if (Number(num_elem.value) <= 0) {
+                cb_elem.checked = false;
+            }
+            document.getElementById("backlight-"+elem_color+"-rng").value = Math.log10(Number(num_elem.value));
             if (is_on && is_visible) {
-                gain[elem_color] = Number(range_elem.value)
+                gain[elem_color] = cb_elem.checked ? Number(num_elem.value) : 0;
             }
         }
         let bck = `${is_on}`;

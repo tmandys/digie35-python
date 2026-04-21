@@ -1,11 +1,12 @@
-v0.9 (2025-xx-xx)
+v0.9 (2026-xx-xx)
 
 Features
 --------
   - flattening press for motorized adapter
   - still latest image from both USB preview and external stream
   - save capture preview on disk and display later in browser
-  - manual backlight intensity input
+  - exposure+gain backlight
+  - manual backlight gain input
   - max.motor run time
   - backlight auto off
   - filmstrip preview
@@ -20,6 +21,7 @@ Features
   - AOT light box, Digie120 support
   - external light adapter on AOT bus (for Digie120 using Digie35 adapters)
   - external trigger support
+  - reset factory settings
 
 Fixes
 -----

@@ -82,7 +82,7 @@ def get_board_memory_class(board_type, board_id = None, version = None):
         logging.getLogger().debug("id: %s, ver: %s" % id_ver)
         adapter_class = digie35board.GulpExtensionBoard.get_adapter_class_by_name(id_ver)
         if adapter_class == None:
-            raise Digie35ServerError("Cannot find adapter '%s'" % (id_ver, ))
+            raise Digie35ServerError(f"Cannot find adapter '{id_ver}'")
         eeprom = eeprom.create_adapter_memory(adapter_class)
     return eeprom
 
@@ -131,193 +131,195 @@ async def ws_handler(websocket, path):
                             return default
 
                     try:
-                        if "":
-                            pass
-                        elif cmd == "LEVEL":
-                            xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
-                            reply_status = True
-                        elif cmd == "WAIT":
-                            time.sleep(float(get_param(0, "1")))
-                            reply_status = True
-                        elif cmd == "PULSE":
-                            xboard.pulse_output(get_param(0, "").lower(), float(get_param(2, 0)), float(get_param(1, 1)))
-                            reply_status = True
-                        elif cmd == "SENSOR":
-                            xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
-                            reply_status = True
+                        match cmd:
+                            case "":
+                                pass
+                            case  "LEVEL":
+                                xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
+                                reply_status = True
+                            case "WAIT":
+                                time.sleep(float(get_param(0, "1")))
+                                reply_status = True
+                            case "PULSE":
+                                xboard.pulse_output(get_param(0, "").lower(), float(get_param(2, 0)), float(get_param(1, 1)))
+                                reply_status = True
+                            case "SENSOR":
+                                xboard.set_io_state(get_param(0, "").lower(), int(get_param(1, 1)))
+                                reply_status = True
 
-                        elif cmd == "MOVE":
-                            xboard.check_capability("motorized")
-                            xboard.get_adapter().set_motor(int(get_param(0, 1)))
-                            reply_status = True
-                        elif cmd == "STOP":
-                            xboard.check_capability("motorized")
-                            xboard.get_adapter().set_motor(0)
-                            reply_status = True
-                        elif cmd == "EJECT":
-                            xboard.check_capability("motorized")
-                            xboard.get_adapter().eject(int(get_param(0, 1)))
-                            reply_status = True
-                        elif cmd == "INSERT":
-                            xboard.check_capability("motorized")
-                            xboard.get_adapter().lead_in()
-                            reply_status = True
-                        elif cmd == "MOVE_BY":
-                            xboard.check_capability("motorized")
-                            xboard.get_adapter().move_by(int(get_param(0, 1)), int(get_param(1, 3)))
-                            reply_status = True
-                        elif cmd == "FLATTEN":
-                            xboard.check_capability("flattening")
-                            xboard.get_adapter().flatten_plane(int(get_param(0, 1)))
+                            case "MOVE":
+                                xboard.check_capability("motorized")
+                                xboard.get_adapter().set_motor(int(get_param(0, 1)))
+                                reply_status = True
+                            case "STOP":
+                                xboard.check_capability("motorized")
+                                xboard.get_adapter().set_motor(0)
+                                reply_status = True
+                            case "EJECT":
+                                xboard.check_capability("motorized")
+                                xboard.get_adapter().eject(int(get_param(0, 1)))
+                                reply_status = True
+                            case "INSERT":
+                                xboard.check_capability("motorized")
+                                xboard.get_adapter().lead_in()
+                                reply_status = True
+                            case "MOVE_BY":
+                                xboard.check_capability("motorized")
+                                xboard.get_adapter().move_by(int(get_param(0, 1)), int(get_param(1, 3)))
+                                reply_status = True
+                            case "FLATTEN":
+                                xboard.check_capability("flattening")
+                                xboard.get_adapter().flatten_plane(int(get_param(0, 1)))
 
-                        elif cmd == "SET_BACKLIGHT":
-                            xboard.set_backlight(color=get_param(0, 1).lower(), pwm=int(get_param(1, 1)))
+                            case "SET_BACKLIGHT":
+                                color = get_param(0, 1).lower()
+                                xboard.set_backlight(color=color, gain={color: float(get_param(1, 1))})
 
-                        elif cmd == "HOTPLUG":
-                            xboard.check_connected_adapter()
-                            reply_status = True
+                            case "HOTPLUG":
+                                xboard.check_connected_adapter()
+                                reply_status = True
 
-                        elif cmd == "GET":
-                            reply_status = True
-                        elif cmd == "HELLO":
-                            reply = {
-                                "board": xboard.get_id(),
-                                "version": __version__,
-                                "ws_protocol": WS_PROTOCOL_VERSION,
-                                "eeprom": isinstance(xboard, digie35board.GulpExtensionBoard),
-                            }
-                        elif cmd == "GET_CONFIG":
-                            header_map = digie35board.GulpBoardMemory.HEADER_MAP
-                            def add_options(map, id, opts):
-                                for i in range(len(map)):
-                                    if map[i][0] == id and opts:
-                                        item = list(map[i])
-                                        if len(item) <= 4:
-                                            item += [None, ]
-                                        if len(item) <= 5:
-                                            item += [None, ]
-                                        item[5] = opts
-                                        map[i] = tuple(item)
-
-                            def add_options_cfg(map, id, cfg_key):
-                                if cfg_key in config:
-                                    add_options(map, id, config[cfg_key])
-                            ts = {}
-                            t = datetime.date.today()
-                            for i in range(0, 7):
-                                t2 = t - datetime.timedelta(days=i*1)
-                                y = t2.isocalendar()[0]
-                                doy = int(t2.strftime("%j"))
-                                # workaround add space to force not sorting numeric keys when parsing in JSON
-                                ts["%.2d%.3d " % (y % 100, doy)] = t2.strftime("%d.%m.%Y")
-                                #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, int(t2.strftime("%j"))))
-                            for i in range(0, 5):
-                                t2 = t - datetime.timedelta(days=i*7)
-                                y = t2.isocalendar()[0]
-                                woy = t2.isocalendar()[1]
-                                ts["%.2d%.3d " % (y % 100, woy + 900)] = "%d W:%s" % (y, woy)
-                                #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, 900+t2.isocalendar()[1]))
-
-                            add_options(header_map, "version", [i for i in range(104+1, 100, -1)])
-                            add_options_cfg(header_map, "pcb_by", "assemblers")
-                            add_options_cfg(header_map, "pcba_smd_by", "assemblers")
-                            add_options_cfg(header_map, "pcba_tht_by", "assemblers")
-                            add_options_cfg(header_map, "tested1_by", "testers")
-                            add_options_cfg(header_map, "tested2_by", "testers")
-                            add_options(header_map, "pcb_stamp", ts)
-                            add_options(header_map, "pcba_smd_stamp", ts)
-                            add_options(header_map, "pcba_tht_stamp", ts)
-                            add_options(header_map, "tested1_stamp", ts)
-                            add_options(header_map, "tested2_stamp", ts)
-                            def process_map(map):
-                                result = []
-                                for item1 in map:
-                                    if not item1[0]:
-                                        continue
-                                    item = list(item1)
-                                    if len(item) > 5 and callable(item[5]):
-                                        item[5] = item[5]()
-                                    result.append(item)
-                                return result
-
-                            reply = {
-                                "eeprom": {
-                                    "COMMON": process_map(header_map),
-                                    } | {cls.ID: process_map(cls.BOARD_MEMORY_CLASS.CUSTOM_MAP) for cls in digie35board.registered_boards},
-                                "adapter_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35core.Adapter) and not issubclass(cls, digie35board.GulpLightAdapter)],
-                                "light_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterLightMemorySelectorMixin)],
-                                "xlight_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterAotLightMemorySelectorMixin)],
-                            }
-                            for id in list(reply["eeprom"]):
-                                for i in range(len(reply["eeprom"][id])):
-                                    item = list(reply["eeprom"][id][i])
-                                    if len(item) > 5 and callable(item[5]):
-                                        item[5] = item[5]()
-                                    reply["eeprom"][id][i] = tuple(item)
-                            break
-                        elif cmd == "READ_EEPROM":
-                            eeprom = get_board_memory_class(params["board_type"])
-                            reply = {
-                                "board_type": params["board_type"],
-                                "common": eeprom.read_header(),
-                                "board": eeprom.read_custom(),
-                            }
-                        elif cmd == "WRITE_EEPROM":
-                            eeprom = get_board_memory_class(params["board_type"], params["common"]["adapter_id"], params["common"]["version"])
-                            eeprom.write_header(params["common"])
-                            eeprom.write_custom(params["board"])
-                            reply = {
-                                "board_type": params["board_type"],
-                                "common": eeprom.read_header(),
-                                "board": eeprom.read_custom(),
-                            }
-                        elif cmd == "GET_IO":
-                            state = xboard.get_state(True)
-                            reply = {}
-                            if params and params.get("definition", False):
-                                io_map = xboard._io_map
-                                defs = {
-                                    "XBOARD": {}
+                            case "GET":
+                                reply_status = True
+                            case "HELLO":
+                                reply = {
+                                    "board": xboard.get_id(),
+                                    "version": __version__,
+                                    "ws_protocol": WS_PROTOCOL_VERSION,
+                                    "eeprom": isinstance(xboard, digie35board.GulpExtensionBoard),
                                 }
-                                for name in xboard._io_map:
-                                    if not xboard._io_map[name].get("_adapter_scope", False):
-                                        defs["XBOARD"][name] = xboard._io_map[name].copy()
-                                        del defs["XBOARD"][name]["_adapter_scope"]
+                            case "GET_CONFIG":
+                                header_map = digie35board.GulpBoardMemory.HEADER_MAP
+                                def add_options(map, id, opts):
+                                    for i in range(len(map)):
+                                        if map[i][0] == id and opts:
+                                            item = list(map[i])
+                                            if len(item) <= 4:
+                                                item += [None, ]
+                                            if len(item) <= 5:
+                                                item += [None, ]
+                                            item[5] = opts
+                                            map[i] = tuple(item)
 
-                                for adapter_type in list(xboard._adapters):
-                                    defs[adapter_type] = {}
+                                def add_options_cfg(map, id, cfg_key):
+                                    if cfg_key in config:
+                                        add_options(map, id, config[cfg_key])
+                                ts = {}
+                                t = datetime.date.today()
+                                for i in range(0, 7):
+                                    t2 = t - datetime.timedelta(days=i*1)
+                                    y = t2.isocalendar()[0]
+                                    doy = int(t2.strftime("%j"))
+                                    # workaround add space to force not sorting numeric keys when parsing in JSON
+                                    ts["%.2d%.3d " % (y % 100, doy)] = t2.strftime("%d.%m.%Y")
+                                    #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, int(t2.strftime("%j"))))
+                                for i in range(0, 5):
+                                    t2 = t - datetime.timedelta(days=i*7)
+                                    y = t2.isocalendar()[0]
+                                    woy = t2.isocalendar()[1]
+                                    ts["%.2d%.3d " % (y % 100, woy + 900)] = "%d W:%s" % (y, woy)
+                                    #ts.append("%.2d%.3d" % (t2.isocalendar()[0] % 100, 900+t2.isocalendar()[1]))
+
+                                add_options(header_map, "version", [i for i in range(104+1, 100, -1)])
+                                add_options_cfg(header_map, "pcb_by", "assemblers")
+                                add_options_cfg(header_map, "pcba_smd_by", "assemblers")
+                                add_options_cfg(header_map, "pcba_tht_by", "assemblers")
+                                add_options_cfg(header_map, "tested1_by", "testers")
+                                add_options_cfg(header_map, "tested2_by", "testers")
+                                add_options(header_map, "pcb_stamp", ts)
+                                add_options(header_map, "pcba_smd_stamp", ts)
+                                add_options(header_map, "pcba_tht_stamp", ts)
+                                add_options(header_map, "tested1_stamp", ts)
+                                add_options(header_map, "tested2_stamp", ts)
+                                def process_map(map):
+                                    result = []
+                                    for item1 in map:
+                                        if not item1[0]:
+                                            continue
+                                        item = list(item1)
+                                        if len(item) > 5 and callable(item[5]):
+                                            item[5] = item[5]()
+                                        result.append(item)
+                                    return result
+
+                                reply = {
+                                    "eeprom": {
+                                        "COMMON": process_map(header_map),
+                                        } | {cls.ID: process_map(cls.BOARD_MEMORY_CLASS.CUSTOM_MAP) for cls in digie35board.registered_boards},
+                                    "adapter_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35core.Adapter) and not issubclass(cls, digie35board.GulpLightAdapter)],
+                                    "light_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterLightMemorySelectorMixin)],
+                                    "xlight_boards": [cls.ID for cls in digie35board.registered_boards if issubclass(cls, digie35board.GulpLightAdapter) and issubclass(cls, digie35board.GulpAdapterAotLightMemorySelectorMixin)],
+                                }
+                                for id in list(reply["eeprom"]):
+                                    for i in range(len(reply["eeprom"][id])):
+                                        item = list(reply["eeprom"][id][i])
+                                        if len(item) > 5 and callable(item[5]):
+                                            item[5] = item[5]()
+                                        reply["eeprom"][id][i] = tuple(item)
+                                break
+                            case "READ_EEPROM":
+                                eeprom = get_board_memory_class(params["board_type"])
+                                reply = {
+                                    "board_type": params["board_type"],
+                                    "common": eeprom.read_header(),
+                                    "board": eeprom.read_custom(),
+                                }
+                            case "WRITE_EEPROM":
+                                eeprom = get_board_memory_class(params["board_type"], params["common"]["adapter_id"], params["common"]["version"])
+                                eeprom.write_header(params["common"])
+                                eeprom.write_custom(params["board"])
+                                reply = {
+                                    "board_type": params["board_type"],
+                                    "common": eeprom.read_header(),
+                                    "board": eeprom.read_custom(),
+                                }
+                            case "GET_IO":
+                                state = xboard.get_state(True)
+                                reply = {}
+                                if params and params.get("definition", False):
+                                    io_map = xboard._io_map
+                                    defs = {
+                                        "XBOARD": {}
+                                    }
                                     for name in xboard._io_map:
-                                        if xboard._io_map[name].get("_adapter_scope", False) == adapter_type:
-                                            defs[adapter_type][name] = xboard._io_map[name].copy()
-                                            del defs[adapter_type][name]["_adapter_scope"]
+                                        if not xboard._io_map[name].get("_adapter_scope", False):
+                                            defs["XBOARD"][name] = xboard._io_map[name].copy()
+                                            del defs["XBOARD"][name]["_adapter_scope"]
 
-                                reply["definition"] = defs
-                            reply |= {
-                                "state": state["io"],
-                            }
-                        elif cmd == "SET_IO":
-                            xboard.set_io_state(params["name"], params["value"])
-                            reply = {
-                                "name": params["name"],
-                                "value": xboard.get_io_state(params["name"]),
-                            }
-                        elif cmd == "BYE":
-                            reply = ""
-                            reply_status = False
-                            break
-                        else:
-                            reply = f"Unknown command: {cmd}"
+                                    for adapter_type in list(xboard._adapters):
+                                        defs[adapter_type] = {}
+                                        for name in xboard._io_map:
+                                            if xboard._io_map[name].get("_adapter_scope", False) == adapter_type:
+                                                defs[adapter_type][name] = xboard._io_map[name].copy()
+                                                del defs[adapter_type][name]["_adapter_scope"]
 
+                                    reply["definition"] = defs
+                                reply |= {
+                                    "state": state["io"],
+                                }
+                            case "SET_IO":
+                                xboard.set_io_state(params["name"], params["value"])
+                                reply = {
+                                    "name": params["name"],
+                                    "value": xboard.get_io_state(params["name"]),
+                                }
+                            case "BYE":
+                                reply = ""
+                                reply_status = False
+                                break
+                            case _:
+                                reply = f"Unknown command: {cmd}"
+
+                        if reply_status and reply == "":
+                            reply = xboard.get_state(True)
                     except Exception as e:
                         log.error("%s", e, exc_info=True)
                         reply = repr(e)
                         break
 
-                if reply_status and reply == "":
-                    reply = xboard.get_state(True)
                 if isinstance(reply, (dict, list, set)):
                     reply = json.dumps({"cmd": cmd, "payload": reply})
-                log.debug("ws.send: %s" % reply)
+                log.debug(f"ws.send: {reply}")
 
                 await websocket.send(reply)
             except websockets.exceptions.ConnectionClosedError:
