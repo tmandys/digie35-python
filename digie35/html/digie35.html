@@ -543,6 +543,37 @@
             clear: both;
         }
 
+        .error-box {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10001;
+
+            width: 90%;
+            max-width: 600px;
+            background-color: #F8D7DAD9;
+            backdrop-filter: blur(4px);
+
+            border-radius: 8px;
+            padding: 5px 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+
+            display: flex;
+            align-items: center;// flex-start;
+            gap: 10px;
+        }
+
+        @media (max-width: 480px) {
+            .error-box {
+                bottom: 0;
+                right: 0;
+                left: 0;
+                width: 100%;
+                transform: none;
+                border-radius: 0;
+            }
+        }
+
         .error-message {
             background-color: #F8D7DA;
             color: #721c24;
@@ -554,11 +585,20 @@
             font-size: 14px;
         }
 
-        .error-message .close {
+        .error-box .error-message {
+            background-color: unset;
+        }
+
+        .error-box .close {
             position: absolute;
             top: 0;
             right: 5px;
             cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .error-box .close:hover {
+            opacity: 1;
         }
 
         .error-message .icon {
@@ -839,11 +879,13 @@
 </head>
 
 <body onload="do_onload()">
-    <div id="error-box" class="error-message hidden" title="Ctrl+C to clear errors">
-        <span class="icon">&#x26a0;</span>
-        <audio id="error-sound" src="sounds/error.mp3"></audio>
-        <span id="error-close" class="close">&times;</span>
-        <div id="error-content" class="content"></div>
+    <div id="error-box" class="error-box hidden">
+        <div class="error-message" title="Ctrl+C to clear errors">
+            <span class="icon">&#x26a0;</span>
+            <audio id="error-sound" src="sounds/error.mp3"></audio>
+            <span id="error-close" class="close">&times;</span>
+            <div id="error-content" class="content"></div>
+        </div>
     </div>
     <div class="wrapper">
         <div class="left-sidebar" id="controls">
