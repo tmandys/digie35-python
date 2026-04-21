@@ -30,6 +30,7 @@ Fixes
   - motherboard, xboard, adapter object cleanup
   - .description.txt optional in film directory
   - Eject direction not affected by reverse sense
+  - use last volume even after server restart
 
 v0.8 (2025-04-24)
 =================
