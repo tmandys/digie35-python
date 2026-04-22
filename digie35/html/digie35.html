@@ -889,7 +889,7 @@
     </div>
     <div class="wrapper">
         <div class="left-sidebar" id="controls">
-            <div class="accordion">
+            <div class="accordion" id="connection-accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="connection-settings-modal" title="Click to show server details">&#9881</button>
                     <span class="title">Connection</span>
@@ -906,7 +906,7 @@
                 </fieldset>
             </div>
 
-            <div class="accordion">
+            <div class="accordion" id="camera-accordion">
                 <div class="header">
                     <span class="title">Camera<span class="subtitle" id="header-camera-name"></span></span>
                     <span class="arrow">&#9660;</span>
@@ -931,7 +931,7 @@
                 </fieldset>
             </div>
 
-            <div class="accordion">
+            <div class="accordion" id="volume-accordion">
                 <div class="header">
                     <span class="title">Volume<span class="subtitle" id="header-volume-name"></span></span>
                     <span class="arrow">&#9660;</span>
@@ -949,7 +949,7 @@
                 </fieldset>
             </div>
 
-            <div class="accordion">
+            <div class="accordion" id="project-accordion">
                 <div class="header">
                     <span class="title">Project<span class="subtitle" id="header-project-name"></span></span>
                     <span class="arrow">&#9660;</span>
@@ -970,7 +970,7 @@
                     </div>
                 </fieldset>
             </div>
-            <div class="accordion">
+            <div class="accordion" id="film-accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="film-settings-modal" title="Click to show film setting">&#9881</button>
                     <span class="title">Film<span class="subtitle" id="header-film-name"></span></span>
@@ -1002,7 +1002,7 @@
                 </fieldset>
             </div>
 
-            <div class="accordion">
+            <div class="accordion" id="motion-accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="motion-settings-modal" title="Click to show motion setting">&#9881</button>
                     <span class="title">Motion<span class="subtitle" id="header-motion-name"></span></span>
@@ -1044,7 +1044,7 @@
                 </fieldset>
             </div>
 
-            <div class="accordion">
+            <div class="accordion" id="backlight-accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="backlight-settings-modal" title="Click to show backlight setting">&#9881</button>
                     <span class="title">Backlight<span class="subtitle" id="header-backlight-color"></span></span>
@@ -1090,7 +1090,7 @@
                     </div>
                 </fieldset>
             </div>
-            <div class="accordion">
+            <div class="accordion" id="capture-accordion">
                 <div class="header">
                     <button class="modal-open" data-modal_id="capture-settings-modal" title="Click to show capture setting">&#9881</button>
                     <span class="title">Capture<span class="subtitle" id="header-capture-filename"></span></span>
@@ -3419,9 +3419,17 @@
             const elem = document.getElementById(this.getAttribute("data-container_id"));
             elem.classList.toggle("collapsed");
             this.classList.toggle("toggle-collapsed");
+            localStorage.setItem("panel."+elem.id, Number(!elem.classList.contains("collapsed")));
         };
         document.querySelectorAll(".collapse-toggle").forEach(element=> {
             element.addEventListener("click", _listener_collapse_toggle)
+            const elem = document.getElementById(element.getAttribute("data-container_id"));
+            if (elem) {
+                if (elem.classList.contains("collapsed") == Boolean(Number(localStorage.getItem("panel."+elem.id) ?? 1))) {
+                    elem.classList.toggle("collapsed");
+                    element.classList.toggle("toggle-collapsed");
+                }
+            }
         });
 
         const _listener_modal_open = function(event) {
@@ -3434,9 +3442,13 @@
 
         const _listener_accordion_header_click = function() {
             this.parentNode.classList.toggle("closed");
+            localStorage.setItem("accordion."+this.parentNode.id, Number(!this.parentNode.classList.contains("closed")));
         };
         document.querySelectorAll(".accordion .header").forEach(element=> {
-            element.addEventListener("click", _listener_accordion_header_click)
+            element.addEventListener("click", _listener_accordion_header_click);
+            if (element.parentNode.classList.contains("closed") == Boolean(Number(localStorage.getItem("accordion."+element.parentNode.id) ?? 1))) {
+                element.parentNode.classList.toggle("closed");
+            }
         });
 
         const _listener_detail_toggle = function() {
@@ -3448,6 +3460,7 @@
         };
         document.querySelectorAll(".detail-toggle").forEach(element=> {
             element.addEventListener("click", _listener_detail_toggle)
+            // not used, obsolete ?
         });
 
         const _listener_modal_container_close = function() {

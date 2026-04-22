@@ -22,6 +22,7 @@ Features
   - external light adapter on AOT bus (for Digie120 using Digie35 adapters)
   - external trigger support
   - reset factory settings
+  - save accordion/panel state
 
 Fixes
 -----
