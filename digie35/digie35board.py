@@ -758,8 +758,10 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self.props.set("FP_PRESS_DELAY", 10.0)   # wait some time till press down when stopped
         self.props.set("FP_BACKLIGHT_OFF", False)  # switch off light to reduce power load at 24V
         self.props.set("FP_DOWN_COUNT", 1)    # repeat pull down to increase force
+        self.props.set("FP_PWM_FREQ", 14000)   # simulate bit-bang PWM
+        self.props.set("FP_PWM_RATIO", 0.8)   # PWM bitbang ration
         self.props.set("FP_PULSE_COUNT", 3)   # simulate PWM to avoid voltage drop
-        self.props.set("FP_PULSE_WIDTH", 0.025)   # short pulse to pull selenoid
+        self.props.set("FP_PULSE_WIDTH", 0.1)   # short pulse to pull selenoid
 
     def close(self):
         self._xboard._cancel_timer(self._FLATTENING_TIMER)
@@ -796,6 +798,11 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self._do_pull_selenoid(True)
         self._xboard._finalize_timer(self._FLATTENING_TIMER)
 
+    def _precise_sleep(self, sec):
+        target = time.perf_counter_ns() + sec*1e+9
+        while target > time.perf_counter_ns():
+            pass
+
     def _do_pull_selenoid(self, down):
         # logging.getLogger().debug("pull_selenoid(%s / %s)" % (down, self._SELENOID))
         if self._SELENOID:
@@ -811,15 +818,28 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
                 self._xboard.set_io_state("stepper_dir", not down)
                 self._xboard.set_io_state("stepper_enable", False)
                 cnt1 = self.props.get("FP_DOWN_COUNT") if down else 1
+                width = self.props.get("FP_PULSE_WIDTH")
+                pwm_freq = self.props.get("FP_PWM_FREQ")
+                pwm_ratio = self.props.get("FP_PWM_RATIO")
+                #logging.getLogger().debug(f"pull_selenoid({down}), DOWN_COUNT: {cnt1}, PWM_FREQ: {pwm_freq}, PWM_RATIO: {pwm_ratio}, PULSE_WIDTH: {width}, PULSE_COUNT: {self.props.get('FP_PULSE_COUNT')}")
                 while cnt1 > 0:
                     cnt = self.props.get("FP_PULSE_COUNT")
-                    width = self.props.get("FP_PULSE_WIDTH")
                     while cnt > 0:
                         cnt -= 1
-                        self._xboard.set_io_state("stepper_step", True)
-                        time.sleep(width)   # short pulse to limit heating
-                        self._xboard.set_io_state("stepper_step", False)
-                        time.sleep(width)
+                        if pwm_freq > 0:
+                            ts = time.perf_counter()
+                            # bit-bang PWM
+                            while time.perf_counter() - ts <= width:
+                                self._xboard.set_io_state("stepper_step", True)
+                                self._precise_sleep(1/pwm_freq*pwm_ratio)
+                                if pwm_ratio < 1.0:
+                                    self._xboard.set_io_state("stepper_step", False)
+                                    self._precise_sleep(1/pwm_freq*(1-pwm_ratio))
+                        else:
+                            self._xboard.set_io_state("stepper_step", True)
+                            time.sleep(width)   # short pulse to limit heating
+                            self._xboard.set_io_state("stepper_step", False)
+                            time.sleep(width)
                     cnt1 -= 1
                 # logging.getLogger().debug("end pulse")
                 self._xboard.set_io_state("stepper_dir", save_dir)
