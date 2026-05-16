@@ -996,7 +996,7 @@ class ImageAnalysis:
                 self._status = "ALIGNED" if move["move_by"] == 0 else "SHIFT_REQUIRED"
                 self._result |= move
         else:
-            self._result = "FRAME_NOT_DETECTED"
+            self._status = "FRAME_NOT_DETECTED"
         # TODO: get RGB from holes and analyze. It might help to detect BW vs. Color when non white LED is used
 
     @log_duration
