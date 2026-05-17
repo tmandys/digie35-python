@@ -669,7 +669,7 @@ class ExtensionBoard:
         with self._backlight_lock:
             if color is not None and revert:
                 exposure = self._save_backlight_exposure.get(color, 0)
-                gain = self._save_backlight_gain(color, {})
+                gain = self._save_backlight_gain.get(color, {})
             self._set_backlight_impl(color=color, exposure=exposure, gain=gain)
             change_flag = self._current_backlight_color != color
             self._current_backlight_color = color
