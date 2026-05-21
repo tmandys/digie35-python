@@ -198,7 +198,7 @@ def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: 
                 pwm[color] = max(0, min(max_val, int(val)))
     else:
         for color in reversed(colors):
-            pwm[color] = (2 ** pwm_0ev.get(color, num_bits-3)) * (2 ** exposure)   # suppose 5 Ev range, i.e. num_bits - 3
+            pwm[color] = pwm_0ev.get(color, 2 ** (num_bits-3)) * (2 ** exposure)   # suppose 5 Ev range, i.e. num_bits - 3
             pwm[color] *= gain.get(color, 1)
             pwm[color] = max(0, min(max_val, round(pwm[color])))
     logging.getLogger().debug(f"pwm_from_exposure({colors}, {exposure}, {gain}, {pwm_0ev}) -> {pwm}")
@@ -1044,6 +1044,7 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
             custom["led3"]
         )
         self._driver = PCA9634Driver(xboard, pca_i2c_address)
+        self._default_pwm_0ev = {}
 
     def get_capabilities(self):
         result = super().get_capabilities()
@@ -1072,13 +1073,13 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
         if color is None:
             pass
         elif color == "white":
-            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain, pwm_0ev=self._default_pwm_0ev)
             pwm[1] = pwm2[color]
         elif color in ["ir", "preview"]:
-            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
+            pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain, pwm_0ev=self._default_pwm_0ev)
             pwm[2] = pwm2[color]
         elif color in ["red+green+blue", "white+red+green+blue", "amber+white+red+green+blue"]:
-            pwm2 = pwm_from_exposure(colors=color.split("+"), exposure=exposure, gain=gain)
+            pwm2 = pwm_from_exposure(colors=color.split("+"), exposure=exposure, gain=gain, pwm_0ev=self._default_pwm_0ev)
             pwm[4] = pwm2["red"]
             pwm[5] = pwm2["green"]
             pwm[6] = pwm2["blue"]
@@ -1118,6 +1119,7 @@ class GulpManual120Light8xPWMAdapter(GulpGeneralLight8xPWMAdapter, GulpAdapterAo
 
     def __init__(self, xboard):
         super().__init__(xboard, 0x6D)
+        self._default_pwm_0ev = {"white": 255 / 2 ** 2.5, }
 
 # external light box as regular AOT adapter
 class GulpLightBoxAdapter(Adapter, GulpLightSupportMixin):
