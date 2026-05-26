@@ -1936,8 +1936,9 @@
             for (const value of window.adapter_buttons['eject'].idx) {
                 adjust_class("eject", value, (data.action=="EJECT") && (data.movement != 0) &&((data.movement > 0) == (value > 0)));
             }
-            const action_elem = document.getElementById("motion-fieldset").querySelector(".current-action");
-            document.getElementById("header-motion-name").textContent = action_elem ? action_elem.textContent : "";
+            const fs = document.getElementById("motion-fieldset");
+            const action_elem = fs.querySelector(".current-action");
+            document.getElementById("header-motion-name").textContent = !fs.disabled &&  action_elem ? action_elem.textContent : "";
             if (typeof data.capturing != "undefined") {
                 adjust_class("shoot", "", data.capturing);
             }
