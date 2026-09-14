@@ -402,7 +402,7 @@ class ExtensionBoard:
 
 
 
-    def _set_backlight_impl(self, color, exposure, gain):
+    def _set_backlight_impl(self, color, exposure, gain, temp):
         pass
 
     def _set_xio(self, val):
@@ -488,6 +488,7 @@ class ExtensionBoard:
             "ir_backlight": False,
             "rgb_backlight": False,
             "rgbaw_backlight": False,
+            "temperature_backlight": False,
             "backlight_control": False,
             #"camera_remote_control": False,
             "jack_detection": False,
@@ -663,14 +664,14 @@ class ExtensionBoard:
                     self.set_backlight()
 
     ## revert == True use previous value, exposure is Ev, if exposure is none then gain is 0-1 (0-100%), otherwise multiplies exposure
-    def set_backlight(self, color = None, revert: bool = False, exposure: float = None, gain: dict = {}):
+    def set_backlight(self, color = None, revert: bool = False, exposure: float = None, gain: dict = {}, temp: int = None):
         if revert and (exposure is not None or gain):
             raise ValueError(f"Exposure/gain provided when reverting backlight")
         with self._backlight_lock:
             if color is not None and revert:
                 exposure = self._save_backlight_exposure.get(color, 0)
                 gain = self._save_backlight_gain.get(color, {})
-            self._set_backlight_impl(color=color, exposure=exposure, gain=gain)
+            self._set_backlight_impl(color=color, exposure=exposure, gain=gain, temp=temp)
             change_flag = self._current_backlight_color != color
             self._current_backlight_color = color
             if color is not None:

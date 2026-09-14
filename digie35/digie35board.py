@@ -207,7 +207,7 @@ def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: 
 ## Nikon only board for 60mm rig, i.e. metal u-shape box. 10-pin extension connector and powered by 5V
 class NikiExtensionBoard(ExtensionBoard):
 
-    def _set_backlight_impl(self, color, exposure, gain):
+    def _set_backlight_impl(self, color, exposure, gain, temp):
         if color == None:
             self.set_io_states({"led_white": 0, "led_ir": 0, "psu_led": 0, })
         elif color == "white":
@@ -955,12 +955,13 @@ class GulpLightAdapterMemory(GulpAdapterMemory):
     LED_WHITE = 1
     LED_IR = 2
     LED_RGB = 3
-    LED_RGBAW = 4
+    LED_RGBW = 4
+    LED_RGBAW = 5
 
     CUSTOM_MAP = [
         ("led1", "number", 1, "LED connected to slot 1", LED_WHITE, {0: "None", 1: "White"}),
         ("led2", "number", 1, "LED connected to slot 2", 0, {0: "None", 2: "IR"}),
-        ("led3", "number", 1, "LED connected to slot 3", 0, {0: "None", 3: "RGB", 4: "RGBAW"}),
+        ("led3", "number", 1, "LED connected to slot 3", 0, {0: "None", 3: "RGB", 4: "RGBW", 5: "RGBAW"}),
     ]
 
 # PCA9634 8-bit 8 channel PWM driver
@@ -1018,7 +1019,7 @@ class GulpLightAdapter(Adapter):
         super().__init__(xboard)
         self._close_flag = False
 
-    def set_backlight(self, color=None, exposure=None, gain={}):
+    def set_backlight(self, color=None, exposure=None, gain={}, temp=None):
         pass
 
     def close(self):
@@ -1049,18 +1050,30 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
     def get_capabilities(self):
         result = super().get_capabilities()
         result |= {
-            "white_backlight": self._led[0] == GulpLightAdapterMemory.LED_WHITE,
+            "white_backlight": self._led[0] == GulpLightAdapterMemory.LED_WHITE or self._led[2] in [GulpLightAdapterMemory.LED_RGBW, GulpLightAdapterMemory.LED_RGBAW, ],
             "ir_backlight": self._led[1] == GulpLightAdapterMemory.LED_IR,
-            "rgb_backlight": self._led[2] in [GulpLightAdapterMemory.LED_RGB, GulpLightAdapterMemory.LED_RGBAW, ],
+            "rgb_backlight": self._led[2] in [GulpLightAdapterMemory.LED_RGB, GulpLightAdapterMemory.LED_RGBW, GulpLightAdapterMemory.LED_RGBAW, ],
+            "temperature_backlight": self._led[2] == GulpLightAdapterMemory.LED_RGBAW,
             "rgbaw_backlight": self._led[2] == GulpLightAdapterMemory.LED_RGBAW,
             "backlight_control": True,
         }
         return result
 
+    # calc white+amver pwm  by temperature
+    def _calc_temperature_pwm(self, pwm, temp, min_temp = 3000, max_temp = 5000):
+        if not temp:
+            pwm2 = pwm
+        elif temp <= min_temp:
+            pwm2 = 0
+        elif temp >= max_temp:
+            pwm2 = pwm
+        else:
+            pwm2 = int(round((temp - min_temp) / (max_temp - min_temp) * pwm))
+        return (pwm2, pwm-pwm2)
 
-    def set_backlight(self, color=None, exposure=None, gain={}):
+    def set_backlight(self, color=None, exposure=None, gain={}, temp = None):
         if exposure is not None:
-            logging.getLogger().debug(f"set_backlight({color}, {exposure}, {gain})")
+            logging.getLogger().debug(f"set_backlight({color}, {exposure}, {gain}, {temp})")
         # 0 .. res / general on/off in v0103
         # 1 .. white (standalone)
         # 2 .. ir/preview
@@ -1074,7 +1087,12 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
             pass
         elif color == "white":
             pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain, pwm_0ev=self._default_pwm_0ev)
-            pwm[1] = pwm2[color]
+            if self._led[0] == GulpLightAdapterMemory.LED_WHITE:
+                pwm[1] = pwm2[color]
+            elif self._led[2] == GulpLightAdapterMemory.LED_RGBW:
+                pwm[3] = pwm2[color]
+            elif self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
+                pwm[3], pwm[7] = self._calc_temperature_pwm(pwm2[color], temp)
         elif color in ["ir", "preview"]:
             pwm2 = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain, pwm_0ev=self._default_pwm_0ev)
             pwm[2] = pwm2[color]
@@ -1084,7 +1102,9 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
             pwm[5] = pwm2["green"]
             pwm[6] = pwm2["blue"]
             pwm[7] = pwm2.get("amber", 0)
-            if self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
+            if color == "white+red+green+blue" and self._led[2] == GulpLightAdapterMemory.LED_RGBAW:
+                pwm[3], pwm[7] = self._calc_temperature_pwm(pwm2.get("white", 0), temp)
+            elif self._led[2] in [GulpLightAdapterMemory.LED_RGBW, GulpLightAdapterMemory.LED_RGBAW, ]:
                 pwm[3] = pwm2.get("white", 0)
             elif self._led[0] == GulpLightAdapterMemory.LED_WHITE:
                 pwm[1] = pwm2.get("white", 0)
@@ -1284,7 +1304,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
         ver = eeprom.get_version()
         return GulpExtensionBoard.get_xboard_class_by_version(ver)
 
-    def _set_backlight_impl(self, color, exposure, gain):
+    def _set_backlight_impl(self, color, exposure, gain, temp):
 
         led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, }
         if color == None:
@@ -1500,7 +1520,7 @@ class GulpExtensionBoard(ExtensionBoardWithI2C):
 # Board with RGB support
 class GulpExtensionBoard_0101(GulpExtensionBoard):
 
-    def _set_backlight_impl(self, color, exposure, gain):
+    def _set_backlight_impl(self, color, exposure, gain, temp):
         led_off = {"led_white": 0, "led_ir": 0, "led_preview": 0, "led_pwm": 0, "led_red": 0, "led_green": 0, "led_blue": 0, }
         if color is None:
             self.set_io_states(led_off)
@@ -1598,7 +1618,7 @@ class GulpExtensionBoard_0102(GulpExtensionBoard):
     def __init__(self, mainboard, callback):
         super().__init__(mainboard, callback)
 
-    def _set_backlight_impl(self, color, exposure, gain):
+    def _set_backlight_impl(self, color, exposure, gain, temp):
         logging.getLogger().debug(f"_set_backlight_impl({color}, {exposure}, {gain}")
         led_off = {"led_white": 0, "led_preview": 0, }
         light_adapter = self.get_adapter(self.LIGHT_NAME)
@@ -1608,7 +1628,7 @@ class GulpExtensionBoard_0102(GulpExtensionBoard):
                 pwm = pwm_from_exposure(colors=(color, ), exposure=exposure, gain=gain)
                 self.set_io_states(led_off | {"led_preview": pwm[color] / 255, })
             else:
-                light_adapter.set_backlight(color=color, exposure=exposure, gain=gain)
+                light_adapter.set_backlight(color=color, exposure=exposure, gain=gain, temp=temp)
                 self.set_io_states(led_off)
         else:
             if color == None:

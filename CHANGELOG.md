@@ -23,6 +23,7 @@ Features
   - external trigger support
   - reset factory settings
   - save accordion/panel state
+  - backlight color temperature
 
 Fixes
 -----

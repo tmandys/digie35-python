@@ -1054,17 +1054,26 @@
                     <div class="control-set">
                         <div id="backlight-exposure-fieldset" class="centered-btn">
                             <div class="horizontal-spacer">
-                                <select id="backlight-color-list" style="width:11ch" onchange="adjust_backlight(true)" title="Set backlight LED to illuminate film. RGB color gain can be adjusted individually to mask off color negative orange mask. KeyB to on/off">
+                                <select id="backlight-color-list" style="width:16ch" onchange="adjust_backlight(true)" title="Set backlight LED to illuminate film. RGB color gain can be adjusted individually to mask off color negative orange mask. KeyB to on/off">
                                     <option value="">OFF</option>
                                     <option value="white" selected>White</option>
                                     <option value="red+green+blue">RGB</option>
-                                    <option value="white+red+green+blue">RGBW</option>
+                                    <option value="white+red+green+blue">RGB+White</option>
                                     <option value="amber+white+red+green+blue">RGBAW</option>
                                     <option value="ir">IR</option>
                                     <option value="preview">Preview</option>
                                 </select>
                             </div>
+                            <div id="backlight-temperature-container" class="xxxhidden">
+                                <input type="range" id="backlight-temperature-rng" min="3000" max="5000" step="100" class="color-range" style="accent-color: rgb(253, 246, 230)" title="White LED color temperature" />
+                                <input type="number" id="backlight-temperature-num" value="5000" min="3000" max="5000" step="100" style="width: 7ch" title="Use mouse wheel to change temperature." /><span>K</span>
+                            </div>
                             <div id="backlight-color-ranges" class="vertical-spacer">
+                                <div id="backlight-white-container" class="hidden">
+                                    <input type="range" id="backlight-white-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: white" title="Backlight white LED gain" />
+                                    <input type="number" id="backlight-white-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
+                                    <input type="checkbox" id="backlight-white-switch" title="Toggle white LED" />
+                                </div>
                                 <div id="backlight-red-container" class="hidden">
                                     <input type="range" id="backlight-red-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: red" title="Backlight red LED gain" />
                                     <input type="number" id="backlight-red-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
@@ -1964,17 +1973,17 @@
         let enabled_value = "";
         for (const opt of elem.options) {
             if (opt.value == "white") {
-                opt.disabled = !window.capabilities.white_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.white_backlight;
             } else if (opt.value == "ir") {
-                opt.disabled = !window.capabilities.ir_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.ir_backlight;
             } else if (opt.value == "preview") {
-                opt.disabled = !window.capabilities.preview_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.preview_backlight;
             } else if (opt.value == "amber+white+red+green+blue") {
-                opt.disabled = !window.capabilities.rgbaw_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.rgbaw_backlight;
             } else if (opt.value == "white+red+green+blue") {
-                opt.disabled = !window.capabilities.rgb_backlight || !window.capabilities.white_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.rgb_backlight || !window.capabilities.white_backlight;
             } else if (opt.value == "red+green+blue") {
-                opt.disabled = !window.capabilities.rgb_backlight || window.capabilities.white_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.rgb_backlight || window.capabilities.white_backlight;
             } else {
                 opt.disabled = !window.capabilities.rgb_backlight;
             }
@@ -3494,7 +3503,6 @@
             element.addEventListener("input", _listener_backlight_color_ranges_input_range_input);
             element.addEventListener("wheel", _listener_backlight_color_ranges_input_range_wheel);
         });
-
         const _listener_backlight_color_ranges_input_number_change = function(event) {
             adjust_backlight(false, is_color_active(event.target.id.split("-")[1]));
         };
@@ -3526,6 +3534,37 @@
         };
         document.querySelectorAll('#backlight-color-ranges input[type="checkbox"]').forEach(element=> {
             element.addEventListener("change", _listener_backlight_color_ranges_input_checkbox)
+        });
+
+        const temp_elem = document.getElementById("backlight-temperature-rng");
+        temp_elem.addEventListener("input", function(event) {
+            const range_elem = event.target;
+            const elem_color = range_elem.id.split("-")[1];
+            const num_elem = document.getElementById("backlight-"+elem_color+"-num");
+            num_elem.value = range_elem.value;
+            num_elem.dispatchEvent(new Event("change"));
+        });
+        temp_elem.addEventListener("wheel", function(event) {
+            event.preventDefault();
+            const range_elem = event.target;
+            let val = Number(range_elem.value);
+            let step = (event.deltaY < 0 ? 1 : -1) * Number(range_elem.step);
+            val += step;
+            range_elem.value = Math.max(Number(range_elem.min), Math.min(Number(range_elem.max), val));
+            range_elem.dispatchEvent(new Event("input"));
+        });
+        const temp_elem2 = document.getElementById("backlight-temperature-num");
+        temp_elem2.addEventListener("change", function(event) {
+            adjust_backlight(false, true);
+        });
+        temp_elem2.addEventListener("wheel", function(event) {
+            event.preventDefault();
+            const num_elem = event.target;
+            let val = Number(num_elem.value);
+            let step = (event.deltaY < 0 ? 1 : -1) * Number(num_elem.step);
+            val += step;
+            num_elem.value = Math.max(Number(num_elem.min), Math.min(Number(num_elem.max), val));
+            num_elem.dispatchEvent(new Event("change"));
         });
 
         var multi_container = document.getElementById("file-template-options-capture-multi");
@@ -3664,14 +3703,17 @@
 			"control.backlight.exposure": "backlight-exposure",
 			"control.backlight.exposure.ir": "backlight-ir-exposure",
 			"control.backlight.exposure.preview": "backlight-preview-exposure",
+			"control.backlight.gain.white": "backlight-white-num",
 			"control.backlight.gain.red": "backlight-red-num",
 			"control.backlight.gain.green": "backlight-green-num",
 			"control.backlight.gain.blue": "backlight-blue-num",
 			"control.backlight.gain.amber": "backlight-amber-num",
+			"control.backlight.on.white": "backlight-white-switch",
 			"control.backlight.on.red": "backlight-red-switch",
 			"control.backlight.on.green": "backlight-green-switch",
 			"control.backlight.on.blue": "backlight-blue-switch",
 			"control.backlight.on.amber": "backlight-amber-switch",
+			"control.backlight.temperature": "backlight-temperature-num",
             "control.focus_warning_interval": "focus-warning-list",
             "control.external_trigger": "external-trigger-cb",
             "capture.multi": "capture-multi",
@@ -4348,7 +4390,7 @@
         const elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
         for (let i = 0; i < elems.length; i++) {
             const elem_color = elems[i].id.split("-")[1];
-            const is_visible = is_color_active(elem_color);
+            const is_visible = color != "white" && is_color_active(elem_color);
             if (adjust_range) {
                 set_visible(elems[i], is_visible, "");
             }
@@ -4363,16 +4405,23 @@
                 gain[elem_color] = cb_elem.checked ? Number(num_elem.value) : 0;
             }
         }
+        var color_temp = null;
+        if (window.capabilities.temperature_backlight && color.match(/white/) && !color.match(/amber/)) {
+            color_temp = Number(document.getElementById("backlight-temperature-num").value);
+            document.getElementById("backlight-temperature-rng").value = color_temp;
+        }
+        set_visible(document.getElementById("backlight-temperature-container"), color_temp !== null);
+
         let bck = `${is_on}`;
         if (is_on) {
-            bck += `:${exposure}:`+ JSON.stringify(gain);
+            bck += `:${exposure}:`+ JSON.stringify(gain)+`:${color_temp}`;
         }
         if (send_cmd) {
             if (window.last_backlight !== bck) {
                 // avoid flooding when switched off and moving slidebar
                 window.last_backlight = bck;
                 if (is_on) {
-                    sendCommand2("SET_BACKLIGHT", {"color": color, "exposure": exposure, "gain": gain});
+                    sendCommand2("SET_BACKLIGHT", {"color": color, "exposure": exposure, "gain": gain, "temp": color_temp});
                 } else {
                     sendCommand2("SET_BACKLIGHT");
                 }
