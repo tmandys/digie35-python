@@ -986,7 +986,12 @@ class PCA9634Driver:
         ]
         try:
             self._write_to_driver(0, data)
-            self._initialized = True
+            data2 = self._xboard._mainboard.i2c_write_read(self._i2c_addr, [0x80 | 0], len(data))
+            data2[0] = data2[0] & 0x7F
+            self._initialized = data2 == data
+            if not self._initialized:
+                logging.getLogger().debug(f"PCA9634({self._i2c_addr:#x})  read: {data2} {data}")
+                raise DigitizerError(f"PCA9634 initialization failed: {data2}")
         except:
             pass
 
