@@ -117,7 +117,7 @@ class TMC2208UART:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", required=True, help="Verified UART device on GPIO14/15; no default mapping")
-    parser.add_argument("--baud", type=int, choices=(19200, 115200), default=19200)
+    parser.add_argument("--baud", type=int, choices=(9600, 19200, 115200), default=19200)
     parser.add_argument("--timeout", type=float, default=0.25, help="Transaction timeout in seconds")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print transmitted/received hex bytes")
     commands = parser.add_subparsers(dest="command", required=True)

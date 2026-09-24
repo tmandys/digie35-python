@@ -853,11 +853,12 @@ class GulpStepperMotorAdapter_0101(GulpStepperMotorAdapter):
                 "name": "stepper_ms1",
                 "unused": True,
             }
-            result["in_out_sleep"] = {   # signal is used bud 
+            result["in_out_sleep"] = {
                 "type": "virtual",
                 "name": "stepper_sleep",
                 "setter": self._set_stepper_sleep,
                 "init": True,
+                "adapter_only": True,
             }
         else:
             result["in_out_4"] = {

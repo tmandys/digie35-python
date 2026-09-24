@@ -225,8 +225,13 @@ class ExtensionBoard:
                 logging.getLogger().debug("Creating adapter: %s" % (adapter_class[adapter_type]))
                 self._adapters[adapter_type] = adapter_class[adapter_type](self)
                 self._merge_io_configuration()
-                self._initialize_io_map(adapter_type)
-                self.get_adapter(adapter_type)._initialize_io_map()
+                try:
+                    self._initialize_io_map(adapter_type)
+                    self.get_adapter(adapter_type)._initialize_io_map()
+                except Exception as ex:
+                    logging.getLogger().error(f"Adapter {adapter_type} initialization error: {ex}")
+                    self._finalize_io_map(adapter_type)
+                    del self._adapters[adapter_type]
                 flag = True
 
         if not flag:
@@ -281,7 +286,7 @@ class ExtensionBoard:
 
             unknown = []
             for name in list(adapter_io_map):
-                if not name in list(io_map):
+                if not name in list(io_map) and not adapter_io_map[name].get("adapter_only"):
                     unknown.append(name)
                     continue
                 # adapter alias is in collision with a xboard io name
@@ -289,6 +294,8 @@ class ExtensionBoard:
                     unknown.append(name)
                     continue
                 merged_adapter_io_map[name] = adapter_io_map[name] | {"_scope": adapter_type}
+                if adapter_io_map[name].get("adapter_only"):
+                    io_map[name] = {}
         # logging.getLogger().debug("merged_adapter_io_map: %s" % (merged_adapter_io_map))
 
         if unknown != []:

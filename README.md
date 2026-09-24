@@ -58,6 +58,12 @@ to enable activity led
 
     dtoverlay=act-led,gpio=26
 
+To use TMC22xx in UART mode enable UART (without serial console) and disable bluetooth
+
+    enable_uart = 1
+    dtoverlay = disable-bt
+
+    sudo systemctl disable --now hciuart.service
 
 Development
 -----------
