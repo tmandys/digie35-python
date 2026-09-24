@@ -56,8 +56,8 @@ setup(
             "digie35_tmc2208 = digie35.tmc2208_uart:main",
         ],
     },
-    extras_require={"uart": ["pyserial>=3.5"]},
     install_requires = [
+        "pyserial>=3.5",
         #"nose",
         #"sphinx",
         "pyyaml",

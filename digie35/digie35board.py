@@ -547,6 +547,10 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
         ("backlash_compensation", "int", 2, "Backlash compensation", -1),
         ("selenoid", "number", 1, "Flattening press driven by selenoinds", 1),
         ("reverse_dir", "number", 1, "Reverse sense of motor rotation", 0),
+        ("sensing_resistor", "number", 2, "Sensing resistor in milliohms", 100),
+        ("run_current", "number", 2, "Motor run current in mA RMS (0 = potentiometer)", 850),
+        ("hold_current", "number", 2, "Motor hold current in mA RMS (0 = run current)", 400),
+
     ]
 
 class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAdapterAotMemorySelectorMixin):
@@ -567,14 +571,43 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
         custom = self.get_memory().get_adapter_custom(self)
         self._DRIVER = custom["driver"]
         self._MICROSTEPPING = custom["microstepping"]
-        if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
-            # TMC driver in legacy mode has range 1/2 - 1/16
-            if self._MICROSTEPPING == 0:
-                self._MICROSTEPPING = 1
-        else:
-            # range 1/1 - 1/8
-            if self._MICROSTEPPING > 3:
-                self._MICROSTEPPING = 3
+        match self._DRIVER:
+            case GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
+                # TMC driver in legacy mode has range 1/2 - 1/16
+                if self._MICROSTEPPING == 0:
+                    self._MICROSTEPPING = 1
+            case GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART:
+                # range 1/1 - 1/256
+                if self._MICROSTEPPING > 8:
+                    self._MICROSTEPPING = 8
+                run_current = custom.get("run_current", 0)
+                self._tmc_analog_current = run_current in (None, 0, 0xffff)
+                self._tmc_vsense = 0
+                self._tmc_toff = 3  # fallback if the driver is already disabled
+                irun = ihold = 31
+                if not self._tmc_analog_current:
+                    sensing_resistor = custom.get("sensing_resistor", 0)
+                    if sensing_resistor in (None, 0, 0xffff):
+                        raise DigitizerError("TMC software current requires a sensing resistor value")
+                    hold_current = custom.get("hold_current", 0)
+                    if hold_current in (None, 0, 0xffff):
+                        hold_current = run_current
+                    hold_current = min(hold_current, run_current)
+                    # Datasheet section 9: I_RMS = (CS+1)/32 * V_FS / (Rsense+0.030) / sqrt(2).
+                    resistance = sensing_resistor / 1000 + 0.030
+                    # Prefer the 180 mV range when it can supply the requested current.
+                    self._tmc_vsense = int(run_current / 1000 <= 0.180 / resistance / math.sqrt(2))
+                    voltage = 0.180 if self._tmc_vsense else 0.325
+                    scale = 32 * math.sqrt(2) * resistance / (1000 * voltage)
+                    irun = max(0, min(31, round(run_current * scale) - 1))
+                    ihold = max(0, min(irun, round(hold_current * scale) - 1))
+                # IHOLD_IRUN is write-only. In analog mode both scales are full;
+                # a hold current in mA cannot be calculated without knowing VREF.
+                self._tmc_ihold_irun = (4 << 16) | (irun << 8) | ihold
+            case _:
+                # range 1/1 - 1/8
+                if self._MICROSTEPPING > 3:
+                    self._MICROSTEPPING = 3
         try:
             self._STEPS_PER_MM = 1/ (custom["wheel_diameter"]/100 * 3.14159 * custom["gear1"] / custom["gear2"] / custom["steps_per_revolution"]) * (1<<self._MICROSTEPPING)
             logging.getLogger().debug("wheel diameter: %s, circ: %s, dist per motor rev: %s, dist per step: %s, dist per mstep: %s, " %
@@ -615,22 +648,76 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
         freq = self._SPEED_IN_MM_PER_SECS[abs(speed)-1] * self.get_steps_per_mm() * 2 # step signal has has half freq
         return (freq, self._ACCELERATION_IN_MM_PER_SECS2 * self.get_steps_per_mm() * 2)
 
+    def _tmc_22xx_cal_crc(self, buf):
+        # Polynomial 0x07, initial CRC 0; process each byte LSB first.
+        crc = 0
+        for byte in buf:
+            for _ in range(8):
+                feedback = (crc >> 7) ^ (byte & 1)
+                crc = ((crc << 1) ^ (0x07 if feedback else 0)) & 0xff
+                byte >>= 1
+        return crc
+
+    def _tmc_22xx_write_read(self, register, value=None, mask=None):
+        """Mask uses register bit positions; masked writes need a readable register.
+
+        The caller must serialize a masked read/modify/write pair. Transport
+        handles echo/timeouts; IFCNT verification belongs to the calling code.
+        """
+        if not isinstance(register, int) or not 0 <= register <= 0x7f:
+            raise ValueError("TMC register must be in range 0x00..0x7f")
+        if value is not None and (not isinstance(value, int) or not 0 <= value <= 0xffffffff):
+            raise ValueError("TMC value must be an unsigned 32-bit integer")
+        if mask is not None:
+            if value is None:
+                raise ValueError("TMC mask is only valid for writes")
+            if not isinstance(mask, int) or not 0 <= mask <= 0xffffffff:
+                raise ValueError("TMC mask must be an unsigned 32-bit integer")
+        if value is not None:
+            if register == 0x04:
+                raise ValueError("TMC OTP programming is not supported")
+            if mask is not None:
+                old_val = self._tmc_22xx_write_read(register)
+                value = (value & mask) | (old_val & ~mask)
+            buf = bytearray((0x05, 0x00, register | 0x80))
+            buf.extend(value.to_bytes(4, "big"))
+        else:
+            buf = bytearray((0x05, 0x00, register))
+        buf.append(self._tmc_22xx_cal_crc(buf))
+        reply = self._xboard._mainboard.uart_write_read(bytes(buf), 0 if value is not None else 8)
+        if value is not None:
+            return None
+        if reply is None or len(reply) != 8:
+            raise DigitizerError("UART error (expected 8-byte TMC reply)")
+        if reply[0] != 0x05 or reply[1] != 0xff or reply[2] != register:
+            raise DigitizerError("UART error (wrong TMC reply header/register)")
+        if reply[7] != self._tmc_22xx_cal_crc(reply[:7]):
+            raise DigitizerError("UART error (wrong CRC)")
+        return int.from_bytes(reply[3:7], "big")
+
     def _do_on_start(self, direction):
         #logging.getLogger().debug("STEPPER: do_on_start: %s", dir)
-        if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
-            # MS1 MS0 ... 00=1/8, 01=1/2, 10=1/4, 11=1/16
-            self._xboard.set_io_state("stepper_ms0", self._MICROSTEPPING in (1, 4))
-            self._xboard.set_io_state("stepper_ms1", self._MICROSTEPPING in (2, 4))
-        else:
-            self._xboard.set_io_state("stepper_ms0", (self._MICROSTEPPING & 0x1) != 0)
-            self._xboard.set_io_state("stepper_ms1", (self._MICROSTEPPING & 0x2) != 0)
+        match self._DRIVER:
+            case GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
+                # MS1 MS0 ... 00=1/8, 01=1/2, 10=1/4, 11=1/16
+                self._xboard.set_io_state("stepper_ms0", self._MICROSTEPPING in (1, 4))
+                self._xboard.set_io_state("stepper_ms1", self._MICROSTEPPING in (2, 4))
+            case GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART:
+                # CHOPCONF: MRES=8 is fullstep, MRES=0 is 1/256; DEDGE=0 (rising edge only).
+                self._tmc_22xx_write_read(0x6C, (8 - self._MICROSTEPPING) << 24, (0xF << 24) | (1 << 29))
+                # GCONF.mstep_reg_select: use MRES instead of the MS pins.
+                self._tmc_22xx_write_read(0x00, 1 << 7, 1 << 7)
+            case _:
+                self._xboard.set_io_state("stepper_ms0", (self._MICROSTEPPING & 0x1) != 0)
+                self._xboard.set_io_state("stepper_ms1", (self._MICROSTEPPING & 0x2) != 0)
         self._xboard.set_io_state("stepper_dir", direction <= 0 if not self._REVERSE_DIR else direction > 0)
         # self._xboard._set_io_state("stepper_step", False)
         self._xboard.set_io_state("stepper_sleep", False)
         self._motor_home_pos = 0  # motor should be in home position
 
     def _do_on_stop(self, next_direction):
-        if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
+        powered_on_stop = self._DRIVER in (GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP, GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART)
+        if powered_on_stop:
             # driver has standstill power reduction so we can leave it powered when film is detected
             if self._film_sensing["state"]["controlled"]:
                 return
@@ -641,7 +728,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
             # or turns when wake up. So we need round motor position to home position
             # A4988 and DRV8825 have home when both winding has 70% current, angle 45°
             # TMCxxxx driver has standstill power down so we do not care about position
-            if self._MICROSTEPPING != 0 and self._DRIVER != GulpStepperMotorAdapterMemory.DRIVER_TMC2208_COMP:
+            if self._MICROSTEPPING != 0 and not powered_on_stop:
                 home_pos = 1 << (self._MICROSTEPPING - 1)   # Allegro has home index it half and seems it is the most stable index for our reasons
                 logging.getLogger().debug("Homing: %s" % (self._motor_home_pos))
                 while self._motor_home_pos != home_pos:
@@ -697,7 +784,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
                 "name": "stepper_vref",
                 "unused": True,
             },
-        }
+         }
         result["psu_sensor"] = {}
         result["sensor_r"] = {}
         result["sensor_f"] = {}
@@ -722,22 +809,67 @@ class GulpStepperMotorAdapter_0101(GulpStepperMotorAdapter):
             self._xboard.set_io_state("stepper_step", False)
             self._xboard.set_io_state("stepper_enable", False)
 
+    def _set_stepper_sleep(self, name, val):
+        chopconf = self._tmc_22xx_write_read(0x6C)
+        if chopconf & 0xF:
+            self._tmc_toff = chopconf & 0xF
+        # Keep outputs off while changing the current reference and scaling.
+        self._tmc_22xx_write_read(0x6C, chopconf & ~0xF)
+        if self._tmc_22xx_write_read(0x6C) & 0xF:
+            raise DigitizerError("TMC could not disable motor outputs")
+        if val:
+            return
+
+        ifcnt = self._tmc_22xx_write_read(0x02) & 0xff
+        self._tmc_22xx_write_read(0x6C, self._tmc_vsense << 17, 1 << 17)
+        # pdn_disable=1, external Rsense, and VREF or internal current reference.
+        self._tmc_22xx_write_read(0x00, (1 << 6) | int(self._tmc_analog_current), (1 << 6) | 3)
+        self._tmc_22xx_write_read(0x10, self._tmc_ihold_irun)
+        self._tmc_22xx_write_read(0x11, 20)  # TPOWERDOWN: about 0.44 s at 12 MHz
+        # Includes write-only registers; echo alone does not acknowledge a write.
+        if ((self._tmc_22xx_write_read(0x02) - ifcnt) & 0xff) != 4:
+            raise DigitizerError("TMC current configuration was not accepted")
+        self._tmc_22xx_write_read(0x6C, self._tmc_toff, 0xF)
+
     def _get_io_configuration(self):
         result = super()._get_io_configuration()
-        result["in_out_4"] = {
-            "name": "stepper_ms0",
-        }
-        result["in_out_5"] = {
-            "name": "stepper_ms1",
-        }
         result["in_out_1"] = {
             "name": "stepper_enable",
             "negative": True,
         }
-        result["in_out_3"] = {
-            "name": "stepper_sleep",
-            "negative": True,
-        }
+        if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART:
+            result["in_out_3"] = {
+                "type": "uart",
+                "name": "stepper_tx",
+                "dir": "o",
+                "echo": True,
+            }
+            result["in_out_5"] = {
+                "type": "uart",
+                "name": "stepper_rx",
+                "dir": "i",
+            }
+            result["in_out_4"] = {
+                "name": "stepper_ms1",
+                "unused": True,
+            }
+            result["in_out_sleep"] = {   # signal is used bud 
+                "type": "virtual",
+                "name": "stepper_sleep",
+                "setter": self._set_stepper_sleep,
+                "init": True,
+            }
+        else:
+            result["in_out_4"] = {
+                "name": "stepper_ms0",
+            }
+            result["in_out_5"] = {
+                "name": "stepper_ms1",
+            }
+            result["in_out_3"] = {
+                "name": "stepper_sleep",
+                "negative": True,
+            }
         return result
 
 class GulpStepperMotorAdapter_0103(GulpStepperMotorAdapter_0101):
@@ -803,20 +935,73 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         while target > time.perf_counter_ns():
             pass
 
+    def _tmc_22xx_restore_index(self, target, step_state, chopconf):
+        # Keep the solenoid direction selected: correction pulses also reach it.
+        ioin = self._tmc_22xx_write_read(0x06)
+        if not ioin & 1:  # physical ENN must disable the motor bridges
+            raise DigitizerError("Cannot restore TMC index while motor is enabled")
+        if chopconf & ((1 << 28) | (1 << 29)):
+            raise DigitizerError("TMC index restore requires INTPOL=0 and DEDGE=0")
+        gconf = self._tmc_22xx_write_read(0x00)
+        if gconf & (1 << 7):  # mstep_reg_select
+            mres = (chopconf >> 24) & 0xf
+            if mres > 8:
+                raise DigitizerError("Invalid TMC microstep resolution")
+            increment = 1 << mres
+        else:
+            # First solenoid operation can precede UART microstep configuration.
+            # MS2/MS1 = 00: /8, 01: /2, 10: /4, 11: /16.
+            increment = (32, 128, 64, 16)[(ioin >> 2) & 3]
+        decreasing = bool(ioin & (1 << 9)) ^ bool(gconf & (1 << 3))
+        current = self._tmc_22xx_write_read(0x6A)
+        delta = ((current - target) if decreasing else (target - current)) % 1024
+        count, remainder = divmod(delta, increment)
+        if remainder:
+            raise DigitizerError(f"TMC index {target} is unreachable from {current} at increment {increment}")
+        # At most one electrical period. Each complete cycle has one rising edge
+        # and restores STEP, regardless of its original level or IO inversion.
+        for _ in range(count):
+            self._xboard.set_io_state("stepper_step", not step_state)
+            self._precise_sleep(0.00001)
+            self._xboard.set_io_state("stepper_step", step_state)
+            self._precise_sleep(0.00001)
+        actual = self._tmc_22xx_write_read(0x6A)
+        if actual != target:
+            raise DigitizerError(f"TMC index restore failed: expected {target}, received {actual}")
+
     def _do_pull_selenoid(self, down):
         # logging.getLogger().debug("pull_selenoid(%s / %s)" % (down, self._SELENOID))
         if self._SELENOID:
+
             save_enable = self._xboard.get_io_state("stepper_enable")
             save_step = self._xboard.get_io_state("stepper_step")
             save_dir = self._xboard.get_io_state("stepper_dir")
+            # Solenoid PWM also advances the driver's index, even in fullstep.
+            stepper_index = None
+            saved_intpol = 0
 
             color = self._xboard.get_current_backlight_color() if self.props.get("FP_BACKLIGHT_OFF") else None
             try:
+                self._xboard.set_io_state("stepper_enable", False)
+                if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART:
+                    if not self._tmc_22xx_write_read(0x06) & 1:
+                        raise DigitizerError("Motor ENN is not disabled before solenoid operation")
+                    chopconf = self._tmc_22xx_write_read(0x6C)
+                    if chopconf & (1 << 29):
+                        raise DigitizerError("Solenoid index restore requires TMC DEDGE=0")
+                    # Freeze interpolation before saving MSCNT; otherwise it can
+                    # continue advancing between UART reads and correction pulses.
+                    saved_intpol = chopconf & (1 << 28)
+                    if saved_intpol:
+                        self._tmc_22xx_write_read(0x6C, 0, 1 << 28)
+                        chopconf = self._tmc_22xx_write_read(0x6C)
+                        if chopconf & (1 << 28):
+                            raise DigitizerError("Failed to disable TMC interpolation")
+                    stepper_index = self._tmc_22xx_write_read(0x6A)
                 if color != None:
                     self._xboard.set_backlight()
 
                 self._xboard.set_io_state("stepper_dir", not down)
-                self._xboard.set_io_state("stepper_enable", False)
                 cnt1 = self.props.get("FP_DOWN_COUNT") if down else 1
                 width = self.props.get("FP_PULSE_WIDTH")
                 pwm_freq = self.props.get("FP_PWM_FREQ")
@@ -842,9 +1027,32 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
                             time.sleep(width)
                     cnt1 -= 1
                 # logging.getLogger().debug("end pulse")
-                self._xboard.set_io_state("stepper_dir", save_dir)
                 self._xboard.set_io_state("stepper_step", save_step)
+                if stepper_index is not None:
+                    self._tmc_22xx_restore_index(stepper_index, save_step, chopconf)
+                    if saved_intpol:
+                        self._tmc_22xx_write_read(0x6C, saved_intpol, 1 << 28)
+                        if not self._tmc_22xx_write_read(0x6C) & saved_intpol:
+                            raise DigitizerError("Failed to restore TMC interpolation")
+                    if self._tmc_22xx_write_read(0x6A) != stepper_index:
+                        raise DigitizerError("TMC index changed after restoring interpolation")
+
+                self._xboard.set_io_state("stepper_dir", save_dir)  # revert direction later not to move with wrong selenoid
                 self._xboard.set_io_state("stepper_enable", save_enable)
+            except Exception:
+                # Do not energize the motor at an unverified electrical position.
+                # Stop solenoid drive before changing its direction.
+                self._flattening_state = None
+                self._last_flattening_change = None
+                self._xboard.set_io_state("stepper_enable", False)
+                self._xboard.set_io_state("stepper_step", False)
+                self._xboard.set_io_state("stepper_dir", save_dir)
+                if saved_intpol:
+                    try:
+                        self._tmc_22xx_write_read(0x6C, saved_intpol, 1 << 28)
+                    except Exception:
+                        logging.getLogger().exception("Could not restore TMC interpolation after solenoid failure")
+                raise
             finally:
                 if color != None:
                     save_bl_auto_off = self._xboard.props.get("BL_AUTO_OFF_ENABLE")
@@ -1748,5 +1956,3 @@ registered_boards = [
     GulpAotLight8xPWMAdapter,
     GulpLightBoxAdapter,
 ]
-
-

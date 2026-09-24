@@ -43,6 +43,11 @@ from evdev import InputDevice, categorize, ecodes, list_devices
 ## Raspberry Pi 3/4/5 mainboard implementation
 class RpiMainboard(Mainboard):
     _I2C_BUS = 1
+    # PL011 UART0 on GPIO14/15; requires the corresponding OS overlay.
+    # Do not use serial0 blindly: on Pi 5 it may point at the debug connector.
+    _UART_DEVICE = "/dev/ttyAMA0"
+    _UART_BAUDRATE = 19200
+    _UART_TIMEOUT = 0.25
 
     def __init__(self, use_i2c):
         super().__init__()
@@ -52,6 +57,8 @@ class RpiMainboard(Mainboard):
         self._pwm = {}
         self._input_devices = {}
         self._i2c_lock = Lock()
+        self._uart_lock = Lock()
+        self._uart = None
         self._is_rpi5 = False
         proc = subprocess.run(['cat', '/sys/firmware/devicetree/base/model'], capture_output=True)
         logging.getLogger().debug("Response: %s" % (proc))
@@ -64,6 +71,8 @@ class RpiMainboard(Mainboard):
             logging.getLogger().debug("RPI5: %s", self._is_rpi5)
 
     def __del__(self):
+        if getattr(self, "_uart", None) is not None:
+            self._uart.close()
         super().__del__()
         if not self._is_rpi5:
             # RPI4: GPIO20,21 have voltage in ipput state between 1.6-1.8V depending on internal pullup/down which enables stepper @IO1 so force 0V
@@ -84,20 +93,28 @@ class RpiMainboard(Mainboard):
             params = ['raspi-gpio']
         params.append('set')
         params.append(str(num))
-        if func == "i2c":
-            if self._is_rpi5:
-                params.append("a3")
-            else:
+        match func:
+            case "i2c":
+                if self._is_rpi5:
+                    params.append("a3")
+                else:
+                    params.append("a0")
+                #params.append("du")
+            case "pwm":
                 params.append("a0")
-            #params.append("du")
-        elif func == "pwm":
-            params.append("a0")
-        elif func == "gpio":
-            return
-        else:
-            raise ValueError(f"GPIO{num}: Unknown function type '{func}'")
+            case "gpio":
+                return
+            case "uart":
+                if num not in (14, 15):
+                    raise ValueError(f"GPIO{num}: Unsupported UART pin")
+                params.append("a4" if self._is_rpi5 else "a0")
+            case _:
+                raise ValueError(f"GPIO{num}: Unknown function type '{func}'")
         logging.getLogger().debug("exec: %s" % params)
-        subprocess.call(params, shell=False)
+        if func == "uart":
+            subprocess.run(params, check=True)
+        else:
+            subprocess.call(params, shell=False)
 
     ## RPi4 PWM frequency supported at least to 5MHz, duty cycle is 0-1
     def set_pwm(self, channel, duty_cycle, freq=None):
@@ -143,6 +160,81 @@ class RpiMainboard(Mainboard):
         finally:
             self._i2c_lock.release()
         return result
+
+    def uart_write_read(self, out_data, in_count):
+        """Send one binary request, consume optional wiring echo, return reply bytes.
+
+        One lock covers the entire transaction. No retries: a failed transaction
+        may already have changed the peripheral. Protocol validation is the caller's job.
+        """
+        data = bytes(out_data) if out_data is not None else b""
+        if not isinstance(in_count, int) or in_count < 0:
+            raise ValueError("UART receive count must be a non-negative integer")
+        with self._uart_lock:
+            tx = [item for item in self._xboard._io_map.values()
+                  if item["type"] == "uart" and item["dir"] == "o"]
+            if len(tx) != 1:
+                raise DigitizerError("UART requires one TX entry in the IO map")
+            echo = tx[0].get("echo", False)
+            try:
+                import serial
+            except ImportError as exc:
+                raise DigitizerError("UART requires pyserial: python -m pip install 'pyserial>=3.5'") from exc
+            try:
+                if self._uart is None:
+                    self._uart = serial.Serial(
+                        self._UART_DEVICE, self._UART_BAUDRATE,
+                        bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE, timeout=self._UART_TIMEOUT,
+                        write_timeout=self._UART_TIMEOUT, xonxoff=False,
+                        rtscts=False, dsrdtr=False, exclusive=True,
+                    )
+                port = self._uart
+                # Idle guard also lets an old/incomplete half-duplex transfer expire.
+                time.sleep(320 / self._UART_BAUDRATE)
+                port.reset_input_buffer()
+                deadline = time.monotonic() + self._UART_TIMEOUT
+                if data and port.write(data) != len(data):
+                    raise DigitizerError("UART incomplete write (not retried)")
+
+                def receive(count):
+                    result = bytearray()
+                    while len(result) < count:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise DigitizerError(f"UART timeout: received {len(result)}/{count} bytes")
+                        port.timeout = remaining
+                        result.extend(port.read(count - len(result)))
+                    return bytes(result)
+
+                if echo and receive(len(data)) != data:
+                    raise DigitizerError("UART echo does not match transmitted data")
+                reply = receive(in_count)
+                # Without echo/reply, write() only confirms queuing to the OS.
+                # Wait for TX with a deadline instead of potentially unbounded flush().
+                while port.out_waiting:
+                    if time.monotonic() >= deadline:
+                        raise DigitizerError("UART transmit timeout")
+                    time.sleep(0.001)
+                if data and not echo and not in_count:
+                    time.sleep(10 / self._UART_BAUDRATE)  # final 8N1 character
+                return reply
+            except (serial.SerialException, OSError, DigitizerError) as exc:
+                # Drop any still-queued bytes; next call starts with a fresh port.
+                if self._uart is not None:
+                    for cleanup in (self._uart.reset_output_buffer, self._uart.close):
+                        try:
+                            cleanup()
+                        except (serial.SerialException, OSError):
+                            pass
+                    self._uart = None
+                raise DigitizerError(f"UART {self._UART_DEVICE}: {exc}") from exc
+
+    def close_uart(self):
+        with self._uart_lock:
+            if self._uart is not None:
+                self._uart.close()
+                self._uart = None
 
     def set_input_device(self, id_name):
         if id_name in self._input_devices:
@@ -206,4 +298,3 @@ class RpiMainboard(Mainboard):
                         else:
                             self._xboard.on_gpio_change(item["name"])
         logging.getLogger().debug(f"_input_device_handler(%s): terminating" % (id_name))
-

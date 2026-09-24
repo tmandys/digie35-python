@@ -123,6 +123,15 @@ class Mainboard:
     def set_pwm(self, channel, duty_cycle, freq=None):
         pass
 
+    def i2c_write_read(self, i2c_addr, out_data, in_count):
+        pass
+
+    def uart_write_read(self, out_data, in_count):
+        pass
+
+    def close_uart(self):
+        pass
+
     def set_input_device(self, id_name):
         pass
 
@@ -318,59 +327,62 @@ class ExtensionBoard:
                 continue
 
             negative = ("negative" in item) and item["negative"]
-            if item["type"] == "xio":
-                is_xio = True
-                if item["dir"] == "i":
-                    self._xio_input_mask |= 1 << item["num"]
-                else:
-                    self._xio_input_mask &= ~ (1 << item["num"])
-                    xio_output_mask |= 1 << item["num"]
-                    if "init" in item and item["init"]:
-                        xio_init |= 1 << item["num"]
-                if negative:
-                    self._xio_negative_mask |= 1 << item["num"]
-                else:
-                    self._xio_negative_mask &= ~ (1 << item["num"])
-            elif item["type"] == "gpio":
-                self._mainboard.set_gpio_function(item["num"], item["type"])
-                if negative:
-                    self._gpio_negative_mask |= 1 << item["num"]
-                else:
-                    self._gpio_negative_mask &= ~ (1 << item["num"])
-                if item["dir"] == "i":
-                    pud = None
-                    if "pud" in item:
-                        if item["pud"] == "up":
-                            pud = True
-                        elif item["pud"] == "down":
-                            pud = False
-                    self._gpio_input_mask |= 1 << item["num"]
-                    self._mainboard.set_gpio_as_input(item["num"], pud)
-                    self._get_gpio(item["num"])
-                    if "trigger" in item:
-                        logging.getLogger().debug("GPIO event callback: %s(%s)" % (item["num"], item["trigger"]))
-                        if "handler" in item:
-                            self._mainboard.set_gpio_event_handler(item["num"], item["trigger"], name, item["handler"])
-                        else:
-                            self._mainboard.set_gpio_event_handler(item["num"], item["trigger"], name)
-                else:
-                    self._gpio_input_mask &= ~ (1 << item["num"])
-                    val = "init" in item and item["init"]
-                    self._mainboard.set_gpio_as_output(item["num"], val ^ negative)
-                    self._set_gpio(item["num"], val)
-            elif item["type"] == "pwm":
-                self._mainboard.set_gpio_function(item["gpio"], item["type"])
-                self._mainboard.set_pwm(item["num"], 0)
-                self._pwm_state[name] = 0
-            elif item["type"] == "i2c":
-                self._mainboard.set_gpio_function(item["gpio"], item["type"])
-            elif item["type"] == "input_device":
-                self._mainboard.set_input_device(item["id_name"])
-                if "trigger" in item:
-                    if "handler" in item:
-                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name, item["handler"])
+            match item["type"]:
+                case "xio":
+                    is_xio = True
+                    if item["dir"] == "i":
+                        self._xio_input_mask |= 1 << item["num"]
                     else:
-                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name)
+                        self._xio_input_mask &= ~ (1 << item["num"])
+                        xio_output_mask |= 1 << item["num"]
+                        if "init" in item and item["init"]:
+                            xio_init |= 1 << item["num"]
+                    if negative:
+                        self._xio_negative_mask |= 1 << item["num"]
+                    else:
+                        self._xio_negative_mask &= ~ (1 << item["num"])
+                case "gpio":
+                    self._mainboard.set_gpio_function(item["num"], item["type"])
+                    if negative:
+                        self._gpio_negative_mask |= 1 << item["num"]
+                    else:
+                        self._gpio_negative_mask &= ~ (1 << item["num"])
+                    if item["dir"] == "i":
+                        pud = None
+                        if "pud" in item:
+                            if item["pud"] == "up":
+                                pud = True
+                            elif item["pud"] == "down":
+                                pud = False
+                        self._gpio_input_mask |= 1 << item["num"]
+                        self._mainboard.set_gpio_as_input(item["num"], pud)
+                        self._get_gpio(item["num"])
+                        if "trigger" in item:
+                            logging.getLogger().debug("GPIO event callback: %s(%s)" % (item["num"], item["trigger"]))
+                            if "handler" in item:
+                                self._mainboard.set_gpio_event_handler(item["num"], item["trigger"], name, item["handler"])
+                            else:
+                                self._mainboard.set_gpio_event_handler(item["num"], item["trigger"], name)
+                    else:
+                        self._gpio_input_mask &= ~ (1 << item["num"])
+                        val = "init" in item and item["init"]
+                        self._mainboard.set_gpio_as_output(item["num"], val ^ negative)
+                        self._set_gpio(item["num"], val)
+                case "pwm":
+                    self._mainboard.set_gpio_function(item["gpio"], item["type"])
+                    self._mainboard.set_pwm(item["num"], 0)
+                    self._pwm_state[name] = 0
+                case "i2c":
+                    self._mainboard.set_gpio_function(item["gpio"], item["type"])
+                case "uart":
+                    self._mainboard.set_gpio_function(item["num"], item["type"])
+                case "input_device":
+                    self._mainboard.set_input_device(item["id_name"])
+                    if "trigger" in item:
+                        if "handler" in item:
+                            self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name, item["handler"])
+                        else:
+                            self._mainboard.set_input_device_handler(item["id_name"], item["num"], item["trigger"], name)
 
         if is_xio:
             self._is_xio = True
@@ -383,24 +395,25 @@ class ExtensionBoard:
             item = self._io_map[name]
             if item["_adapter_scope"] != adapter_scope:
                 continue
-            if item["type"] == "pwm":
-                self._mainboard.set_pwm(item["num"], 0)
-                self._pwm_state[name] = 0
-            elif item["type"] == "gpio":
-                if item["dir"] == "i":
+            match item["type"]:
+                case "uart":
+                    self._mainboard.close_uart()
+                case "pwm":
+                    self._mainboard.set_pwm(item["num"], 0)
+                    self._pwm_state[name] = 0
+                case "gpio":
+                    if item["dir"] == "i":
+                        if "trigger" in item:
+                            if "handler" in item:
+                                self._mainboard.set_gpio_event_handler(item["num"], "none", name, item["handler"])
+                            else:
+                                self._mainboard.set_gpio_event_handler(item["num"], "none", name)
+                case "input_device":
                     if "trigger" in item:
                         if "handler" in item:
-                            self._mainboard.set_gpio_event_handler(item["num"], "none", name, item["handler"])
+                            self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name, item["handler"])
                         else:
-                            self._mainboard.set_gpio_event_handler(item["num"], "none", name)
-            elif item["type"] == "input_device":
-                if "trigger" in item:
-                    if "handler" in item:
-                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name, item["handler"])
-                    else:
-                        self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name)
-
-
+                            self._mainboard.set_input_device_handler(item["id_name"], item["num"], "none", name)
 
     def _set_backlight_impl(self, color, exposure, gain, temp):
         pass
@@ -582,17 +595,22 @@ class ExtensionBoard:
             Get particular io state
         """
         type = self._io_map[name]["type"]
-        if type == "xio":
-            xio_state = self._get_xio()
-            if "num" in list(self._io_map[name]):
-                return xio_state & (1 << self._io_map[name]["num"]) != 0
-        elif type == "gpio":
-            if "num" in list(self._io_map[name]):
-                return self._get_gpio(self._io_map[name]["num"])
-        elif type == "pwm":
-            return self._pwm_state[name]
-        elif type == "input_device":
-            return self._mainboard.get_input_device_state(self._io_map[name]["id_name"], self._io_map[name]["num"])
+        match type:
+            case "xio":
+                xio_state = self._get_xio()
+                if "num" in list(self._io_map[name]):
+                    return xio_state & (1 << self._io_map[name]["num"]) != 0
+            case "gpio":
+                if "num" in list(self._io_map[name]):
+                    return self._get_gpio(self._io_map[name]["num"])
+            case "pwm":
+                return self._pwm_state[name]
+            case "input_device":
+                return self._mainboard.get_input_device_state(self._io_map[name]["id_name"], self._io_map[name]["num"])
+            case "virtual":
+                getter = self._io_map[name].get("getter")
+                if getter:
+                    return getter(name)
         return None
 
     def set_io_states(self, vals):
@@ -616,27 +634,33 @@ class ExtensionBoard:
 
     def set_io_state(self, name, val):
         type = self._io_map[name]["type"]
-        if type == "xio":
-            val = int(val != 0)
-            num = self._io_map[name]["num"]
-            xio_state = self._get_xio()
-            if (((xio_state >> num) & 1) != val):
-                xio_state = xio_state ^ (1 << num)
-                self._set_xio(xio_state)
-        elif type == "gpio":
-            self._set_gpio(self._io_map[name]["num"], val)
-        elif type == "pwm":
-            if val < 0 or val > 1:
-                raise ValueError(f"Wrong pwm value '{name}': {val}. Allowed range (0-1)")
-            min_dc = self._io_map[name].get("min_duty_cycle", 0.0)
-            max_dc = self._io_map[name].get("max_duty_cycle", 1.0)
-            if max_dc <= min_dc:
-                raise ValueError(f"Wrong pwm duty cycle '{name}': {min_dc}, {max_dc}")
-            val2 = val * (max_dc - min_dc) + min_dc
+        match type:
+            case "xio":
+                val = int(val != 0)
+                num = self._io_map[name]["num"]
+                xio_state = self._get_xio()
+                if (((xio_state >> num) & 1) != val):
+                    xio_state = xio_state ^ (1 << num)
+                    self._set_xio(xio_state)
+            case "gpio":
+                self._set_gpio(self._io_map[name]["num"], val)
+            case "pwm":
+                if val < 0 or val > 1:
+                    raise ValueError(f"Wrong pwm value '{name}': {val}. Allowed range (0-1)")
+                min_dc = self._io_map[name].get("min_duty_cycle", 0.0)
+                max_dc = self._io_map[name].get("max_duty_cycle", 1.0)
+                if max_dc <= min_dc:
+                    raise ValueError(f"Wrong pwm duty cycle '{name}': {min_dc}, {max_dc}")
+                val2 = val * (max_dc - min_dc) + min_dc
 
-            freq = self._io_map[name].get("freq")
-            self._mainboard.set_pwm(self._io_map[name]["num"], val2, freq)
-            self._pwm_state[name] = val
+                freq = self._io_map[name].get("freq")
+                self._mainboard.set_pwm(self._io_map[name]["num"], val2, freq)
+                self._pwm_state[name] = val
+            case "virtual":
+                setter = self._io_map[name].get("setter")
+                if setter:
+                    setter(name, val)
+
 
     def pulse_output(self, name, off_secs, on_secs):
         """
