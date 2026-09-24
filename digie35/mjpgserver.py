@@ -129,6 +129,8 @@ class RingBuffer(object):
 StreamingHandler extent http.server.SimpleHTTPRequestHandler class to handle mjpg file for live stream
 """
 class StreamingHandler(SimpleHTTPRequestHandler):
+    timeout = 10  # Bound socket writes when a client stops receiving.
+
     def __init__(self, frames_buffer, snapshot_list, *args):
         self.frames_buffer = frames_buffer
         self.snapshot_list = snapshot_list
@@ -160,30 +162,33 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                 # tracking serving time
                 start_time = time.time()
                 frame_count = 0
+                frame = None
                 # endless stream
                 while not self.frames_buffer.stop_flag:
                     with self.frames_buffer.condition:
                         # wait for a new frame
-                        self.frames_buffer.condition.wait()
+                        self.frames_buffer.condition.wait_for(
+                            lambda: self.frames_buffer.stop_flag or
+                            self.frames_buffer.frame is not frame)
                         if self.frames_buffer.stop_flag:
                             break
                         # it's available, pick it up
                         frame = self.frames_buffer.frame
-                        # send it
-                        self.wfile.write(b'--FRAME\r\n')
-                        self.send_header('Content-Type', 'image/jpeg')
-                        self.send_header('Content-Length', len(frame))
-                        self.end_headers()
-                        self.wfile.write(frame)
-                        self.wfile.write(b'\r\n')
-                        # count frames
-                        frame_count += 1
-                        # calculate FPS every 5s
-                        if (time.time() - start_time) > 5:
-                            fps = frame_count / (time.time() - start_time)
-                            logging.getLogger().log(logging.DEBUG-1, f"FPS: %s" % (fps))
-                            frame_count = 0
-                            start_time = time.time()
+                    # Send immutable bytes outside the shared buffer lock.
+                    self.wfile.write(b'--FRAME\r\n')
+                    self.send_header('Content-Type', 'image/jpeg')
+                    self.send_header('Content-Length', len(frame))
+                    self.end_headers()
+                    self.wfile.write(frame)
+                    self.wfile.write(b'\r\n')
+                    # count frames
+                    frame_count += 1
+                    # calculate FPS every 5s
+                    if (time.time() - start_time) > 5:
+                        fps = frame_count / (time.time() - start_time)
+                        logging.getLogger().log(logging.DEBUG-1, f"FPS: %s" % (fps))
+                        frame_count = 0
+                        start_time = time.time()
             except Exception as e:
                 print(f'Removed streaming client {self.client_address}, {str(e)}')
         elif path == 'snapshot':
@@ -227,7 +232,11 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                     self.send_error(404, "File not found 1")
                 else:
                     id = os.path.join(parts[0], parts[1], parts[2])
-                    abs_path = Path(os.path.join(base_directory, ".previews", id + ".preview." + ("json" if info else "jpg") )).resolve()
+                    archive_dir = (base_directory / ".previews").resolve()
+                    abs_path = (archive_dir / (id + ".preview." + ("json" if info else "jpg"))).resolve()
+                    if not abs_path.is_relative_to(archive_dir):
+                        self.send_error(404, "File not found")
+                        return
                     cached = self.snapshot_list.get(id)
                     # logging.getLogger().debug("id: %s, abs_path: %s, parts: %s, incache: %s" % (id, abs_path, parts, cached != None))
                     payload = None
@@ -236,13 +245,14 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                             payload = cached["json"]
                         else:
                             payload = cached["frame"]
-                    elif str(abs_path).startswith(str(base_directory)) and os.path.isfile(abs_path):
+                    elif os.path.isfile(abs_path):
                         if info:
                             with open(abs_path, "r", encoding="utf-8") as f:
                                 try:
                                     payload = json.load(f)
-                                except:
+                                except (json.JSONDecodeError, UnicodeDecodeError):
                                     self.send_error(500, "Parsing error")
+                                    return
                         else:
                             with open(abs_path, "rb") as f:
                                 payload = f.read()
@@ -324,4 +334,3 @@ def start_http_server(addr, port):
 def stop_http_server():
     global stop_flag
     stop_flag = True
-
