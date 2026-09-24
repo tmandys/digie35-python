@@ -646,7 +646,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
                 logging.getLogger().debug("Homing: %s" % (self._motor_home_pos))
                 while self._motor_home_pos != home_pos:
                     self._do_step_impl()
-                    time.sleep(self._motor_job.interval.total_seconds())
+                    time.sleep(self._motor_job._interval.total_seconds())
             # now we can smoothly switch of current
             self._xboard.set_io_state("stepper_sleep", True)
             # a pause to allow motor stabilize, when microstepping there is movement between poles when switched off

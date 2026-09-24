@@ -1481,7 +1481,7 @@ class StepperMotorAdapter(Adapter):
         # TODO: stepcount is obsolete
         self.set_motor(dir*abs(speed), {"cmd": "MOVE_BY", "mm": abs(mm), "step_count": abs(mm)*self.get_steps_per_mm(), "client_context": client_context})
 
-    def lead_in(self):
+    def lead_in(self, client_context=None):
         """
             Run transport to get film till front detected by sensors
         """
@@ -1489,7 +1489,7 @@ class StepperMotorAdapter(Adapter):
         if not self._film_sensing["state"]["insert_ready"]:
             raise DigitizerError("Adapter is not in insert ready state")
         self._film_position = 0
-        self.set_motor(999, {"cmd": "LEAD_IN", "phase": 0, })
+        self.set_motor(999, {"cmd": "LEAD_IN", "phase": 0, "client_context": client_context})
 
     def flatten_plane(self, enable):
         """

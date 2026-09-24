@@ -79,10 +79,12 @@ class GpioZeroMainboard(RpiMainboard):
         self._channel_to_name[str(num)] = name
         if handler != None:
             self._callback_per_gpio[str(num)] = handler
-        if edge in ["falling", "both"]:
-            self._ios[str(num)].when_released = self._gpio_callback
-        if edge in ["raising", "both"]:
-            self._ios[str(num)].when_pressed = self._gpio_callback
+        device = self._ios[str(num)]
+        # Pull-up inputs are active low; floating inputs use active_state=True.
+        pressed_edge = "falling" if device.pull_up else "raising"
+        released_edge = "raising" if device.pull_up else "falling"
+        device.when_pressed = self._gpio_callback if edge in [pressed_edge, "both"] else None
+        device.when_released = self._gpio_callback if edge in [released_edge, "both"] else None
 
     def set_gpio_as_output(self, num, init):
         logging.getLogger().debug("GPIO as output: %s, init: %s" % (num, init))
@@ -100,7 +102,8 @@ class GpioZeroMainboard(RpiMainboard):
 
     def get_gpio(self, num):
         # logging.getLogger().debug("Get GPIO(%d)", num)
-        return self._ios[str(num)].value
+        # Return the physical level; ExtensionBoard applies logical inversion.
+        return self._ios[str(num)].pin.state
 
     def _gpio_event_handler(self, self2, device):
         # in obj is <digie35board.RpiExtensionBoard object

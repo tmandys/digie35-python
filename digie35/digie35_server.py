@@ -432,6 +432,8 @@ class CameraWrapper:
         try:
             try:
                 error = None
+                preview_image_name = None
+                target = None
                 try:
                     try:
                         logging.getLogger().debug(f"Download thread started: %s, target: %s, download: %s, delete: %s" % (camera_filepath, target_filename, download, delete))
@@ -609,7 +611,6 @@ class CameraWrapper:
                             with open(target_xmp, "w", encoding="utf-8") as f:
                                 f.write(target_xml)
 
-                        preview_image_name = None
                         if self._frame_buffer != None:
                             frame = self._frame_buffer.get_latest_frame(started_timestamp - datetime.timedelta(seconds=2))
                             if frame != None:
@@ -697,15 +698,15 @@ class CameraWrapper:
                 raise CameraControlError("Filename validation error: %s" % (tpl2["errors"], ))
 
             self._acquire_capture_lock()
-            adapter = digitizer.get_adapter()
-            if issubclass(type(adapter), digie35core.StepperMotorAdapter):
-                if adapter.props.get("FP_AUTO", False):
-                    adapter.flatten_plane(True)
-                    time.sleep(self._FLATTEN_TIMEOUT)
-
             self._capture_in_progress = True
             self._broadcast_capture_status_from_event()
             try:
+                adapter = digitizer.get_adapter()
+                if issubclass(type(adapter), digie35core.StepperMotorAdapter):
+                    if adapter.props.get("FP_AUTO", False):
+                        adapter.flatten_plane(True)
+                        time.sleep(self._FLATTEN_TIMEOUT)
+
                 started_timestamp = datetime.datetime.now(datetime.timezone.utc)
                 self._get_snapshot(kwargs.get("snapshot_url", False))
 
@@ -783,7 +784,7 @@ class CameraWrapper:
                                         event_type, camera_filepath = self._camera.wait_for_event(self._MAX_TRIGGER_TIMEOUT)
                                         if event_type == gp.GP_EVENT_FILE_ADDED:
                                             break
-                                        if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT:
+                                        if time.monotonic() - ts > self._MAX_TRIGGER_TIMEOUT / 1000:
                                             raise CameraControlError("No response from camera")
                                 break
                             except Exception as e:
@@ -1646,7 +1647,7 @@ async def ws_control_handler(websocket, path):
                         case "INSERT":
                             check_motorized_command(**params)
                             digitizer.prolongBacklight()
-                            digitizer.get_adapter().lead_in()
+                            digitizer.get_adapter().lead_in(client_context=client_context)
                             reply_status = True
                         case "MOVE_BY":
                             check_motorized_command(**params)

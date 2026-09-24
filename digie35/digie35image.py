@@ -229,13 +229,11 @@ class ImageAnalysis:
             self._gray = self._image
         else:
             b, g, r = cv2.split(self._image)
-            #r = self._image[:, :, 0].astype(np.int16)
-            #g = self._image[:, :, 1].astype(np.int16)
-            #b = self._image[:, :, 2].astype(np.int16)
-
-            diff_rg = np.abs(r - g)
-            diff_gb = np.abs(g - b)
-            diff_rb = np.abs(r - b)
+            # Use signed arithmetic for differences; keep image channels uint8.
+            b_signed, g_signed, r_signed = (channel.astype(np.int16) for channel in (b, g, r))
+            diff_rg = np.abs(r_signed - g_signed)
+            diff_gb = np.abs(g_signed - b_signed)
+            diff_rb = np.abs(r_signed - b_signed)
 
             # get max diff for each pixel
             max_diff = np.maximum.reduce([diff_rg, diff_gb, diff_rb])
@@ -725,6 +723,7 @@ class ImageAnalysis:
             idx = 0
             while idx < len(frames)-1:
                 if shrink_gap(frames[idx], frames[idx+1], thr_sigma2):
+                    frames[idx]["end"] = frames[idx+1]["end"]
                     del frames[idx+1]
                 else:
                     idx += 1
@@ -1033,18 +1032,15 @@ class ImageAnalysis:
         """
         self._gray = cv2.cvtColor(self._image, cv2.COLOR_BGR2GRAY)
         h, w = self._gray.shape[:2]
-        step_h = h // grid
-        step_w = w // grid
-
         intensity_map = np.zeros((grid, grid), dtype=np.float32)
-        y1 = 0
         for i in range(grid):
-            x1 = 0
+            y1 = i * h // grid
+            y2 = (i + 1) * h // grid
             for j in range(grid):
-                roi = self._gray[y1:y1+step_h, x1:x1+step_w]
+                x1 = j * w // grid
+                x2 = (j + 1) * w // grid
+                roi = self._gray[y1:y2, x1:x2]
                 intensity_map[i, j] = roi.mean()
-                x1 += step_w
-            y1 += step_h
         global_mean = intensity_map.mean()
         normalized_map = intensity_map / global_mean if global_mean > 0 else intensity_map
         uniformity = np.max(np.abs(normalized_map - 1.0))
@@ -1142,4 +1138,3 @@ class ImageAnalysis:
 
         self._output_image = out_image
         return out_image
-
