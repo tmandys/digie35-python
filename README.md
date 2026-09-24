@@ -84,6 +84,45 @@ Use gdb to debug, e.g.:
     gdb --args python ./digie35_server.py -vvvv
     > run
 
+### Frontend state tests
+
+The frontend regression tests require Node.js (tested with v24.19.0), available
+as `node` on your PATH. No `npm install`, Python environment, running server,
+browser, camera, or Raspberry Pi hardware is needed. They can run on a regular
+Windows, Linux, or macOS computer.
+
+From the repository root, run:
+
+```sh
+node --version
+node tests/frontend_state_review.cjs
+```
+
+The script reads the current `digie35/html/digie35.html` and executes its inline
+JavaScript with simulated DOM elements, WebSocket messages, and timers. It checks
+scenarios such as Stop followed by a late analysis response, manual movement,
+automatic capture sequences, and download errors. It does not start or execute
+the Python backend: server messages are constructed by the tests.
+
+Each scenario prints `PASS` or `FAIL`, followed by a summary. A successful run
+ends with `0 failed` and exit code 0; failed assertions produce exit code 1.
+Currently the suite contains 27 scenarios. To test a different copy of the HTML,
+pass its path as an optional argument:
+
+```sh
+node tests/frontend_state_review.cjs /path/to/digie35.html
+```
+
+These tests do not modify the HTML or control any hardware. They verify selected
+event sequences, not the complete browser/backend integration or physical timing;
+end-to-end testing on the Raspberry Pi is still needed.
+
+### TMC2208 UART diagnostics
+
+The standalone UART tool checks TX/RX loopback, register reads and a verified
+write of unchanged GCONF. It does not configure motor current or replace STEP/DIR.
+See [hardware preparation, commands and tests](docs/tmc2208-uart.md).
+
 Installation
 ------------
 
@@ -246,4 +285,3 @@ Captured files can be accessed over network Samba prototol from Windows or Mac O
     smbpasswd -a pi
 
 Digie35 server log is available via websocket in browser console or CLI `digie35_log` util.
-

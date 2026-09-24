@@ -2302,8 +2302,13 @@
                     if (cnt > 1) {
                         // delay range is 0..5000ms
                         const val = Number(document.getElementById("preview-latency-rng").value) * 500;
+                        const generation = window.alignment_generation;
+                        delete window.automove_in_progress;
                         setTimeout(function() {
-                            if (!window.stop_multicapture) {
+                                if (generation !== window.alignment_generation) {
+                                    return;
+                                }
+                                if (!window.stop_multicapture) {
                                 if (capture_mode == "multi") {
                                     document.getElementById("capture-multi").value = (cnt - 1).toString();
                                 }
@@ -2312,7 +2317,6 @@
                                 } else {
                                     get_adapter_button("shoot", "").click();
                                 }
-                                delete window.automove_in_progress;
                             }
                         }, val);
                     } else {
@@ -2340,7 +2344,7 @@
             if (!window.stop_multicapture) {
                 if (document.getElementById("automove-cb").checked || get_radio_button_value("capture-mode") == "serial") {
                     window.automove_in_progress = true;
-                    window.adapter_buttons.frame.action(1);
+                    window.adapter_buttons.frame.action(1, true); // Continue the current capture sequence.
                     window.stop_multicapture = false;
                 } else {
                     window.automove_in_progress = false;
@@ -2367,7 +2371,8 @@
         if (!window.capabilities.motorized) {
             window.automove_in_progress = false;
         }
-        if (document.getElementById("notify-image-filename-cb").checked) {
+        if (document.getElementById("notify-image-filename-cb").checked &&
+            typeof payload.file_path === "string" && payload.file_path) {
             screen_notification(payload.file_path.replace(/^.*[\\/]/, ''));
         }
     }
@@ -2467,14 +2472,17 @@
                                         color_list.value = window.last_backlight_color;
                                         adjust_backlight();
                                     }
-                                    if (data.payload.movement == 0 && data.payload.frame_ready) {
+                                    if (data.payload.movement == 0 && data.payload.frame_ready &&
+                                        data.payload.client_context?.generation === window.alignment_generation) {
                                         reason = ANALYZE_ALIGN;
                                         if (document.getElementById("vision-capture-on-load-cb").checked) {
     	    				                reason |= ANALYZE_CAPTURE;
                                         }
                                     }
                                 } else if (data.payload.action=="MOVE_BY" && data.payload.movement == 0) {
-                                    switch (data.payload.client_context) {
+                                    const context = data.payload.client_context;
+                                    const current = context?.generation === window.alignment_generation;
+                                    switch (current ? context.action : null) {
                                         case "frame":
                                             reason = ANALYZE_ALIGN;
                                             break;
@@ -2487,7 +2495,11 @@
                                     }
                                 }
                                 if (reason) {
+                                    const generation = window.alignment_generation;
                                     setTimeout(function() {
+                                        if (generation !== window.alignment_generation) {
+                                            return;
+                                        }
 					                    sendCommandAnalyze(reason);
                                     }, Number(document.getElementById("preview-latency-rng").value) * 500);
                                 }
@@ -2683,34 +2695,42 @@
                             } else if (data.cmd == "VALIDATE_TEMPLATE") {
                                 adjust_file_template(data.payload);
                             } else if (data.cmd == "ANALYZE") {
+                                const context = data.payload.client_context;
+                                if (context?.generation !== window.alignment_generation ||
+                                    context?.request !== window.analyze_request) return;
                                 window.snapshot_analysis = data.payload;
                                 if (!["SHIFT_REQUIRED", "ALIGNED"].includes(data.payload.status)) {
                                     const errs = data.payload ?. errors ?? "";
                                     update_status_info(`Vision: ${data.payload.status} ${errs}`, "VISION");
-								    window.analyze_in_progress = 0;
+                                    if (window.analyze_in_progress & ANALYZE_ALIGN) {
+                                        cancel_alignment();
+                                        window.stop_multicapture = true;
+                                    } else {
+                                        window.analyze_in_progress = 0;
+                                    }
                                 } else if (window.analyze_in_progress & ANALYZE_ALIGN) {
                                     update_status_info("", "VISION", true);
                                     if (data.payload.status == "SHIFT_REQUIRED") {
                                         if ((window.analyze_in_progress & ANALYZE_ALIGN_REPEAT) && window.analyze_counter <= 0) {
                                             update_status_info(`Vision: Alignment attempt count exceeded`, "VISION");
-								            window.analyze_in_progress = 0;
+								            cancel_alignment();
                                             window.stop_multicapture = true;
                                         } else {
                                             const ctx = (window.analyze_in_progress & ANALYZE_CAPTURE) ? "align_capture" : "align";
 								            window.analyze_in_progress = 0;
-                                            sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel_per_mm, 'speed': MOVE_BY_SPEED, 'client_context': ctx});
+                                            sendCommandM("MOVE_BY", {'mm': data.payload.move_by / data.payload.pixel_per_mm, 'speed': MOVE_BY_SPEED, 'client_context': {action: ctx, generation: window.alignment_generation}});
                                         }
                                     } else if (data.payload.status == "ALIGNED") {
-                                        if (window.analyze_in_progress & ANALYZE_CAPTURE) {
-                                            if (!window.stop_multicapture) {
-    								            window.analyze_in_progress = 0;
-                                                get_adapter_button("shoot", "").click();
-                                            }
+                                        const should_capture = 
+                                            (window.analyze_in_progress & ANALYZE_CAPTURE) &&
+                                            !window.stop_multicapture;
+                                        window.analyze_in_progress = 0;
+                                        if (should_capture) {
+                                            get_adapter_button("shoot", "").click();
                                         }
                                     }
                                 } else {
 								    window.analyze_in_progress = 0;
-                                    window.stop_multicapture = true;
                                 }
                                 // TODO: focus, positive-negative
 								window.last_analyze_stamp =  Date.now();
@@ -2795,6 +2815,12 @@
         sendCommand2(cmd, obj);
     }
 
+    function cancel_alignment() {
+        // A new token invalidates pending timers and replies, also across reconnects.
+        window.alignment_generation = `${Date.now()}-${Math.random()}`;
+        window.analyze_in_progress = 0;
+    }
+
     function sendCommandAnalyze(flags) {
 		// do not DoS as websocket/tcp buffers requests and analyze might congest server
 		if (window.last_analyze_stamp) {
@@ -2803,31 +2829,41 @@
 				// fallback when response likely never come back, should not happen
 			    window.analyze_in_progress = 0;
 			}
-			if (window.analyze_in_progress) {
-                window.analyze_in_progress |= flags;
-                return;
-            }
-            if ((flags & ANALYZE_STREAM) && diff_secs < 2.5) {
+            if (!window.analyze_in_progress && flags == ANALYZE_STREAM && diff_secs < 2.5) {
 				return;
 			}
 		}
-        let params = {"client_context": flags};
+        // Prepare alignment even when reusing a pending preview request.
+        // Count each analysis once, not every caller joining the same request.
+        if (flags & (ANALYZE_ALIGN | ANALYZE_ALIGN_REPEAT)) {
+            if (!(window.analyze_in_progress & ANALYZE_ALIGN)) {
+                if (flags & ANALYZE_ALIGN_REPEAT) {
+                    window.analyze_counter -= 1;
+                } else {
+                    window.analyze_counter = ANALYZE_MAX_ITERATION;
+                }
+            }
+            flags |= ANALYZE_ALIGN;
+        }
+        if (window.analyze_in_progress) {
+            window.analyze_in_progress |= flags;
+            return;
+        }
+        window.analyze_request += 1;
+        let params = {"client_context": {
+            generation: window.alignment_generation,
+            request: window.analyze_request,
+        }};
         if (!document.getElementById("usb-preview-cb").checked) {
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
 		window.last_analyze_stamp =  Date.now();
 		window.analyze_in_progress |= flags;
-        if (flags & ANALYZE_ALIGN) {
-            window.analyze_counter = ANALYZE_MAX_ITERATION;
-        }
-        if (flags & ANALYZE_ALIGN_REPEAT) {
-            window.analyze_in_progress |= ANALYZE_ALIGN;
-            window.analyze_counter -= 1;
-        }
         sendCommand2("ANALYZE", params);
     }
 
     function do_disconnect()  {
+        cancel_alignment();
         document.onkeydown = function(event) {};
         document.onkeyup = function(event) {};
         document.getElementById("server-info").value = "";
@@ -3395,7 +3431,8 @@
         window.snapshot_timer = null;
         window.current_adapter = "";
 		window.last_analyze_stamp = null;
-		window.analyze_in_progress = 0;
+        window.analyze_request = 0;
+        cancel_alignment();
         // check if it is fresh visit or reload, ...
         let nav_type = "unknown";
         if (performance.getEntriesByType) {
@@ -3732,6 +3769,7 @@
             "move": {
                 "idx": [-4, -3, -2, -1, 1, 2, 3, 4],
                 "action": function(dir) {
+                    cancel_alignment();
                     window.stop_multicapture = true;
                     sendCommandM('MOVE', {'direction': dir});
                 },
@@ -3739,6 +3777,7 @@
             "stop": {
                 "action": function(dir) {
                     window.stop_multicapture = true;
+                    cancel_alignment();
                     sendCommandM('STOP');
                 },
             },
@@ -3746,16 +3785,23 @@
             "moveby": {
                 "idx": [-1, 1],
                 "action": function(dir) {
+                    cancel_alignment();
                     window.stop_multicapture = true;
-                    sendCommandM("MOVE_BY", {'mm': dir*MOVE_BY_IN_MM, 'speed': MOVE_BY_SPEED, 'client_context': "wheel"});
+                    sendCommandM("MOVE_BY", {'mm': dir*MOVE_BY_IN_MM, 'speed': MOVE_BY_SPEED, 'client_context': {
+                        action: "wheel",
+                        generation: window.alignment_generation
+                    }});
                 },
             },
 
             "frame": {
                 "idx": [-1, 1],
-                "action": function(dir) {
+                "action": function(dir, automatic = false) {
+                    if (!automatic) {
+                        cancel_alignment();
+                    }
                     window.stop_multicapture = true;
-                    sendCommandM("MOVE_BY", {'mm': dir*(FRAME_WIDTH_IN_MM + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': FRAME_SPEED, 'client_context': 'frame'});
+                    sendCommandM("MOVE_BY", {'mm': dir*(FRAME_WIDTH_IN_MM + parseFloat(+document.getElementById('frame-correction').value || 0)), 'speed': FRAME_SPEED, 'client_context': {action: 'frame', generation: window.alignment_generation}});
                 },
             },
 
@@ -3772,6 +3818,7 @@
             "eject": {
                 "idx": [-1, 1],
                 "action": function(dir) {
+                    cancel_alignment();
                     window.stop_multicapture = true;
 					dir = reverse(dir); 	// revert reverse acition
                     sendCommandM("EJECT", {'forward': dir});
@@ -3780,6 +3827,7 @@
 
             "insert": {
                 "action": function(dir) {
+                    cancel_alignment();
                     window.stop_multicapture = true;
                     check_multicapture();   // to reset immediately because we need capture on load
                     window.stop_multicapture = false;
@@ -3789,7 +3837,9 @@
 							create_next_film_id();
 						}
 					}
-                    sendCommandM('INSERT');
+                    sendCommandM('INSERT', {
+                        client_context: {generation: window.alignment_generation}
+                    });
                 },
             },
 
@@ -4414,7 +4464,7 @@
 
         let bck = `${is_on}`;
         if (is_on) {
-            bck += `:${exposure}:`+ JSON.stringify(gain)+`:${color_temp}`;
+            bck += `:${color}:${exposure}:`+ JSON.stringify(gain)+`:${color_temp}`;
         }
         if (send_cmd) {
             if (window.last_backlight !== bck) {
