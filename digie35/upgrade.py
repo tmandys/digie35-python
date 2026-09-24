@@ -35,6 +35,8 @@ import os
 import sys
 import locale
 import shutil
+from packaging.version import Version, InvalidVersion
+from packaging.utils import parse_wheel_filename, InvalidWheelFilename, canonicalize_name
 
 
 package_name = "digie35_ctrl"
@@ -76,49 +78,44 @@ def main():
         logging.getLogger().error("%s" % (proc.stderr))
         sys.exit(127)
 
-    def parse_version(s):
-        arr = re.findall("([0.9]+)\.([0-9]+)", s)
-        logging.getLogger().debug("parse_version(%s): %s" % (s, arr))
-        return (int(arr[0][0]), int(arr[0][1]))
-
-    def cmp_ver(v1, v2):
-        logging.getLogger().debug("cmp_ver(%s, %s)" % (v1, v2))
-        if v2 == None or v1[0] > v2[0]:
-            return 1
-        elif v1[0] == v2[0]:
-            if v1[1] > v2[1]:
-                return 1
-            elif v1[0] == v2[0]:
-                return 0
-        return -1
-
     # check installed package
-    proc = run(["pip", "show", package_name])
+    proc = run([sys.executable, "-m", "pip", "show", package_name])
 
     ver = re.findall("^Version: *(.*)$", proc.stdout, re.MULTILINE)[0]
     logging.getLogger().info("Found %s installed release pip" % (ver))
-    installed_package_version = parse_version(ver)
+    installed_package_version = Version(ver)
 
     # get available packages
     logging.getLogger().info("Checking remote repository: %s" % (python_repository_url))
     proc = run(["curl", python_repository_url])
-    release_files = re.findall("href=\"("+package_name+"[^\"]+\.whl)\"", proc.stdout)
+    release_files = re.findall(r'href="('+re.escape(package_name)+r'[^"/]+\.whl)"', proc.stdout)
     logging.getLogger().debug("Files: %s" % (release_files))
 
 
     logging.getLogger().debug("Looking for %s package" % (args.release if args.release != "" else "LATEST"))
-    install_version = parse_version(args.release) if args.release != "" and not args.check else None
+    try:
+        requested_version = Version(args.release) if args.release != "" and not args.check else None
+    except InvalidVersion:
+        argParser.error("Invalid release version: %s" % args.release)
+    install_version = None
     install_file = None
 
     for file in release_files:
-        ver = parse_version(file)
+        try:
+            name, ver, build, tags = parse_wheel_filename(file)
+        except InvalidWheelFilename:
+            logging.getLogger().warning("Skipping invalid wheel filename: %s", file)
+            continue
+        if name != canonicalize_name(package_name):
+            continue
         if args.release == "" or args.check:
-            if cmp_ver(ver, install_version) > 0:
+            if install_version is None or ver > install_version:
                 install_file = file
                 install_version = ver
         else:
-            if install_version == ver:
+            if requested_version == ver:
                 install_file = file
+                install_version = ver
                 break
 
     if install_file == None:
@@ -126,18 +123,22 @@ def main():
         sys.exit(2)
 
     if args.check:
-        if cmp_ver(install_version, installed_package_version) > 0:
+        if install_version > installed_package_version:
             print("Found newer version: %s" % (install_file))
         else:
             print("No newer version was found")
         sys.exit(0)
 
+    if args.release == "" and install_version < installed_package_version:
+        print("Nothing to do, installed version is newer than the repository")
+        return
+
     if installed_package_version == install_version and not args.force:
         logging.getLogger().info("Package already installed: %s" % (install_file))
         print("Nothing to do, package is up to date")
-        sys.exit(1)
+        return
 
-    params = ["pip", "install"]
+    params = [sys.executable, "-m", "pip", "install"]
 
     if (args.force):
         params.append("--force-reinstall")
@@ -153,7 +154,7 @@ def main():
     proc = run(params, capture_output=False)
 
     if not args.dry_run:
-        params = ["digie35_install", "--install", "--restart_services"]
+        params = [sys.executable, "-m", "digie35.install", "--install", "--restart_services"]
         if args.verbose > 2:
             params.append("-v")
         run(params, capture_output=False)
@@ -161,4 +162,3 @@ def main():
 
 if __name__ == "__main__":
    main()
-

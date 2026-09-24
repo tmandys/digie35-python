@@ -27,12 +27,26 @@ __copyright__ = "Copyright (C) 2023 MandySoft"
 __licence__ = "MIT"
 __version__ = "0.1"
 
-from subprocess import run
+from subprocess import run as subprocess_run
 import argparse
 import os
 import sys
 import locale
 import shutil
+import shlex
+import stat
+
+def run(command, *, allowed_codes=(0,), **kwargs):
+    """Stop on failed commands; callers explicitly allow expected nonzero results."""
+    try:
+        result = subprocess_run(command, **kwargs)
+    except OSError as exc:
+        sys.exit(f"Cannot run {shlex.join(command)}: {exc}")
+    if result.returncode not in allowed_codes:
+        if kwargs.get("capture_output") and result.stderr:
+            print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+        sys.exit(f"Command failed ({result.returncode}): {shlex.join(command)}")
+    return result
 
 def main():
     locale.setlocale(locale.LC_ALL, 'C')
@@ -135,16 +149,24 @@ def main():
 
     if (args.install):
         log("Installing...")
+        run(["mkdir", "-p", CONFIG_DIR])
         for svc in disabled_services:
             log("Disabling service: %s" % svc)
-            run(["systemctl", "--user", "stop", svc+".service"])
+            run(["systemctl", "--user", "stop", svc+".service"], allowed_codes=(0, 5))  # unit may not exist
 
         for f in disabled_gvfs:
+            path = "/usr/lib/gvfs/" + f
+            if not os.path.exists(path):
+                continue
             log("Disabling gvfs service: %s" % f)
-            run(["sudo", "killall", f], capture_output=True)
-            run(["sudo", "chmod", "-x", "/usr/lib/gvfs/"+f])
+            backup = os.path.join(CONFIG_DIR, f + ".mode")
+            if not os.path.exists(backup):
+                # Preserve the first saved mode across repeated installations.
+                with open(backup, "x", encoding="ascii") as stream:
+                    stream.write(format(stat.S_IMODE(os.stat(path).st_mode), "o"))
+            run(["sudo", "killall", f], allowed_codes=(0, 1))  # no matching process
+            run(["sudo", "chmod", "a-x", path])
 
-        run(["mkdir", "-p", CONFIG_DIR])
         run(["mkdir", "-p", SYSTEMD_DIR])
         for svc in list(fs_services):
             f = PROJ_DIR+"/systemd/"+svc+".service"
@@ -167,7 +189,7 @@ def main():
             if args.restart_services:
                 for board in boards:
                     svc2 = (svc + board) if "@" in svc else svc
-                    proc = run(["systemctl", "--user", "is-active", svc2+".service"], capture_output=True)
+                    proc = run(["systemctl", "--user", "is-active", svc2+".service"], capture_output=True, allowed_codes=(0, 3, 4))
                     log("Service status '%s': %s" % (svc2, proc.stdout.decode("utf-8")))
                     if proc.returncode == 0:
                         run(["systemctl", "--user", "daemon-reload"])   # to avoid warning
@@ -179,13 +201,14 @@ def main():
                 if fs_services[svc]["enable"]:
                     svc2 = (svc + args.board) if "@" in svc else svc
                     log("Enabling service '%s'" % (svc2))
+                    run(["systemctl", "--user", "daemon-reload"])
                     run(["systemctl", "--user", "enable", svc2+".service"])
                     run(["systemctl", "--user", "start", svc2+".service"])
         if args.httpd == WWW_DIR:
             for f in list(www_pages):
                 tgt = www_pages[f]
                 tgt.append(f)
-                f = PROJ_DIR + "/html" + f
+                f = PROJ_DIR + "/html/" + f
                 for f2 in tgt:
                     f2 = WWW_DIR + "/" + f2
                     log("Linking WWW page '%s' to '%s'" % (f, f2))
@@ -199,9 +222,10 @@ def main():
                 log("Linking image '%s' to '%s'" % (f, f2))
                 run(["sudo", "rm", "-f", f2])
                 run(["sudo", "ln", "-s", f, f2])
+            run(["sudo", "mkdir", "-p", WWW_DIR+"/sounds"])
             for f in www_sounds:
                 f2 = WWW_DIR + "/sounds/" + f
-                f = PROJ_DIR + "/sounds/" + f
+                f = PROJ_DIR + "/html/sounds/" + f
                 log("Linking sound '%s' to '%s'" % (f, f2))
                 run(["sudo", "rm", "-f", f2])
                 run(["sudo", "ln", "-s", f, f2])
@@ -213,6 +237,7 @@ def main():
                 log(" ".join(sed_cmd))
                 run(sed_cmd)
             run(["sudo", "rm", "-f", NGINX_CONF_DIR+"/sites-enabled/default"])
+            run(["sudo", "nginx", "-t"])
             run(["sudo", "nginx", "-s", "reload"])
             if args.restart_services:
                 log("Restarting service 'nginx'")
@@ -233,19 +258,32 @@ def main():
 
     else:
         log("Uninstalling...")
+        for f in disabled_gvfs:
+            backup = os.path.join(CONFIG_DIR, f + ".mode")
+            path = "/usr/lib/gvfs/" + f
+            if os.path.exists(backup):
+                with open(backup, encoding="ascii") as stream:
+                    mode = int(stream.read().strip(), 8)
+                if not 0 <= mode <= 0o7777:
+                    sys.exit(f"Invalid saved permissions: {backup}")
+                if os.path.exists(path):
+                    run(["sudo", "chmod", format(mode, "o"), path])
+                    os.remove(backup)
+            elif os.path.exists(path):
+                print(f"No saved permissions for {path}; leaving its mode unchanged.", file=sys.stderr)
         for svc in list(fs_services):
             if "@" in svc:
                 for b in boards:
                     log("Stopping service: '%s'" % svc+b)
-                    run(["systemctl", "--user", "stop", svc+b+".service"])
-                    run(["systemctl", "--user", "disable", svc+b+".service"])
+                    run(["systemctl", "--user", "stop", svc+b+".service"], allowed_codes=(0, 5))
+                    run(["systemctl", "--user", "disable", svc+b+".service"], allowed_codes=(0, 5))
             else:
                 log("Stopping service: '%s'" % svc)
-                run(["systemctl", "--user", "stop", svc+".service"])
-                run(["systemctl", "--user", "disable", svc+".service"])
+                run(["systemctl", "--user", "stop", svc+".service"], allowed_codes=(0, 5))
+                run(["systemctl", "--user", "disable", svc+".service"], allowed_codes=(0, 5))
             f2 = SYSTEMD_DIR+"/"+svc+".service"
             log("Removing unit file '%s'" % f2)
-            run(["rm", f2])
+            run(["rm", "-f", f2])
 
         if args.httpd == WWW_DIR:
             for f in list(www_pages):
@@ -254,20 +292,23 @@ def main():
                 for f2 in tgt:
                     f2 = WWW_DIR + "/" + f2
                     log("Removing WWW link '%s'" % f2 )
-                    run(["sudo", "rm", f2])
+                    run(["sudo", "rm", "-f", f2])
 
             for f in www_images:
                 f = WWW_DIR + "/images/" + f
                 log("Removing WWW link '%s'" % f )
-                run(["sudo", "rm", f])
+                run(["sudo", "rm", "-f", f])
             for f in www_sounds:
                 f = WWW_DIR + "/sounds/" + f
                 log("Removing WWW link '%s'" % f )
-                run(["sudo", "rm", f])
+                run(["sudo", "rm", "-f", f])
         elif args.httpd == NGINX_CONF_DIR:
             log("Removing nginx stuff")
-            run(["sudo", "rm", NGINX_CONF_DIR+"/conf.d/digie35.conf"])
-            run(["sudo", "ln", "-s", NGINX_CONF_DIR+"/sites-available/default", NGINX_CONF_DIR+"/sites-enabled/default"])
+            for cfg in nginx_configs:
+                run(["sudo", "rm", "-f", NGINX_CONF_DIR+"/conf.d/"+cfg])
+            if not os.path.lexists(NGINX_CONF_DIR+"/sites-enabled/default"):
+                run(["sudo", "ln", "-s", NGINX_CONF_DIR+"/sites-available/default", NGINX_CONF_DIR+"/sites-enabled/default"])
+            run(["sudo", "nginx", "-t"])
             run(["sudo", "nginx", "-s", "reload"])
 
         for f in desktop_apps:
@@ -288,4 +329,3 @@ def main():
 
 if __name__ == "__main__":
    main()
-

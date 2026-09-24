@@ -12,6 +12,7 @@ url = "https://repos.digie35.com/python"
 setup(
     name='digie35_ctrl',
     version='0.8.1',
+    python_requires='>=3.10',
     description='Digie35 Control package',
     long_description=readme,
     author='Tomas Mandys',
@@ -33,7 +34,7 @@ setup(
             "html/*.css",
             "html/*.js",
             "html/images/*",
-            "html/audio/*",
+            "html/sounds/*",
             "systemd/*.service",
             "cameras/*",
             "desktop/*",
@@ -52,8 +53,10 @@ setup(
             "digie35_board_tool = digie35.board_tool:main",
             "digie35_log = digie35.log_term:main",
             "digie35_image_analyzer = digie35.image_analyzer:main",
+            "digie35_tmc2208 = digie35.tmc2208_uart:main",
         ],
     },
+    extras_require={"uart": ["pyserial>=3.5"]},
     install_requires = [
         #"nose",
         #"sphinx",
@@ -63,7 +66,9 @@ setup(
         "smbus2",
         "netifaces",
         "rpi_hardware_pwm",
-        "websockets",
+        "websockets<14",
+        "requests",
+        "packaging>=20.9",
         "gphoto2",
         "gpiozero",
         "evdev",
@@ -79,4 +84,3 @@ setup(
         "digie35/digie35_lxde-pi-shutdown-helper",
     ],
 )
-
