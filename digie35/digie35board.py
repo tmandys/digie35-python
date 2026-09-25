@@ -545,7 +545,7 @@ class GulpStepperMotorAdapterMemory(GulpAdapterMemory):
         ("front_sensor_distance", "int", 2, "Front sensor distance", 4500),
         ("rear_sensor_distance", "int", 2, "Rear sensor distance", 4900),
         ("backlash_compensation", "int", 2, "Backlash compensation", -1),
-        ("selenoid", "number", 1, "Flattening press driven by selenoinds", 1),
+        ("selenoid", "number", 1, "Flattening press driven by selenoinds, (1 = sequence, 2=one pulse)", 1),
         ("reverse_dir", "number", 1, "Reverse sense of motor rotation", 0),
         ("sensing_resistor", "number", 2, "Sensing resistor in milliohms", 100),
         ("run_current", "number", 2, "Motor run current in mA RMS (0 = potentiometer)", 850),
@@ -627,7 +627,7 @@ class GulpStepperMotorAdapter(StepperMotorAdapter, GulpLightSupportMixin, GulpAd
         }
         self._SPEED_IN_MM_PER_SECS = (custom["speed1"]/100, custom["speed2"]/100, custom["speed3"]/100, custom["speed4"]/100)
         self._ACCELERATION_IN_MM_PER_SECS2 = custom["acceleration"]/100
-        self._SELENOID = custom["selenoid"] == 1
+        self._SELENOID = custom["selenoid"]
         self._REVERSE_DIR = custom["reverse_dir"] == 1
 
         logging.getLogger().debug("driver: %s, ms: %s, steps_per_mm: %s, speed: %s, interval#0: %s" % (self._DRIVER, self._MICROSTEPPING, self.get_steps_per_mm(), self._SPEED_IN_MM_PER_SECS, self._get_stepper_params(1)))
@@ -890,11 +890,8 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
         self.props.set("FP_TRUST_INTERVAL", 30.0)  # do not believe flattening state forever
         self.props.set("FP_PRESS_DELAY", 10.0)   # wait some time till press down when stopped
         self.props.set("FP_BACKLIGHT_OFF", False)  # switch off light to reduce power load at 24V
-        self.props.set("FP_DOWN_COUNT", 1)    # repeat pull down to increase force
-        self.props.set("FP_PWM_FREQ", 14000)   # simulate bit-bang PWM
-        self.props.set("FP_PWM_RATIO", 0.8)   # PWM bitbang ration
-        self.props.set("FP_PULSE_COUNT", 3)   # simulate PWM to avoid voltage drop
-        self.props.set("FP_PULSE_WIDTH", 0.1)   # short pulse to pull selenoid
+        self.props.set("FP_SELENOID_PULSE_SEQUENCE_MS", (90, 60, 40, 50, 40, ))  # selenoid timing, depends on RC time constant, use oscilloscope to tune, aim is Vds=0V, ie.open max.current
+        self.props.set("FP_SELENOID_PULSE_MS", (250, ))  # fallback for drivers without capacitor
 
     def close(self):
         self._xboard._cancel_timer(self._FLATTENING_TIMER)
@@ -984,6 +981,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
             color = self._xboard.get_current_backlight_color() if self.props.get("FP_BACKLIGHT_OFF") else None
             try:
                 self._xboard.set_io_state("stepper_enable", False)
+                self._xboard.set_io_state("stepper_step", False)  # start sequence always the same way
                 if self._DRIVER == GulpStepperMotorAdapterMemory.DRIVER_TMC2208_UART:
                     if not self._tmc_22xx_write_read(0x06) & 1:
                         raise DigitizerError("Motor ENN is not disabled before solenoid operation")
@@ -1003,31 +1001,14 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
                     self._xboard.set_backlight()
 
                 self._xboard.set_io_state("stepper_dir", not down)
-                cnt1 = self.props.get("FP_DOWN_COUNT") if down else 1
-                width = self.props.get("FP_PULSE_WIDTH")
-                pwm_freq = self.props.get("FP_PWM_FREQ")
-                pwm_ratio = self.props.get("FP_PWM_RATIO")
-                #logging.getLogger().debug(f"pull_selenoid({down}), DOWN_COUNT: {cnt1}, PWM_FREQ: {pwm_freq}, PWM_RATIO: {pwm_ratio}, PULSE_WIDTH: {width}, PULSE_COUNT: {self.props.get('FP_PULSE_COUNT')}")
-                while cnt1 > 0:
-                    cnt = self.props.get("FP_PULSE_COUNT")
-                    while cnt > 0:
-                        cnt -= 1
-                        if pwm_freq > 0:
-                            ts = time.perf_counter()
-                            # bit-bang PWM
-                            while time.perf_counter() - ts <= width:
-                                self._xboard.set_io_state("stepper_step", True)
-                                self._precise_sleep(1/pwm_freq*pwm_ratio)
-                                if pwm_ratio < 1.0:
-                                    self._xboard.set_io_state("stepper_step", False)
-                                    self._precise_sleep(1/pwm_freq*(1-pwm_ratio))
-                        else:
-                            self._xboard.set_io_state("stepper_step", True)
-                            time.sleep(width)   # short pulse to limit heating
-                            self._xboard.set_io_state("stepper_step", False)
-                            time.sleep(width)
-                    cnt1 -= 1
-                # logging.getLogger().debug("end pulse")
+                pulse_timing = self.props.get("FP_SELENOID_PULSE_SEQUENCE_MS") if self._SELENOID == 1 else self.props.get("FP_SELENOID_PULSE_MS")
+                #logging.getLogger().debug(f"pull_selenoid({down}), SEQUENCE: {pulse_timing}")
+                level = True
+                for pulse_width in pulse_timing:
+                    self._xboard.set_io_state("stepper_step", level)
+                    self._precise_sleep(pulse_width/1000)
+                    level = not level
+
                 self._xboard.set_io_state("stepper_step", save_step)
                 if stepper_index is not None:
                     self._tmc_22xx_restore_index(stepper_index, save_step, chopconf)
@@ -1068,7 +1049,7 @@ class GulpStepperMotorAdapter_0105(GulpStepperMotorAdapter_0103):
 
     def get_capabilities(self):
         result = super().get_capabilities()
-        result["flattening"] = self._SELENOID
+        result["flattening"] = int(self._SELENOID > 0)
         return result
 
 

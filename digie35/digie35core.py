@@ -1206,7 +1206,7 @@ class StepperMotorAdapter(Adapter):
         logging.getLogger().debug("gpio_inchange: %s", inputs)
 
         for key in list(self._frame_counters):
-            if self._frame_counters[key]["state"] != inputs[self._counters[key]]:
+            if self._frame_counters[key].get("state") != inputs[self._counters[key]]:
                 # manual film movement are not considered as direction is unknown
                 self._frame_counters[key]["counter"] += motor_dir
                 self._frame_counters[key]["motor_position"] = motor_pos
