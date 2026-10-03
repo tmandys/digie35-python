@@ -36,8 +36,8 @@ effects:
         entity: led
         value: white+red+green+blue
   any_film:
-    if: "film_type == 'any'"
-    actions:
+    xif: "film_type == 'any'"
+    xactions:
       - type: set
         entity: preset
         value: ""
@@ -45,6 +45,7 @@ effects:
         entity: led
         value: white
   preview:
+    if: "film_type != 'any'"
     actions:
       - type: set
         entity: invert
