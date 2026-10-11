@@ -1201,26 +1201,31 @@
                                     <input type="range" id="backlight-white-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: white" title="Backlight white LED gain" />
                                     <input type="number" id="backlight-white-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
                                     <input type="checkbox" id="backlight-white-switch" title="Toggle white LED" />
+                                    <small id="backlight-white-pwm" role="status" style="color: #b45309; display: inline-block; width: 1.5em; flex: 0 0 1.5em; text-align: center"></small>
                                 </div>
                                 <div id="backlight-red-container" class="hidden">
                                     <input type="range" id="backlight-red-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: red" title="Backlight red LED gain" />
                                     <input type="number" id="backlight-red-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
                                     <input type="checkbox" id="backlight-red-switch" title="Toggle red LED" />
+                                    <small id="backlight-red-pwm" role="status" style="color: #b45309; display: inline-block; width: 1.5em; flex: 0 0 1.5em; text-align: center"></small>
                                 </div>
                                 <div id="backlight-green-container" class="hidden">
                                     <input type="range" id="backlight-green-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: green" title="Backlight green LED gain" />
                                     <input type="number" id="backlight-green-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
                                     <input type="checkbox" id="backlight-green-switch" title="Toggle green LED" />
+                                    <small id="backlight-green-pwm" role="status" style="color: #b45309; display: inline-block; width: 1.5em; flex: 0 0 1.5em; text-align: center"></small>
                                 </div>
                                 <div id="backlight-blue-container" class="hidden">
                                     <input type="range" id="backlight-blue-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: blue" title="Backlight blue LED gain" />
                                     <input type="number" id="backlight-blue-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset." />
                                     <input type="checkbox" id="backlight-blue-switch" title="Toggle blue LED" />
+                                    <small id="backlight-blue-pwm" role="status" style="color: #b45309; display: inline-block; width: 1.5em; flex: 0 0 1.5em; text-align: center"></small>
                                 </div>
                                 <div id="backlight-amber-container" class="hidden">
                                     <input type="range" id="backlight-amber-rng" min="-1" max="1" step="0.01" class="color-range" style="accent-color: rgb(253, 246, 230)" title="Backlight amber LED gain" />
                                     <input type="number" id="backlight-amber-num" value="1" min="0.1" max="10" step="0.01" style="width: 7ch" title="Use mouse wheel to change gain. Hold Shift for fine adjustment. Double click to reset" />
                                     <input type="checkbox" id="backlight-amber-switch" title="Toggle amber LED" />
+                                    <small id="backlight-amber-pwm" role="status" style="color: #b45309; display: inline-block; width: 1.5em; flex: 0 0 1.5em; text-align: center"></small>
                                 </div>
                             </div>
                         </div>
@@ -1373,7 +1378,7 @@
                             <label for="snapshot-wb-delay">WB settling delay</label>
                             <input id="snapshot-wb-delay" type="number" min="0" max="10000" step="50" value="1000" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
                         </div>
-                        <small class="hint">Minimum wait after an LED change before evaluating white balance. Saved for future automatic WB; currently has no effect.</small>
+                        <small class="hint">Minimum wait after an LED change before evaluating the next calibration snapshot.</small>
                     </div>
                 </div>
             </div>
@@ -1860,7 +1865,8 @@
                             <button type="button" onclick="backlightProfiles.openCalibration()">New calibration…</button>
                             <button type="button" id="backlight-profile-delete" disabled onclick="backlightProfiles.remove()">Delete profile</button>
                         </div>
-                        <small id="backlight-profile-status" class="hint" role="status"></small>
+                        <p class="hint" id="backlight-profile-help">A profile records how changes to individual LED channels affect the RGB values seen by your camera. Create it without film, using fixed camera exposure and white balance, and use a profile measured with the same light and camera settings. It provides the response data for automatic white-balance correction; selecting a profile does not yet adjust the LEDs.</p>
+                        <small id="backlight-profile-status" class="hint" role="status" aria-live="polite"></small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
@@ -1944,10 +1950,10 @@
                     <ol>
                         <li>Remove the film and fill the entire preview with the illuminated diffuser. Keep holders, borders and other objects out of the frame.</li>
                         <li>Fix camera exposure, ISO and white balance. Disable automatic image adjustments.</li>
-                        <li>Enable Analyze in Preview. Calibration averages the entire source snapshot; the eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
+                        <li>Analyze is enabled automatically and restored afterwards. Calibration measures the central 90% of the source snapshot width and height, ignoring 5% at each edge for both averaging and clipping checks. The darkest and brightest 10% of values in each RGB channel are excluded from the average to reduce dust and reflection effects. Clipping is checked before this exclusion. The eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
                         <li>Enter a unique profile name. During measurement, keep the camera and light settings unchanged.</li>
                     </ol>
-                    <p>Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. The original light is restored when calibration ends or is cancelled.</p>
+                    <p>Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. LED exposure is adjusted automatically in 0.5 EV steps before measurement, preserving PWM headroom on supported lights. Camera exposure and WB must stay fixed. The original light and Analyze state are restored when calibration ends or is cancelled.</p>
                     <div class="form-group vertical-spacer">
                         <small id="backlight-calibration-light" class="hint"></small>
                     </div>
@@ -2831,6 +2837,7 @@
                                 }
                             }
                             const color_list = document.getElementById("backlight-color-list");
+                            update_backlight_pwm(data.payload.backlight.pwm);
                             if (data.payload.backlight.color != "") {
                                 if (Array.from(color_list.options).filter(
                                     opt => (opt.value == data.payload.backlight.color && !opt.disabled))
@@ -3394,6 +3401,21 @@
             } else {
                 adj_button(get_adapter_button(key, ""));
             }
+        }
+    }
+
+    function update_backlight_pwm(status) {
+        for (const color of ["white", "red", "green", "blue", "amber"]) {
+            const badge = document.getElementById(`backlight-${color}-pwm`);
+            if (!badge) continue;
+            const pwm = status?.[color];
+            const warning = pwm?.clipped ? "CLIP" : pwm?.at_min ? "MIN" : pwm?.at_limit ? "MAX" : "";
+            badge.textContent = warning ? "⚠" : "";
+            badge.title = pwm
+                ? `${warning ? warning + ": " : ""}PWM requested ${Number(pwm.requested.toPrecision(4))}, output ${pwm.actual}/${pwm.maximum}. ${pwm.clipped ? "Requested brightness exceeds the LED PWM limit." : pwm.at_min ? "Positive brightness request becomes zero PWM. Increase Backlight exposure or channel gain." : pwm.at_limit ? "No upward PWM headroom remains." : "PWM headroom available."}`
+                : "";
+            const slider = document.getElementById(`backlight-${color}-rng`);
+            if (slider) slider.title = `Backlight ${color} LED gain${pwm ? ". " + badge.title : ""}`;
         }
     }
 

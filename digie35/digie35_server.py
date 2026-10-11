@@ -2000,7 +2000,7 @@ async def ws_control_handler(websocket, path):
                         case "CALIBRATION_INFO":
                             reply = backlight_calibration.info()
                         case "CALIBRATION_STEP":
-                            reply = backlight_calibration.step(websocket, params.get("token"), params.get("channel"), params.get("factor", 1))
+                            reply = backlight_calibration.step(websocket, params.get("token"), params.get("channel"), params.get("factor", 1), params.get("exposure"))
                         case "CALIBRATION_END":
                             session = backlight_calibration.session
                             if session and session["owner"] is websocket:
