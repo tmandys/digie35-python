@@ -179,13 +179,29 @@ class BacklightCalibration:
             raise ValueError("Invalid starting channel levels")
         base = {"color": color, "exposure": light.get("exposure") if light.get("exposure") is not None else 0,
                 "gain": levels, "temp": light.get("temp")}
-        if color == light.get("color") and light.get("exposure") is None:
-            base["exposure"] = None
         identity = self.light_identity(color)
+        hardware = self._light(color)
+        if any(value * 1.2 > 10 for value in levels.values()):
+            raise ValueError("Lower channel gains below 8.33 to leave calibration headroom")
+        exposure_options = []
+        # Use the UI's EV range and verify both probe extremes before any LED writes.
+        for exposure in (step / 2 for step in range(-5, 6)):
+            if hasattr(hardware, "get_backlight_pwm_status"):
+                probe = dict(base, exposure=exposure)
+                low = hardware.get_backlight_pwm_status(**dict(probe, gain={c: v * 0.8 for c, v in levels.items()}))
+                high = hardware.get_backlight_pwm_status(**dict(probe, gain={c: v * 1.2 for c, v in levels.items()}))
+                if any(high[c]["at_limit"] or high[c]["clipped"] or low[c]["actual"] <= 0
+                       or high[c]["actual"] <= low[c]["actual"] for c in channels):
+                    continue
+            exposure_options.append(exposure)
+        if not exposure_options:
+            raise ValueError("No LED EV setting leaves PWM headroom for all channels. Adjust channel gains.")
+        base["exposure"] = min(exposure_options, key=lambda ev: abs(ev - base["exposure"]))
         self.completed.pop(owner, None)
         self.session = {"owner": owner, "token": uuid.uuid4().hex, "name": name, "base": base,
                         "original": original, "hardware": self._light(color), "light": identity,
-                        "levels": levels, "channels": channels, "setup": {"board": type(self.digitizer).__name__}}
+                        "levels": levels, "channels": channels, "exposure_options": exposure_options,
+                        "setup": {"board": type(self.digitizer).__name__}}
         self._touch()
         return {k: copy.deepcopy(v) for k, v in self.session.items() if k not in ("owner", "hardware", "original")}
 
@@ -198,13 +214,18 @@ class BacklightCalibration:
             raise ValueError("Light capabilities changed during calibration")
         return self.session
 
-    def step(self, owner, token, channel=None, factor=1):
+    def step(self, owner, token, channel=None, factor=1, exposure=None):
         session = self._check(owner, token)
         if channel is not None and channel not in session["channels"]:
             raise ValueError("Channel is not part of this calibration")
         if type(factor) not in (int, float) or factor not in (0.8, 1, 1.2):
             raise ValueError("Unsupported calibration step")
+        if exposure is not None and (type(exposure) not in (int, float)
+                                    or exposure not in session["exposure_options"] or channel is not None or factor != 1):
+            raise ValueError("Unsupported calibration EV or insufficient PWM headroom")
         settings = copy.deepcopy(session["base"])
+        if exposure is not None:
+            settings["exposure"] = exposure
         settings["gain"] = dict(session["levels"])
         if channel:
             value = settings["gain"][channel] * factor
@@ -213,6 +234,8 @@ class BacklightCalibration:
                 raise ValueError("Lower the starting channel level to leave calibration headroom")
             settings["gain"][channel] = value
         self.digitizer.set_backlight(**settings)
+        if exposure is not None:
+            session["base"]["exposure"] = exposure
         self._touch()
         return {"settings": settings}
 

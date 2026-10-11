@@ -179,7 +179,7 @@ class AlphaExtensionBoard(ExtensionBoardWithI2C):
         }
         return result
 
-def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: dict = {}, num_bits=8):
+def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: dict = {}, num_bits=8, diagnostics=None):
     pwm = {}
     max_val = (1 << num_bits) - 1
     if exposure is None:
@@ -187,6 +187,9 @@ def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: 
             # RRGGBB, fallback
             for color in reversed(colors):
                 pwm[color] = gain & max_val
+                if diagnostics is not None:
+                    diagnostics[color] = {"requested": pwm[color], "actual": pwm[color], "maximum": max_val,
+                                          "clipped": False, "at_limit": pwm[color] == max_val, "at_min": False}
                 gain >>= num_bits
         else:
             # gain is pwm value
@@ -196,11 +199,20 @@ def pwm_from_exposure(colors: tuple|list, exposure: float, gain: dict, pwm_0ev: 
                     val = 0
                 val *= max_val
                 pwm[color] = max(0, min(max_val, int(val)))
+                if diagnostics is not None:
+                    diagnostics[color] = {"requested": val, "actual": pwm[color], "maximum": max_val,
+                                          "clipped": val > max_val, "at_limit": pwm[color] == max_val,
+                                          "at_min": val > 0 and pwm[color] == 0}
     else:
         for color in reversed(colors):
             pwm[color] = pwm_0ev.get(color, 2 ** (num_bits-3)) * (2 ** exposure)   # suppose 5 Ev range, i.e. num_bits - 3
             pwm[color] *= gain.get(color, 1)
+            requested = pwm[color]
             pwm[color] = max(0, min(max_val, round(pwm[color])))
+            if diagnostics is not None:
+                diagnostics[color] = {"requested": requested, "actual": pwm[color], "maximum": max_val,
+                                      "clipped": requested > max_val, "at_limit": pwm[color] == max_val,
+                                      "at_min": requested > 0 and pwm[color] == 0}
     logging.getLogger().debug(f"pwm_from_exposure({colors}, {exposure}, {gain}, {pwm_0ev}) -> {pwm}")
     return pwm
 
@@ -1253,6 +1265,13 @@ class GulpGeneralLight8xPWMAdapter(GulpLightAdapter):
             "backlight_control": True,
         }
         return result
+
+    def get_backlight_pwm_status(self, color=None, exposure=None, gain={}, temp=None):
+        """Logical channel PWM before any white/amber temperature split."""
+        status = {}
+        if color:
+            pwm_from_exposure(color.split("+"), exposure, gain, self._default_pwm_0ev, diagnostics=status)
+        return status
 
     # calc white+amver pwm  by temperature
     def _calc_temperature_pwm(self, pwm, temp, min_temp = 3000, max_temp = 5000):

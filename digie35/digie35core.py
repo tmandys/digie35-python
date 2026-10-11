@@ -580,6 +580,12 @@ class ExtensionBoard:
 
         for adapter_type in list(self._adapters):
             result |= self.get_adapter(adapter_type).get_state()
+        light = self.get_adapter(getattr(self, "LIGHT_NAME", "light"))
+        if light is not None and hasattr(light, "get_backlight_pwm_status"):
+            backlight = result["backlight"]
+            # Preview can be routed to the main board instead of this adapter.
+            if backlight["color"] != "preview" or light.get_capability("preview_backlight"):
+                backlight["pwm"] = light.get_backlight_pwm_status(**backlight)
         return result
 
     def get_io_states(self, names = None):

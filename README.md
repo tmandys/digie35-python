@@ -154,10 +154,14 @@ JSON raise errors rather than returning an empty profile.
 
 Backlight settings contains the profile selector and **New calibration** dialog.
 Remove the film, fill the entire preview with the illuminated diffuser, lock
-camera exposure/ISO/WB and enable Analyze before starting. Precise focus on a
+camera exposure/ISO/WB before starting. Analyze is enabled automatically and its
+original state is restored after success, failure or cancellation. Precise focus on a
 uniform diffuser is unnecessary; disable autofocus. The eyedropper and its sample
-size are independent of calibration, which averages all source-snapshot pixels
-(read in strips to limit temporary memory).
+size are independent of calibration, which measures the central 90% of source-snapshot
+width and height (5% is ignored at each edge for averaging and clipping checks).
+The darkest and brightest 10% of values in each RGB channel are excluded
+to reduce dust and reflection effects. Clipping is checked on all pixels in that region before
+trimming. Histograms and strip reads limit temporary memory.
 Calibration automatically selects channels from the connected hardware's
 capabilities: RGBAW first, otherwise RGB with white when available, RGB alone,
 or white alone. The dialog shows the light identity and selected channels;
@@ -170,6 +174,23 @@ samples, waits for three stable new snapshots, and verifies the original RGB.
 The resulting matrix is local to those settings and describes decoded preview
 RGB per unit of channel gain, not linear RAW values or a full-range PWM model.
 Automatic WB correction is not implemented by selecting a profile yet.
+
+PCA9634 light adapters (including the manual 120 light box) report logical
+channel PWM in `backlight.pwm`: requested value, actual value, maximum,
+`clipped` (request above maximum), and `at_limit` (output at maximum).
+`at_min` identifies a positive request that quantizes to zero PWM; intentionally
+disabled channels do not trigger it. The UI reserves a fixed warning-icon slot
+beside each gain control; tooltips show MIN/MAX/CLIP and numerical PWM values.
+White temperature mixing happens
+after this logical PWM limit. Older drivers without this reporting omit the
+field. Calibration finds LED exposure in 0.5 EV steps within -2.5 to +2.5 EV,
+using only settings with PWM headroom for the 0.8x/1.2x probes on supported
+adapters. It targets a brightest mean RGB channel of 80–180 in preview; at a safe
+EV boundary it may accept a dimmer valid measurement. If no valid measurement
+is possible, it reports the limit rather than changing the camera. The chosen
+LED exposure stays fixed throughout the channel measurements and is saved in
+the profile; original lighting is restored afterwards. The search is bounded
+and never revisits an EV setting. Lowering camera exposure cannot resolve an LED PWM limit.
 
 User profile names are checked before calibration and again at save time,
 ignoring letter case and surrounding whitespace. A profile is a portable JSON

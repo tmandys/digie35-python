@@ -107,6 +107,45 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.calibration.session)
         self.assertEqual(self.digitizer.light, self.original)
 
+    async def test_pwm_headroom_selects_safe_ev_and_restores_original(self):
+        from digie35.digie35board import GulpGeneralLight8xPWMAdapter
+        class Light:
+            _default_pwm_0ev = {"white":255 / 2**2.5}
+            def get_backlight_pwm_status(self, **settings):
+                return GulpGeneralLight8xPWMAdapter.get_backlight_pwm_status(self, **settings)
+        light = Light()
+        self.digitizer.get_adapter = lambda name: light
+        self.digitizer.light["exposure"] = 2.5
+        self.original["exposure"] = 2.5
+        session = self.calibration.begin(self.owner, "Test")
+        self.assertEqual(session["base"]["exposure"], 2)
+        self.assertNotIn(2.5, session["exposure_options"])
+        with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], exposure=2.5)
+        self.calibration.step(self.owner, session["token"], exposure=1)
+        self.assertEqual(self.calibration.session["base"]["exposure"], 1)
+        self.calibration.end(self.owner, session["token"])
+        self.assertEqual(self.digitizer.light, self.original)
+
+    async def test_auto_ev_rejects_invalid_values_and_keeps_original_for_disconnect(self):
+        session = self.calibration.begin(self.owner, "Test")
+        for ev in [True, float('nan'), 100, -100, 0.1]:
+            with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], exposure=ev)
+        with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], 'red', 1.2, exposure=1)
+        self.calibration.step(self.owner, session["token"], exposure=1)
+        self.calibration.disconnect(self.owner)
+        self.assertEqual(self.digitizer.light, self.original)
+
+    async def test_saved_profile_uses_final_auto_ev_not_original_ev(self):
+        session = self.calibration.begin(self.owner, "Auto EV")
+        self.calibration.step(self.owner, session["token"], exposure=1.5)
+        self.calibration.end(self.owner, session["token"])
+        data = profile() | {"channels": session["channels"], "matrix": [[1]*4]*3,
+                            "baseline": {"settings": {"exposure":99}}}
+        saved = self.calibration.save_profile(self.owner, session["token"], data)
+        actual = self.calibration.profiles.get(saved["id"])["profile"]
+        self.assertEqual(actual["baseline"]["settings"]["exposure"], 1.5)
+        self.assertEqual(self.digitizer.light, self.original)
+
     async def test_bad_steps_are_rejected_without_changing_light(self):
         token = self.calibration.begin(self.owner, "Test")["token"]
         for channel, factor in [("ir", 1), ("red", 100), ("red", float("nan"))]:
