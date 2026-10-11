@@ -209,6 +209,24 @@ LED exposure stays fixed throughout the channel measurements and is saved in
 the profile; original lighting is restored afterwards. The search is bounded
 and never revisits an EV setting. Lowering camera exposure cannot resolve an LED PWM limit.
 
+New calibrations cover the whole lightbox, regardless of the currently selected
+LED mode. The server starts from unit gains and discovers visible channels from
+capabilities. Each channel is measured alone with all other channels off; on
+tunable-white RGBAW hardware the `white` and `amber` outputs are measured separately
+and labelled White 5000 K and White 3000 K. Isolated gains are adjusted within
+PWM headroom to obtain a usable signal while keeping LED EV fixed. Dark cross
+channels are expected during isolated measurements and do not invalidate them.
+
+The profile stores `isolated_samples` and `isolated_matrix`, including the actual
+gain and settings of each measurement. It also measures the local response in
+the reference mixture, retained in `matrix` for the WB controller. These are
+separate measurements: nonlinear preview RGB must not be treated as an additive
+sum of the isolated channels. Reference-mixture drift is checked at the end.
+Camera exposure must remain fixed for the entire run (manual or reliable AE
+lock). Camera WB Kelvin and shift are entered in the dialog, remembered in
+browser settings and stored as user-declared profile metadata; camera settings
+are not read or changed automatically. Existing profiles remain readable.
+
 User profile names are checked before calibration and again at save time,
 ignoring letter case and surrounding whitespace. A profile is a portable JSON
 file with its display name and measurements; copying a valid file with a unique
@@ -233,6 +251,30 @@ Other hardware-changing commands are blocked during calibration; Stop cancels
 it. Snapshot timestamps identify buffer arrivals, not sensor exposure times:
 the settling delay still needs to match the camera/preview path. Sources without
 timestamp headers use separate snapshot requests as the fallback.
+
+LED white balance is started with **WB** beside the RGB readout in Analyze.
+Select a camera, an RGB/RGB+White/RGBAW mode,
+a matching calibration profile in Backlight settings, and click a neutral
+reference area in the preview (for negative mask compensation, use clear film
+base). WB automatically enables disabled RGB channels using their current slider
+gains; cancellation restores their original switches and gains. Camera exposure
+and camera WB must remain fixed. Sampling uses the
+configured neighborhood of the selected point in the source snapshot, before
+display inversion, with the same trimmed mean as the RGB readout.
+
+The server uses the measured response profile to propose bounded gain changes across all enabled channels
+(including white and amber); the browser waits for the configured settling delay and three stable
+new snapshots after each change. Disabled white/amber outputs stay off; EV remains unchanged. The solver respects
+individual PWM limits and may reduce overall brightness to reach neutral RGB
+when a channel cannot increase further. White reductions are limited to 35%
+per step, other reductions to 20%, and increases to 15%.
+WB stops at neutral RGB (spread at most 2 levels or 2%), or after 16 corrections.
+Gain/PWM limits, invalid samples and divergence terminate the run. Cancel WB,
+Stop, disconnect and inactivity restore the original light; only a successfully
+measured correction is kept. Capture, calibration and other hardware changes
+are blocked by the server during WB. The resulting gains can be saved as an LED
+preset. Profiles are local response estimates: a strongly colored film or a
+different camera rendering may prevent convergence.
 
 Installing to a virtual environment
 

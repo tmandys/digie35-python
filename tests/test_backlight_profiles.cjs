@@ -23,7 +23,7 @@ function setup() {
     vm.createContext(context);
     vm.runInContext(source + '\nglobalThis.api = backlightProfiles;', context);
     const api = context.api;
-    const defaults = {CALIBRATION_BEGIN: {token:'token', channels:['red'], base:{color:'red+green+blue',exposure:0,gain:{red:1}}},
+    const defaults = {CALIBRATION_BEGIN: {token:'token', method:'whole_lightbox', channels:['red'], base:{color:'red+green+blue',exposure:0,gain:{red:1}}},
         COLOR_PROFILE_SAVE: {id:'user:one',name:'Test'}};
     api.request = async (cmd, params) => {
         calls.push({cmd,params});
@@ -31,10 +31,12 @@ function setup() {
         return defaults[cmd] || {};
     };
     api.refresh = async () => {};
+    const measureIsolated = api.measureIsolated;
+    api.measureIsolated = async () => ({baseline:[50,2,1],low:[40,2,1],high:[60,2,1],low_level:0.8,high_level:1.2});
     const measurements = [[100,110,120],[80,108,120],[120,112,120],[100,110,120]];
     const measure = api.measure;
     api.measure = async () => measurements.shift();
-    return {api, context, el, calls, stored, measure};
+    return {api, context, el, calls, stored, measure, measureIsolated};
 }
 
 test('successful calibration restores light before saving portable measurements', async () => {
@@ -48,6 +50,31 @@ test('successful calibration restores light before saving portable measurements'
     assert.equal(profile.units, 'preview_rgb_per_channel_gain');
     assert.equal(h.stored.get('control.backlight.profile'), 'user:one');
     assert.equal(h.api.running, false);
+    assert.equal(profile.scope,'lightbox');
+    assert.equal(profile.camera.white_balance.kelvin,5000);
+    assert.equal(profile.camera.white_balance.source,'user_declared');
+    assert.equal(profile.isolated_samples.red.baseline[0],50);
+});
+
+test('isolated measurement tolerates dark cross channels and records its own baseline',async()=>{
+    const h=setup(), run={cancelled:false,mode:'red+green+blue',usbpreview:true};
+    let level=1;
+    h.api.request=async(cmd,p)=>{
+        h.calls.push({cmd,params:p});
+        if(p.level !== undefined) level=p.level;
+        return {level:level*p.factor,settings:{gain:{red:level*p.factor,green:0,blue:0}}};
+    };
+    h.api.measure=async()=>{
+        const p=h.calls.at(-1).params;
+        const rgb=[100*level*p.factor,1,0];
+        h.api.validateSample({rgb,clipped_fraction:0,dark_fraction:1},run);
+        return rgb;
+    };
+    const sample=await h.measureIsolated.call(h.api,run,{token:'t'},'red');
+    assert.deepEqual(Array.from(sample.baseline),[100,1,0]);
+    assert.equal(sample.low_level,0.8);assert.equal(sample.high_level,1.2);
+    assert.equal(run.isolatedChannel,undefined);
+    assert(h.calls.every(c=>c.params.phase==='isolated'));
 });
 
 test('missing camera or unsupported light stops before any command', async () => {

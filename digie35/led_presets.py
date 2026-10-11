@@ -1,4 +1,4 @@
-"""Named LED gain presets; exposure is deliberately not part of a preset."""
+"""Named LED gain and exposure presets."""
 import copy
 import datetime
 import logging
@@ -40,7 +40,13 @@ class LedPresets:
             raise ValueError("Preset gains must be between 0.1 and 10")
         if any(type(v) is not bool for v in enabled.values()):
             raise ValueError("Invalid channel switches")
-        return {"mode": settings["mode"], "gains": dict(gains), "enabled": dict(enabled)}
+        result = {"mode": settings["mode"], "gains": dict(gains), "enabled": dict(enabled)}
+        if "exposure" in settings:
+            ev = settings["exposure"]
+            if type(ev) not in (int, float) or not math.isfinite(ev) or not -2.5 <= ev <= 2.5 or ev * 2 != round(ev * 2):
+                raise ValueError("Preset LED exposure must be -2.5 to +2.5 EV in 0.5 EV steps")
+            result["exposure"] = ev
+        return result
 
     def current_light(self):
         modes = self.modes()

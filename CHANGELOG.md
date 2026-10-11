@@ -30,6 +30,7 @@ Features
   - AF/MF modes
   - manual focusing
   - display metering
+  - backlight profiles and calibration
 
 Fixes
 -----

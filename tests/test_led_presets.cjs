@@ -11,7 +11,7 @@ function setup(stored = new Map()) {
         appendChild(c) {c.parent=this;this.children.push(c);},
         querySelectorAll(selector) {return selector.startsWith('optgroup') ? this.children.filter(c=>c.children) : this.options.filter(o=>o.dataset.ledAction);}};
     for (const [value,text] of [['','OFF'],['white','White'],['red+green+blue','RGB'],['white+red+green+blue','RGB+White'],['amber+white+red+green+blue','RGBAW']]) select.appendChild(new Option(text,value));
-    const elements = {'backlight-color-list':select,'backlight-exposure':{value:'2'}};
+    const elements = {'backlight-color-list':select,'backlight-exposure':{value:'2',getAttribute:()=> '0.5'}};
     const el = id => elements[id] ??= {value:'1',checked:true,textContent:'',disabled:false};
     const light = {adapter_class:'Light',adapter_id:'RGB',serial_number:'1'};
     const preset = {id:'one',name:'Test',mode:'white+red+green+blue',light,
@@ -140,4 +140,13 @@ test('deleted presets disappear but working gains remain',async()=>{
     assert.equal(h.api.state.selected,null);
     assert.equal(h.api.state.gains.red,1.2);
     assert.deepEqual(h.select.children.filter(c=>c.children).map(c=>c.label),['Manage LED presets']);
+});
+
+test('preset EV restores with gains and EV edits mark it dirty',async()=>{
+    const h=setup();h.preset.exposure=-1;await h.api.refresh();
+    h.select.value='preset:one';await h.api.choose();
+    assert.equal(h.el('backlight-exposure').value,'-2');
+    assert.equal(h.api.readSettings(h.preset.mode).exposure,-1);
+    h.el('backlight-exposure').value='1';h.api.changed();
+    assert.equal(h.api.dirty(),true);
 });

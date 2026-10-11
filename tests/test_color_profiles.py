@@ -88,6 +88,50 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.digitizer.light, self.original)
         self.assertIsNone(self.calibration.timer)
 
+    async def test_whole_lightbox_ignores_selected_mode_and_isolates_channels(self):
+        self.digitizer.light["color"] = "white"
+        original = copy.deepcopy(self.digitizer.light)
+        session = self.calibration.begin(self.owner, "Whole light", isolated=True)
+        self.assertEqual(session["method"], "whole_lightbox")
+        self.assertEqual(session["base"]["gain"], {c:1 for c in session["channels"]})
+        token = session["token"]
+        for channel in session["channels"]:
+            result = self.calibration.step(self.owner, token, channel, phase="isolated", level=2)
+            self.assertEqual(result["level"], 2)
+            self.assertEqual(self.digitizer.light["gain"], {c:2 if c == channel else 0 for c in session["channels"]})
+            low = self.calibration.step(self.owner, token, channel, 0.8, phase="isolated")
+            self.assertEqual(low["level"], 1.6)
+        self.calibration.step(self.owner, token)
+        self.assertEqual(self.digitizer.light["gain"], {c:1 for c in session["channels"]})
+        self.calibration.end(self.owner, token)
+        self.assertEqual(self.digitizer.light, original)
+
+    async def test_two_whites_are_measured_independently_without_temperature_split(self):
+        self.digitizer.get_capabilities = lambda: {"rgbaw_backlight":True,"rgb_backlight":True,
+                                                  "white_backlight":True,"temperature_backlight":True}
+        session = self.calibration.begin(self.owner, "Both whites", isolated=True)
+        self.assertEqual(session["channel_labels"]["white"], "White 5000 K")
+        self.assertEqual(session["channel_labels"]["amber"], "White 3000 K")
+        for channel in ("white", "amber"):
+            self.calibration.step(self.owner, session["token"], channel, phase="isolated")
+            self.assertIsNone(self.digitizer.light["temp"])
+            self.assertEqual(self.digitizer.light["color"], "amber+white+red+green+blue")
+            self.assertEqual(self.digitizer.light["gain"], {c:int(c == channel) for c in session["channels"]})
+
+    async def test_whole_lightbox_profile_requires_all_independent_measurements(self):
+        session = self.calibration.begin(self.owner, "Portable", isolated=True)
+        for c in session["channels"]:
+            self.calibration.step(self.owner, session["token"], c, phase="isolated")
+        self.calibration.end(self.owner, session["token"])
+        data = profile() | {"channels":session["channels"], "matrix":[[1]*4]*3,
+                            "baseline":{"rgb":[100]*3}, "isolated_samples":{}}
+        with self.assertRaises(ValueError): self.calibration.save_profile(self.owner, session["token"], data)
+        data["isolated_samples"] = {c:{"baseline":[50]*3} for c in session["channels"]}
+        saved = self.calibration.save_profile(self.owner, session["token"], data)
+        record = self.calibration.profiles.get(saved["id"])["profile"]
+        self.assertEqual(record["scope"], "lightbox")
+        self.assertEqual(record["isolated_samples"]["red"]["settings"]["gain"]["white"], 0)
+
     async def test_ownership_disconnect_and_late_steps(self):
         token = self.calibration.begin(self.owner, "Test")["token"]
         with self.assertRaises(ValueError): self.calibration.begin(object(), "Other")
