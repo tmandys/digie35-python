@@ -1,0 +1,251 @@
+"""Portable backlight response profiles and bounded calibration sessions."""
+import asyncio
+import copy
+import datetime
+import json
+import logging
+import math
+from pathlib import Path
+import re
+from threading import RLock
+import unicodedata
+import uuid
+
+
+class ColorProfiles:
+    CATEGORY = "color_profiles"
+
+    def __init__(self, storage, builtin_directory=None):
+        self.storage = storage
+        self.builtin_directory = Path(builtin_directory or Path(__file__).with_name(self.CATEGORY))
+        self.lock = RLock()
+
+    @staticmethod
+    def name(value):
+        if not isinstance(value, str):
+            raise ValueError("Profile name must be text")
+        value = unicodedata.normalize("NFC", value.strip())
+        if not value or len(value) > 100 or any(ord(c) < 32 for c in value):
+            raise ValueError("Use a profile name of 1–100 characters")
+        return value
+
+    @staticmethod
+    def validate(profile):
+        if not isinstance(profile, dict) or profile.get("schema_version") != 1:
+            raise ValueError("Unsupported color profile format")
+        if profile.get("units") != "preview_rgb_per_channel_gain":
+            raise ValueError("Unsupported response matrix units")
+        ColorProfiles.name(profile.get("name"))
+        channels = profile.get("channels")
+        if not isinstance(channels, list) or not channels or len(set(channels)) != len(channels):
+            raise ValueError("Invalid profile channels")
+        if not set(channels) <= {"red", "green", "blue", "white", "amber", "ir", "preview"}:
+            raise ValueError("Unsupported profile channels")
+        matrix = profile.get("matrix")
+        if not isinstance(matrix, list) or len(matrix) != 3:
+            raise ValueError("Expected a 3 x channel-count response matrix")
+        for row in matrix:
+            if not isinstance(row, list) or len(row) != len(channels):
+                raise ValueError("Invalid response matrix dimensions")
+            if any(type(v) not in (int, float) or not math.isfinite(v) for v in row):
+                raise ValueError("Response matrix must contain finite numbers")
+        if len(json.dumps(profile, allow_nan=False).encode("utf-8")) > 128 * 1024:
+            raise ValueError("Profile is too large")
+
+    def records(self):
+        result = []
+        sources = [("builtin", self.builtin_directory.glob("*.json")),
+                   ("user", (self.storage._path(self.CATEGORY, name) for name in self.storage.list(self.CATEGORY)))]
+        for source, paths in sources:
+            for path in paths:
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", path.stem):
+                    continue
+                try:
+                    profile = json.loads(path.read_text(encoding="utf-8"))
+                    self.validate(profile)
+                    result.append({"id": source + ":" + path.stem, "source": source, "profile": profile})
+                except (OSError, ValueError, TypeError) as error:
+                    logging.warning("Ignoring invalid color profile %s: %s", path, error)
+        return sorted(result, key=lambda item: (item["profile"]["name"].casefold(), item["id"]))
+
+    def list(self):
+        with self.lock:
+            return {"profiles": [{"id": r["id"], "source": r["source"], "name": r["profile"]["name"],
+                                  "light": r["profile"].get("light"),
+                                  "channels": r["profile"]["channels"]} for r in self.records()]}
+
+    def check_name(self, name):
+        name = self.name(name)
+        with self.lock:
+            if any(self.name(r["profile"]["name"]).casefold() == name.casefold() for r in self.records()):
+                raise ValueError("A profile with this name already exists")
+        return {"name": name}
+
+    def get(self, id):
+        with self.lock:
+            for record in self.records():
+                if record["id"] == id:
+                    return record
+        raise ValueError("Profile not found")
+
+    def save(self, profile):
+        self.validate(profile)
+        with self.lock:
+            profile = copy.deepcopy(profile)
+            profile["name"] = self.check_name(profile["name"])["name"]
+            profile["created_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            identifier = uuid.uuid4().hex
+            self.storage.save(self.CATEGORY, identifier, profile)
+            return {"id": "user:" + identifier, "name": profile["name"]}
+
+    def delete(self, id):
+        with self.lock:
+            record = self.get(id)
+            if record["source"] != "user":
+                raise ValueError("Built-in profiles cannot be deleted")
+            self.storage._path(self.CATEGORY, id.split(":", 1)[1]).unlink()
+            return {"id": id}
+
+
+class BacklightCalibration:
+    """Only one owner may change light during calibration; inactivity restores it."""
+    TIMEOUT = 120
+
+    def __init__(self, digitizer, profiles):
+        self.digitizer = digitizer
+        self.profiles = profiles
+        self.session = None
+        self.timer = None
+        self.completed = {}
+
+    def _light(self, mode):
+        adapter = self.digitizer.get_adapter(getattr(self.digitizer, "LIGHT_NAME", "light"))
+        if adapter is not None and mode == "preview" and not adapter.get_capability("preview_backlight"):
+            adapter = None  # Preview may be driven by the main board, not the light adapter.
+        return adapter or self.digitizer
+
+    def light_identity(self, mode):
+        device = self._light(mode)
+        memory = device.get_memory() if hasattr(device, "get_memory") else getattr(device, "_xboard_memory", None)
+        header = memory.read_header() if memory is not None else {}
+        serial = header.get("serial_number")
+        return {"name": header.get("human_name") or type(device).__name__,
+                "adapter_class": type(device).__name__, "adapter_id": header.get("adapter_id", getattr(device, "ID", None)),
+                "board_id": header.get("board_id"), "version": header.get("version"),
+                # EEPROM numbers can exceed JavaScript's safe integer range.
+                "serial_number": str(serial) if serial not in (None, 0, "", "0", 2**64 - 1) else None}
+
+    def calibration_mode(self):
+        caps = self.digitizer.get_capabilities()
+        if caps.get("rgbaw_backlight"):
+            return "amber+white+red+green+blue"
+        if caps.get("rgb_backlight"):
+            return ("white+" if caps.get("white_backlight") else "") + "red+green+blue"
+        if caps.get("white_backlight"):
+            return "white"
+        raise ValueError("The connected light has no supported visible calibration channels")
+
+    def info(self):
+        mode = self.calibration_mode()
+        return {"mode": mode, "channels": mode.split("+"), "light": self.light_identity(mode)}
+
+    def _touch(self):
+        if self.timer:
+            self.timer.cancel()
+        self.timer = asyncio.get_running_loop().call_later(self.TIMEOUT, self._expire)
+
+    def _expire(self):
+        try:
+            self.end(self.session["owner"], self.session["token"])
+        except Exception:
+            logging.exception("Cannot restore backlight after calibration timeout")
+
+    def begin(self, owner, name):
+        if self.session:
+            raise ValueError("A backlight calibration is already running")
+        name = self.profiles.check_name(name)["name"]
+        state = self.digitizer.get_state()
+        if state.get("movement", 0):
+            raise ValueError("Stop film movement before calibration")
+        light = copy.deepcopy(state["backlight"])
+        color = self.calibration_mode()
+        original = {key: light[key] for key in ("color", "exposure", "gain", "temp") if key in light}
+        if not original.get("color"):
+            original = {"color": None}
+        gains = light.get("gain", {}) if color == light.get("color") else {}
+        channels = color.split("+")
+        levels = {c: gains[c] if gains.get(c, 0) > 0 else 1 for c in channels}
+        if any(not math.isfinite(v) or v < 0 or v > 10 for v in levels.values()):
+            raise ValueError("Invalid starting channel levels")
+        base = {"color": color, "exposure": light.get("exposure") if light.get("exposure") is not None else 0,
+                "gain": levels, "temp": light.get("temp")}
+        if color == light.get("color") and light.get("exposure") is None:
+            base["exposure"] = None
+        identity = self.light_identity(color)
+        self.completed.pop(owner, None)
+        self.session = {"owner": owner, "token": uuid.uuid4().hex, "name": name, "base": base,
+                        "original": original, "hardware": self._light(color), "light": identity,
+                        "levels": levels, "channels": channels, "setup": {"board": type(self.digitizer).__name__}}
+        self._touch()
+        return {k: copy.deepcopy(v) for k, v in self.session.items() if k not in ("owner", "hardware", "original")}
+
+    def _check(self, owner, token):
+        if not self.session or self.session["owner"] is not owner or self.session["token"] != token:
+            raise ValueError("Calibration session expired or belongs to another client")
+        if self._light(self.session["base"]["color"]) is not self.session["hardware"]:
+            raise ValueError("The connected light changed during calibration")
+        if self.calibration_mode() != self.session["base"]["color"]:
+            raise ValueError("Light capabilities changed during calibration")
+        return self.session
+
+    def step(self, owner, token, channel=None, factor=1):
+        session = self._check(owner, token)
+        if channel is not None and channel not in session["channels"]:
+            raise ValueError("Channel is not part of this calibration")
+        if type(factor) not in (int, float) or factor not in (0.8, 1, 1.2):
+            raise ValueError("Unsupported calibration step")
+        settings = copy.deepcopy(session["base"])
+        settings["gain"] = dict(session["levels"])
+        if channel:
+            value = settings["gain"][channel] * factor
+            maximum = 1 if settings.get("exposure") is None else 10
+            if value > maximum:
+                raise ValueError("Lower the starting channel level to leave calibration headroom")
+            settings["gain"][channel] = value
+        self.digitizer.set_backlight(**settings)
+        self._touch()
+        return {"settings": settings}
+
+    def end(self, owner, token):
+        session = self.session
+        if not session or session["owner"] is not owner or session["token"] != token:
+            raise ValueError("Calibration session expired or belongs to another client")
+        try:
+            self._check(owner, token)
+            self.digitizer.set_backlight(**session["original"])
+            self.completed[owner] = {k: copy.deepcopy(session[k]) for k in ("token", "name", "base", "channels", "light", "setup")}
+        finally:
+            self.session = None
+            if self.timer:
+                self.timer.cancel()
+                self.timer = None
+        return {"restored": True}
+
+    def disconnect(self, owner):
+        if self.session and self.session["owner"] is owner:
+            self.end(owner, self.session["token"])
+        self.completed.pop(owner, None)
+
+    def save_profile(self, owner, token, profile):
+        session = self.completed.get(owner)
+        if not session or session["token"] != token:
+            raise ValueError("No completed calibration for this client")
+        if self.light_identity(session["base"]["color"]) != session["light"]:
+            raise ValueError("The connected light changed; repeat calibration")
+        profile = copy.deepcopy(profile)
+        profile.update({"name": session["name"], "light": session["light"], "setup": session["setup"],
+                        "channels": session["channels"], "mode": session["base"]["color"]})
+        profile["baseline"]["settings"] = session["base"]
+        result = self.profiles.save(profile)
+        self.completed.pop(owner, None)
+        return result

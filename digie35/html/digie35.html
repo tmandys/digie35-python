@@ -11,6 +11,7 @@
     <script type="text/javascript" src="tagify.polyfills.min.js"></script>
     <link href="tagify.css" rel="stylesheet" type="text/css" />
 	<script type="text/javascript" src="dragsort.js"></script>
+    <script src="backlight_profiles.js"></script>
     <link href="dragsort.css" rel="stylesheet" type="text/css" />
     <title>Digie35</title>
 
@@ -1277,7 +1278,7 @@
         </div>
         <div id="preview" class="media-viewer inline-container">
             <fieldset id="preview-fieldset">
-                <legend>Preview (<span id="preview-source"></span>)</legend>
+                <legend><button type="button" class="modal-open" data-modal_id="preview-settings-modal" title="Preview settings" aria-label="Preview settings">&#9881;</button> Preview (<span id="preview-source"></span>)</legend>
                 <div id="stream-error" class="error-message"><span class="icon">&#x26a0;</span>Stream is not available</div>
                 <div class="inline-container">
                     <div id="stream-control" class="control">
@@ -1297,7 +1298,7 @@
                         <div id="snapshot-only-control" class="inline-block hidden">
                             <label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle"><input type="checkbox" id="stream-crosshair-cb"/>Cross<u>h</u>air</label>
                             <label for="stream-vision-cb" accesskey="v" title="Analyze preview image via computer vision"><input type="checkbox" id="stream-vision-cb"/><u>V</u>ision</label>
-                            <div id="snapshot-color-box" class="color-box inline-block" title="Current color at cursor/marker position"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
+                            <div id="snapshot-color-box" class="color-box inline-block" title="Source snapshot color around cursor/marker, before display inversion"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
                         </div>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
@@ -1333,6 +1334,50 @@
         </div>
     </div>
     <div class="modal-container">
+        <div id="preview-settings-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header">
+                    <span class="title">Preview settings</span>
+                    <button class="close">&times;</button>
+                </div>
+                <div class="content">
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="snapshot-sample-size">Color sample</label>
+                            <select id="snapshot-sample-size" style="width:10ch" onchange="adjust_preview_settings()">
+                                <option value="1">1 × 1</option>
+                                <option value="5">5 × 5</option>
+                                <option value="9" selected>9 × 9</option>
+                                <option value="15">15 × 15</option>
+                                <option value="21">21 × 21</option>
+                            </select>
+                        </div>
+                        <small class="hint">Area in source snapshot pixels, independent of display size. The average excludes the lowest and highest 10% of values in each channel.</small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="snapshot-interval">Snapshot interval</label>
+                            <input id="snapshot-interval" type="number" min="50" max="10000" step="50" value="250" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
+                        </div>
+                        <small class="hint">Pause after each snapshot attempt before requesting the next one in Analyze mode.</small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="snapshot-timeout">Snapshot timeout</label>
+                            <input id="snapshot-timeout" type="number" min="500" max="30000" step="100" value="3000" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
+                        </div>
+                        <small class="hint">Maximum wait for a snapshot to load. On timeout, cancel the attempt and retry after the snapshot interval.</small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="snapshot-wb-delay">WB settling delay</label>
+                            <input id="snapshot-wb-delay" type="number" min="0" max="10000" step="50" value="1000" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
+                        </div>
+                        <small class="hint">Minimum wait after an LED change before evaluating white balance. Saved for future automatic WB; currently has no effect.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="connection-settings-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
@@ -1804,7 +1849,19 @@
                     <button class="close">&times;</button>
                 </div>
                 <div class="content">
-
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="backlight-profile-list">Color profile</label>
+                            <select id="backlight-profile-list" onchange="backlightProfiles.selectionChanged()">
+                                <option value="">No profile</option>
+                            </select>
+                        </div>
+                        <div class="vertical-spacer">
+                            <button type="button" onclick="backlightProfiles.openCalibration()">New calibration…</button>
+                            <button type="button" id="backlight-profile-delete" disabled onclick="backlightProfiles.remove()">Delete profile</button>
+                        </div>
+                        <small id="backlight-profile-status" class="hint" role="status"></small>
+                    </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="backlight-exposure" accesskey="e"><u>E</u>xposure (Ev)</label>
@@ -1873,6 +1930,38 @@
                         </div>
                         <small class="hint">Control backlight brightness on preview panel.</small>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="backlight-calibration-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header">
+                    <span class="title">Backlight calibration</span>
+                    <button class="close">&times;</button>
+                </div>
+                <div class="content">
+                    <ol>
+                        <li>Remove the film and fill the entire preview with the illuminated diffuser. Keep holders, borders and other objects out of the frame.</li>
+                        <li>Fix camera exposure, ISO and white balance. Disable automatic image adjustments.</li>
+                        <li>Enable Analyze in Preview. Calibration averages the entire source snapshot; the eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
+                        <li>Enter a unique profile name. During measurement, keep the camera and light settings unchanged.</li>
+                    </ol>
+                    <p>Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. The original light is restored when calibration ends or is cancelled.</p>
+                    <div class="form-group vertical-spacer">
+                        <small id="backlight-calibration-light" class="hint"></small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
+                            <label for="backlight-profile-name">Profile name</label>
+                            <input id="backlight-profile-name" type="text" maxlength="100" autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="vertical-spacer">
+                        <button type="button" id="backlight-calibration-start" onclick="backlightProfiles.start()">Start calibration</button>
+                        <button type="button" id="backlight-calibration-cancel" disabled onclick="backlightProfiles.cancel()">Cancel</button>
+                    </div>
+                    <p id="backlight-calibration-status" role="status" aria-live="polite"></p>
                 </div>
             </div>
         </div>
@@ -2691,6 +2780,12 @@
                     } catch(err) {
                         update_status_info(err);
                     }
+                    if (backlightProfiles.receive(data)) {
+                        return;
+                    }
+                    if (backlightProfiles.receive(data)) {
+                        return;
+                    }
                     if (typeof data.payload != "undefined") {
                         if (Array.isArray(data.payload.metering)) {
                             cameraProfiles.receiveMetering(data.payload.metering);
@@ -2963,6 +3058,7 @@
                                 update_project_selection(false);
                                 sendCommand('LIST_PROJECTS');
                             } else if (["HELLO", "HOTPLUG"].includes(data.cmd)) {
+                                backlightProfiles.refresh().catch(error => backlightProfiles.status(error.message));
                                 document.getElementById("server-info").value = JSON.stringify(data.payload, null, 2);
                                 window.steps_per_mm = data.payload.steps_per_mm;
                                 window.capabilities = data.payload.capabilities;
@@ -3193,6 +3289,7 @@
     }
 
     function do_disconnect()  {
+        backlightProfiles.disconnected();
         cancel_alignment();
         document.onkeydown = function(event) {};
         document.onkeyup = function(event) {};
@@ -3301,6 +3398,9 @@
     }
 
     function show_modal(element_id) {
+        if (element_id === "backlight-settings-modal") {
+            backlightProfiles.refresh().catch(error => backlightProfiles.status(error.message));
+        }
         let elem = get_modal();
         if (elem) {
             elem.classList.remove("modal-active");
@@ -3312,6 +3412,10 @@
 
     function close_modal() {
         const elem = get_modal();
+        if (elem?.id === "backlight-calibration-modal" && backlightProfiles.running) {
+            backlightProfiles.cancel();
+            return;
+        }
         if (elem) {
             elem.classList.remove("modal-active");
             if (window.modal_stack.length > 0) {
@@ -3491,28 +3595,89 @@
         }
     }
 
-    // get pixel color from canvas coords and update color box
-    function update_color_box(ctx, xy) {
-        const pixel = ctx.getImageData(xy[0], xy[1], 1, 1).data;
-        var [r, g, b, a] = pixel;
-        if (ctx.canvas.classList.contains("invert")) {
-            r = 255 - r;
-            g = 255 - g;
-            b = 255 - b;
+    // Store positions as fractions of the image, without rounding to display pixels.
+    function snapshot_pointer_position(canvas, event) {
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+            return null;
         }
+        return [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+            Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
+    }
+
+    function snapshot_sample_bounds(canvas, position) {
+        const size = Number(document.getElementById("snapshot-sample-size").value);
+        const radius = Math.floor(size / 2);
+        const x = Math.max(0, Math.min(canvas.width - 1, Math.floor(position[0] * canvas.width)));
+        const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(position[1] * canvas.height)));
+        const left = Math.max(0, x - radius);
+        const top = Math.max(0, y - radius);
+        return [left, top, Math.min(canvas.width, x + radius + 1) - left,
+            Math.min(canvas.height, y + radius + 1) - top];
+    }
+
+    // Trim channel extremes to reduce the influence of dust and isolated noisy pixels.
+    function snapshot_sample_rgb(data) {
+        const count = data.length / 4;
+        const trim = Math.floor(count * 0.1);
+        return [0, 1, 2].map(channel => {
+            const histogram = new Uint32Array(256);
+            for (let i = channel; i < data.length; i += 4) {
+                histogram[data[i]]++;
+            }
+            let rank = 0;
+            let sum = 0;
+            for (let value = 0; value < histogram.length; value++) {
+                const next_rank = rank + histogram[value];
+                const kept = Math.max(0, Math.min(next_rank, count - trim) - Math.max(rank, trim));
+                sum += kept * value;
+                rank = next_rank;
+            }
+            return sum / (count - 2 * trim);
+        });
+    }
+
+    // Read the clean preview, never the marker or computer vision overlays.
+    function update_color_box(ctx, position) {
+        const sample_ctx = window.snapshot_sample_ctx;
+        if (!ctx || !position || !sample_ctx || !sample_ctx.canvas.width || !sample_ctx.canvas.height) {
+            clear_snapshot_sample();
+            return;
+        }
+        const bounds = snapshot_sample_bounds(sample_ctx.canvas, position);
+        const pixels = sample_ctx.getImageData(...bounds).data;
+        const [r, g, b] = snapshot_sample_rgb(pixels);
+        // Preserve fractional, uninverted preview RGB for a future WB controller.
+        // These are decoded preview values, not linear sensor/RAW measurements.
+        window.snapshot_color_sample = {
+            rgb: [r, g, b], position: [...position], bounds,
+            width: sample_ctx.canvas.width, height: sample_ctx.canvas.height,
+            frame: window.snapshot_frame,
+            clipped_fraction: Array.from({length: pixels.length / 4}, (_, i) =>
+                [0, 1, 2].some(c => pixels[i * 4 + c] <= 1 || pixels[i * 4 + c] >= 254)
+            ).filter(Boolean).length / (pixels.length / 4),
+        };
         const rgb = `rgb(${r}, ${g}, ${b})`;
         const pad_rgb = function(x) {
-            return x.toString().padEnd(3, ' ');
+            return Math.round(x).toString().padEnd(3, ' ');
         };
         const color_box = document.getElementById("snapshot-color-box");
         const color_value = document.getElementById("snapshot-color-value");
         color_box.style.backgroundColor = rgb;
         color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
+        color_value.title = `${bounds[2]} × ${bounds[3]} source snapshot pixels; 10% trimmed mean per channel; before display inversion`;
     };
 
-    function snapshot_draw_marker(ctx, xy) {
-        const x = xy[0];
-        const y = xy[1];
+    function clear_snapshot_sample() {
+        window.snapshot_color_sample = null;
+        document.getElementById("snapshot-color-box").style.backgroundColor = "";
+        document.getElementById("snapshot-color-value").textContent = "";
+        document.getElementById("snapshot-color-value").title = "";
+    }
+
+    function snapshot_draw_marker(ctx, position) {
+        const x = position[0] * ctx.canvas.width;
+        const y = position[1] * ctx.canvas.height;
         if (document.getElementById("stream-crosshair-cb").checked) {
 
             ctx.beginPath();
@@ -3542,6 +3707,22 @@
             ctx.arc(x, y, 8, 0, 2 * Math.PI);
             ctx.strokeStyle = "black";
             ctx.stroke();
+        }
+        const source_canvas = window.snapshot_sample_ctx?.canvas;
+        if (source_canvas && Number(document.getElementById("snapshot-sample-size").value) > 1) {
+            const bounds = snapshot_sample_bounds(source_canvas, position);
+            const scale_x = ctx.canvas.width / source_canvas.width;
+            const scale_y = ctx.canvas.height / source_canvas.height;
+            const display_bounds = [bounds[0] * scale_x, bounds[1] * scale_y,
+                bounds[2] * scale_x, bounds[3] * scale_y];
+            ctx.save();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(...display_bounds);
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(...display_bounds);
+            ctx.restore();
         }
     };
 
@@ -3678,40 +3859,151 @@
         }
     }
 
-    function refresh_snapshot() {
-        const image = new Image();
-        image.crossOrigin = "anonymous";
-        image.src = get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`);
-        image.onload = () => {
-            if (document.getElementById("stream-analyze-cb").checked && document.getElementById("stream-vision-cb").checked) {
-                sendCommandAnalyze(ANALYZE_STREAM);
-            } else {
-                window.snapshot_analysis = null;
-            }
-            ctx = window.snapshot_canvas_ctx;
-            if (ctx != null) {
-                ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
-                if (window.snapshot_analysis != null) {
-                    snapshot_draw_analysis(ctx, window.snapshot_analysis);
-                }
-                if (window.snapshot_marker_position != null) {
-                    update_color_box(ctx, window.snapshot_marker_position);  /* call before marker draw ! */
-                    snapshot_draw_marker(ctx, window.snapshot_marker_position);
-                }
-            }
-            image.onload = null;
-            image.onerror = null;
-            image.src = "";
+    function preview_settings() {
+        const number = id => {
+            const elem = document.getElementById(id);
+            return elem.value !== "" && elem.checkValidity() ? Number(elem.value) : Number(elem.defaultValue);
+        };
+        return {
+            interval: number("snapshot-interval"),
+            timeout: number("snapshot-timeout"),
+            wb_delay: number("snapshot-wb-delay"),
+        };
+    }
+
+    function adjust_preview_settings() {
+        const settings = preview_settings();
+        for (const [id, value] of [["snapshot-interval", settings.interval],
+            ["snapshot-timeout", settings.timeout], ["snapshot-wb-delay", settings.wb_delay]]) {
+            document.getElementById(id).value = value;
         }
-        image.onerror = () => {
-            canvas_draw_empty(window.snapshot_canvas_ctx);
-            image.onload = null;
-            image.onerror = null;
-            image.src = "";
+        const sample_size = document.getElementById("snapshot-sample-size");
+        if (!["1", "5", "9", "15", "21"].includes(sample_size.value)) {
+            sample_size.value = "9";
+        }
+        const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
+        if (position && window.snapshot_canvas_ctx) {
+            update_color_box(window.snapshot_canvas_ctx, position);
+        }
+        if (!window.snapshot_request && window.snapshot_canvas_ctx) {
+            clearTimeout(window.snapshot_timer);
+            window.snapshot_timer = setTimeout(refresh_snapshot, settings.interval);
+        }
+    }
+
+    function finish_snapshot_request(request, failed = false, retry = true) {
+        // Ignore callbacks from an aborted attempt or a previous preview session.
+        if (window.snapshot_request !== request) {
+            return;
+        }
+        window.snapshot_request = null;
+        clearTimeout(request.timer);
+        request.controller.abort();
+        request.image.onload = null;
+        request.image.onerror = null;
+        request.image.src = "";
+        if (request.url) {
+            URL.revokeObjectURL(request.url);
+        }
+        if (failed) {
+            window.snapshot_sample_ctx = null;
+            clear_snapshot_sample();
+            if (window.snapshot_canvas_ctx) {
+                canvas_draw_empty(window.snapshot_canvas_ctx);
+            }
+        }
+        if (retry && window.snapshot_canvas_ctx && document.getElementById("stream-analyze-cb").checked) {
+            window.snapshot_timer = setTimeout(refresh_snapshot, preview_settings().interval);
+        }
+    }
+
+    function stop_snapshot_requests() {
+        clearTimeout(window.snapshot_timer);
+        window.snapshot_timer = null;
+        if (window.snapshot_request) {
+            finish_snapshot_request(window.snapshot_request, false, false);
+        }
+    }
+
+    async function refresh_snapshot() {
+        if (!window.snapshot_canvas_ctx || !document.getElementById("stream-analyze-cb").checked || window.snapshot_request) {
+            return;
+        }
+        clearTimeout(window.snapshot_timer);
+        window.snapshot_timer = null;
+        const image = new Image();
+        const request = {image, controller: new AbortController(), url: null, timer: null, started_at: performance.now()};
+        window.snapshot_request = request;
+        // Covers network transfer AND image decoding, so neither can block the loop forever.
+        request.timer = setTimeout(() => finish_snapshot_request(request, true), preview_settings().timeout);
+        image.onload = () => {
+            if (window.snapshot_request !== request) {
+                return;
+            }
+            try {
+                if (document.getElementById("stream-analyze-cb").checked && document.getElementById("stream-vision-cb").checked) {
+                    sendCommandAnalyze(ANALYZE_STREAM);
+                } else {
+                    window.snapshot_analysis = null;
+                }
+                const ctx = window.snapshot_canvas_ctx;
+                if (ctx != null) {
+                    ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
+                    if (!window.snapshot_sample_ctx) {
+                        window.snapshot_sample_ctx = document.createElement("canvas").getContext("2d", {willReadFrequently: true});
+                    }
+                    const sample_canvas = window.snapshot_sample_ctx.canvas;
+                    if (sample_canvas.width != image.naturalWidth || sample_canvas.height != image.naturalHeight) {
+                        sample_canvas.width = image.naturalWidth;
+                        sample_canvas.height = image.naturalHeight;
+                    }
+                    window.snapshot_sample_ctx.drawImage(image, 0, 0);
+                    window.snapshot_frame = {sequence: (window.snapshot_frame?.sequence ?? 0) + 1,
+                        started_at: request.started_at, timestamp: request.timestamp};
+                    clear_snapshot_sample();
+                    if (window.snapshot_analysis != null) {
+                        snapshot_draw_analysis(ctx, window.snapshot_analysis);
+                    }
+                    const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
+                    if (position != null) {
+                        update_color_box(ctx, position);
+                    }
+                    if (window.snapshot_marker_position != null) {
+                        snapshot_draw_marker(ctx, window.snapshot_marker_position);
+                    }
+                }
+            } catch (error) {
+                console.warn("Snapshot processing failed:", error);
+                finish_snapshot_request(request, true);
+            } finally {
+                finish_snapshot_request(request);
+            }
+        }
+        image.onerror = () => finish_snapshot_request(request, true);
+        try {
+            const response = await fetch(get_stream_url(window.current_usbpreview, `snapshot?t=${Date.now()}`), {
+                signal: request.controller.signal, cache: "no-store",
+            });
+            if (!response.ok) {
+                throw new Error(`Snapshot HTTP ${response.status}`);
+            }
+            request.timestamp = response.headers?.get("X-Timestamp") || null;
+            const blob = await response.blob();
+            if (window.snapshot_request !== request) {
+                return;
+            }
+            request.url = URL.createObjectURL(blob);
+            image.src = request.url;
+        } catch (error) {
+            if (window.snapshot_request === request) {
+                console.warn("Snapshot request failed:", error);
+                finish_snapshot_request(request, true);
+            }
         }
     }
 
     function adjust_preview_mode() {
+        stop_snapshot_requests();
         const snapshot_mode = document.getElementById("stream-analyze-cb").checked;
         const img = document.getElementById("stream");
         const canvas = document.getElementById("snapshot");
@@ -3724,21 +4016,17 @@
             canvas.width = rect.width;  /* img.naturalWidth; */
             canvas.height = rect.height; /* img.naturalHeight;*/
             window.snapshot_canvas_ctx = canvas.getContext("2d", {willReadFrequently: true});
-            window.snapshot_market_position = null;
+            window.snapshot_sample_ctx = null;
+            clear_snapshot_sample();
             refresh_snapshot();
-            if (window.snapshot_timer == null) {
-                window.snapshot_timer = setInterval(refresh_snapshot, 250);
-            }
         } else {
             img.classList.remove("invisible");
             canvas.classList.add("hidden");
             document.getElementById("stream-only-control").classList.remove("hidden");
             document.getElementById("snapshot-only-control").classList.add("hidden");
-            if (window.snapshot_timer != null) {
-                clearInterval(window.snapshot_timer);
-                window.snapshot_timer = null;
-            }
             window.snapshot_canvas_ctx = null;
+            window.snapshot_sample_ctx = null;
+            clear_snapshot_sample();
         }
     }
 
@@ -3938,6 +4226,7 @@
         window.last_backlight_color = "white";
         window.modal_stack = [];
         window.snapshot_timer = null;
+        window.snapshot_request = null;
         window.current_adapter = "";
 		window.last_analyze_stamp = null;
         window.analyze_request = 0;
@@ -4168,29 +4457,31 @@
 
         const canvas = document.getElementById("snapshot");
         window.snapshot_canvas_ctx = null;
+        window.snapshot_sample_ctx = null;
+        window.snapshot_color_sample = null;
         window.snapshot_marker_position = null;
+        window.snapshot_cursor_position = null;
         window.snapshot_analysis = null;
-        const canvas_get_xy = function(canvas, e) {
-            const client_rect = canvas.getBoundingClientRect();
-            const x = Math.floor((e.clientX - client_rect.left) * (canvas.width / client_rect.width));
-            const y = Math.floor((e.clientY - client_rect.top) * (canvas.height / client_rect.height));
-            return [x, y];
-        }
         canvas.addEventListener("mousemove", (e)=> {
             if (window.snapshot_marker_position != null) {
                 return;
             }
-            const xy = canvas_get_xy(window.snapshot_canvas_ctx.canvas, e);
-            update_color_box(window.snapshot_canvas_ctx, xy);
+            const position = snapshot_pointer_position(canvas, e);
+            window.snapshot_cursor_position = position;
+            update_color_box(window.snapshot_canvas_ctx, position);
         });
 
         canvas.addEventListener("click", (e)=> {
-            const xy = canvas_get_xy(window.snapshot_canvas_ctx.canvas, e);
+            const position = snapshot_pointer_position(canvas, e);
+            if (!window.snapshot_canvas_ctx || !position) {
+                return;
+            }
+            window.snapshot_cursor_position = position;
             if (window.snapshot_marker_position == null) {
-                window.snapshot_marker_position = xy;
+                window.snapshot_marker_position = position;
             } else {
                 window.snapshot_marker_position = null;
-                update_color_box(window.snapshot_canvas_ctx, xy);
+                update_color_box(window.snapshot_canvas_ctx, position);
             }
             refresh_snapshot();
         });
@@ -4733,6 +5024,10 @@
             "praview.background_color": "stream-background-rng",
             "preview.usb": "usb-preview-cb",
             "preview.crosshair": "stream-crosshair-cb",
+            "preview.sample_size": "snapshot-sample-size",
+            "preview.snapshot_interval": "snapshot-interval",
+            "preview.snapshot_timeout": "snapshot-timeout",
+            "preview.wb_delay": "snapshot-wb-delay",
             "preview.vision": "stream-vision-cb",
             "control.autoinc": "autoinc-cb",
             "control.automove": "automove-cb",
@@ -4747,7 +5042,8 @@
             "control.frame_correction": "frame-correction",
             "control.auto_correction": "autocorrection-cb",
             "control.flattening": "flattening-cb",
-			"control.backlight.color": "backlight-color-list",
+            "control.backlight.color": "backlight-color-list",
+            "control.backlight.profile": "backlight-profile-list",
 			"control.backlight.exposure": "backlight-exposure",
 			"control.backlight.exposure.ir": "backlight-ir-exposure",
 			"control.backlight.exposure.preview": "backlight-preview-exposure",
@@ -5103,6 +5399,7 @@
                 }
             }
         }
+        adjust_preview_settings();
         window.save_usb_preview = document.getElementById("usb-preview-cb").checked;
         adjust_camera_list(localStorage.getItem("select.camera"));
         adjust_delay_value(document.getElementById("preview-latency-rng"));
@@ -5458,6 +5755,9 @@
     }
 
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
+        if (backlightProfiles.running) {
+            send_cmd = false;
+        }
         const color_list = document.getElementById("backlight-color-list");
         const idx = color_list.selectedIndex;
         if (color_list.selectedIndex < 0) {

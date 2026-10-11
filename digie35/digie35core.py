@@ -572,6 +572,7 @@ class ExtensionBoard:
         }
 
         if self._current_backlight_color:
+            result["backlight"]["temp"] = getattr(self, "_current_backlight_temp", None)
             result["backlight"]["exposure"] = self._save_backlight_exposure.get(self._current_backlight_color)
             gain = self._save_backlight_gain.get(self._current_backlight_color, None)
             if gain:
@@ -704,7 +705,9 @@ class ExtensionBoard:
                 gain = self._save_backlight_gain.get(color, {})
             self._set_backlight_impl(color=color, exposure=exposure, gain=gain, temp=temp)
             change_flag = self._current_backlight_color != color
+            change_flag |= getattr(self, "_current_backlight_temp", None) != temp
             self._current_backlight_color = color
+            self._current_backlight_temp = temp
             if color is not None:
                 change_flag |= self._save_backlight_exposure.get(color, None) != exposure or self._save_backlight_gain.get(color, {}) != gain
                 self._save_backlight_exposure[color] = exposure

@@ -56,6 +56,7 @@ import stat
 import errno
 import digie35.mjpgserver as mjpgserver
 from digie35.storage import LocalStorage, default_storage_directory
+from digie35.color_profiles import ColorProfiles, BacklightCalibration
 import netifaces
 import shutil
 import signal
@@ -1973,7 +1974,38 @@ async def ws_control_handler(websocket, path):
                 reply = ""
                 reply_status = False
                 try:
+                    if backlight_calibration.session and cmd in ("STOP", "BYE"):
+                        session = backlight_calibration.session
+                        backlight_calibration.end(session["owner"], session["token"])
+                    if backlight_calibration.session and not (
+                        cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LIST_", "GET"))
+                        or cmd in ("HELLO", "VERBOSE", "ANALYZE")
+                    ):
+                        raise ValueError("Backlight calibration is running; cancel it before changing hardware")
                     match cmd:
+                        case "COLOR_PROFILE_LIST":
+                            reply = color_profiles.list()
+                        case "COLOR_PROFILE_CHECK":
+                            reply = color_profiles.check_name(params.get("name"))
+                        case "COLOR_PROFILE_GET":
+                            reply = color_profiles.get(params.get("id"))
+                        case "COLOR_PROFILE_SAVE":
+                            reply = backlight_calibration.save_profile(websocket, params.get("token"), params.get("profile"))
+                        case "COLOR_PROFILE_DELETE":
+                            reply = color_profiles.delete(params.get("id"))
+                        case "CALIBRATION_BEGIN":
+                            if camera._capture_in_progress:
+                                raise ValueError("Wait for capture to finish before calibration")
+                            reply = backlight_calibration.begin(websocket, params.get("name"))
+                        case "CALIBRATION_INFO":
+                            reply = backlight_calibration.info()
+                        case "CALIBRATION_STEP":
+                            reply = backlight_calibration.step(websocket, params.get("token"), params.get("channel"), params.get("factor", 1))
+                        case "CALIBRATION_END":
+                            session = backlight_calibration.session
+                            if session and session["owner"] is websocket:
+                                backlight_calibration.end(websocket, session["token"])
+                            reply = {"restored": True}
                         case "":
                             pass
                         case "LIST_VOLUMES":
@@ -2160,7 +2192,7 @@ async def ws_control_handler(websocket, path):
                         reply = digitizer.get_state(True)
                 except Exception as e:
                     logging.getLogger().error(e, exc_info=True)
-                    reply = repr(e)
+                    reply = {"error": str(e)} if cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_")) else repr(e)
 
                 if isinstance(reply, (dict, list, set)):
                     if client_context != None:
@@ -2193,6 +2225,10 @@ async def ws_control_handler(websocket, path):
             except websockets.exceptions.ConnectionClosedOK:
                 break
     finally:
+        try:
+            backlight_calibration.disconnect(websocket)
+        except Exception:
+            logging.getLogger().exception("Cannot restore backlight after calibration disconnect")
         ws_control_clients.remove(websocket)
         if len(ws_control_clients) == 0:
             digitizer.set_backlight()  # switch off backlight
@@ -2555,6 +2591,8 @@ def main():
     except (OSError, ValueError) as error:
         argParser.error(f"Cannot initialize storage directory '{args.storage_dir}': {error}")
     logging.getLogger().info("Local storage: %s", local_storage.directory)
+    global color_profiles
+    color_profiles = ColorProfiles(local_storage)
 
     if args.previewPort != 0:
         http_thread, frame_buffer, snapshot_list, httpd = mjpgserver.start_http_server(args.wsAddr, args.previewPort)
@@ -2634,6 +2672,8 @@ def main():
     global digitizer_info
     logging.getLogger().debug("film_xboard_class: %s", film_xboard_class.__name__)
     digitizer = film_xboard_class(mainboard, broadcast)
+    global backlight_calibration
+    backlight_calibration = BacklightCalibration(digitizer, color_profiles)
     try:
         if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
             digitizer_info = digitizer._xboard_memory.read_header()

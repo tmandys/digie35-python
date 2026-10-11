@@ -43,6 +43,8 @@ setup(
             "preset/*.xmp",
             "file_template/*",
             "camera_profiles/*.yaml",
+            "color_profiles/*.json",
+            "color_profiles/README.md",
         ],
     },
     entry_points={
