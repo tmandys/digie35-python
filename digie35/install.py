@@ -114,6 +114,7 @@ def main():
         "qrcode.js": [],
         "dragsort.css": [],
         "dragsort.js": [],
+        "backlight_profiles.js": [],
         "tagify.css": [],
         "tagify.js": [],
         "tagify.polyfills.min.js": [],

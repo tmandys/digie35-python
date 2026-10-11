@@ -132,6 +132,70 @@ See [hardware preparation, commands and tests](docs/tmc2208-uart.md).
 Installation
 ------------
 
+### Local server storage
+
+`digie35_server --storage-directory PATH` sets the directory for persistent server
+data, separate from the photo/project directory selected with `--directory`.
+The default is `$XDG_DATA_HOME/digie35` when `XDG_DATA_HOME` is absolute and
+nonempty, otherwise `~/.local/share/digie35`. Paths support `~` and environment
+variables and are resolved to absolute paths. Relative paths use the working
+directory of the server process.
+
+The server creates the directory and checks write access before starting its
+listeners. The installed user service uses the home directory of the account
+running that service. To override the location, add `--storage-directory PATH`
+to its `ExecStart` command.
+
+The `digie35.storage.LocalStorage` API provides `save(category, name, data)`,
+`load(category, name)` and `list(category)` for JSON records. Backlight response
+profiles reside in `color_profiles/<profile_id>.json` under the configured root.
+Writes atomically replace each complete JSON file. Missing records and invalid
+JSON raise errors rather than returning an empty profile.
+
+Backlight settings contains the profile selector and **New calibration** dialog.
+Remove the film, fill the entire preview with the illuminated diffuser, lock
+camera exposure/ISO/WB and enable Analyze before starting. Precise focus on a
+uniform diffuser is unnecessary; disable autofocus. The eyedropper and its sample
+size are independent of calibration, which averages all source-snapshot pixels
+(read in strips to limit temporary memory).
+Calibration automatically selects channels from the connected hardware's
+capabilities: RGBAW first, otherwise RGB with white when available, RGB alone,
+or white alone. The dialog shows the light identity and selected channels;
+the server determines and verifies the selection. RGBAW measures amber and
+white independently. Each channel is measured at 80% and 120% of its starting
+gain, with fixed exposure and white temperature. A different mode starts with unit gains; disabled channels
+are also initialized to unit gain. The original mode and levels are restored.
+Calibration uses the Preview settling delay, rejects dark/clipped
+samples, waits for three stable new snapshots, and verifies the original RGB.
+The resulting matrix is local to those settings and describes decoded preview
+RGB per unit of channel gain, not linear RAW values or a full-range PWM model.
+Automatic WB correction is not implemented by selecting a profile yet.
+
+User profile names are checked before calibration and again at save time,
+ignoring letter case and surrounding whitespace. A profile is a portable JSON
+file with its display name and measurements; copying a valid file with a unique
+identifier filename into `color_profiles` makes it available on the next list
+refresh. The server merges these with read-only profiles packaged under
+`digie35/color_profiles`. No unmeasured default profile is supplied. The UI can
+delete only user profiles, and remembers the selected profile on that browser.
+
+Each new profile records the connected light's EEPROM name, adapter/board IDs,
+adapter class, hardware version and serial number. Identity is read by the
+server from the memory selected by the actual light adapter (including integrated
+120-film/lightbox adapters), and attached by the server when saving a completed
+calibration. Unassigned serial numbers are null; assigned numbers are strings to
+preserve their full 64-bit precision in browsers. Changing the connected light
+during calibration invalidates the session; old settings are not applied to a
+replacement light. Profiles without EEPROM hardware fall back to the driver
+class name and an unknown serial number.
+
+The server owns a single calibration session and restores its original light
+on completion, cancellation, disconnection or after 120 seconds without a step.
+Other hardware-changing commands are blocked during calibration; Stop cancels
+it. Snapshot timestamps identify buffer arrivals, not sensor exposure times:
+the settling delay still needs to match the camera/preview path. Sources without
+timestamp headers use separate snapshot requests as the fallback.
+
 Installing to a virtual environment
 
     mkdir ~/digie35

@@ -41,7 +41,9 @@ setup(
             "images/*",
             "nginx/*",
             "preset/*.xmp",
-            "file_template/*"
+            "file_template/*",
+            "color_profiles/*.json",
+            "color_profiles/README.md"
         ],
     },
     entry_points={

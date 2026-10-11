@@ -50,6 +50,10 @@ class FrameBuffer(object):
             else:
                 return self.latest_frame
 
+    def get_latest_frame_info(self):
+        with self.condition:
+            return self.latest_frame, self.latest_timestamp
+
     def stop(self):
         self.stop_flag = True
         with self.condition:
@@ -192,7 +196,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'Removed streaming client {self.client_address}, {str(e)}')
         elif path == 'snapshot':
-            frame = self.frames_buffer.get_latest_frame()
+            frame, timestamp = self.frames_buffer.get_latest_frame_info()
             if frame != None:
                 self.send_response(200)
                 self.send_header('Age', 0)
@@ -201,7 +205,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                 self.send_header('Expires', '0')
                 self.send_header('Content-Type', 'image/jpeg')
                 self.send_header('Content-Length', str(len(frame)))
-                self.send_header('X-Timestamp', self.frames_buffer.latest_timestamp.isoformat() + "Z")
+                self.send_header('X-Timestamp', timestamp.isoformat())
                 self._send_cors_headers()
                 self.end_headers()
                 self.wfile.write(frame)
@@ -301,6 +305,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
 
     def _send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Expose-Headers', 'X-Timestamp')
         self.send_header('Access-Control-Allow-Headers', '*')
         self.send_header('Access-Control-Allow-Method', 'GET, OPTIONS')
 
