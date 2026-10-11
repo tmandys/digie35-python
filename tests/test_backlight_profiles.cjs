@@ -10,6 +10,7 @@ function setup() {
     const el = id => elements[id] ??= {value: '', checked: true, disabled: false, textContent: ''};
     el('snapshot-sample-size').value = '9';
     el('backlight-profile-name').value = 'Test';
+    el('camera-list').value = 'camera:test';
     const stored = new Map();
     const calls = [];
     const context = {console, performance, setTimeout, clearTimeout,
@@ -47,6 +48,18 @@ test('successful calibration restores light before saving portable measurements'
     assert.equal(profile.units, 'preview_rgb_per_channel_gain');
     assert.equal(h.stored.get('control.backlight.profile'), 'user:one');
     assert.equal(h.api.running, false);
+});
+
+test('missing camera or unsupported light stops before any command', async () => {
+    for (const missing of ['camera', 'light']) {
+        const h = setup();
+        if (missing === 'camera') h.el('camera-list').value = '';
+        else h.context.window.capabilities = {};
+        await h.api.start();
+        assert.equal(h.calls.length, 0);
+        assert.match(h.el('backlight-calibration-status').textContent, missing === 'camera' ? /Select a camera/ : /no supported visible/);
+        assert.equal(h.api.running, false);
+    }
 });
 
 test('duplicate name stops before any LED command', async () => {

@@ -55,6 +55,7 @@ import errno
 import digie35.mjpgserver as mjpgserver
 from digie35.storage import LocalStorage, default_storage_directory
 from digie35.color_profiles import ColorProfiles, BacklightCalibration
+from digie35.led_presets import LedPresets
 import netifaces
 import shutil
 import signal
@@ -1569,10 +1570,16 @@ async def ws_control_handler(websocket, path):
                         backlight_calibration.end(session["owner"], session["token"])
                     if backlight_calibration.session and not (
                         cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LIST_", "GET"))
-                        or cmd in ("HELLO", "VERBOSE", "ANALYZE")
+                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "LED_PRESET_LIST")
                     ):
                         raise ValueError("Backlight calibration is running; cancel it before changing hardware")
                     match cmd:
+                        case "LED_PRESET_LIST":
+                            reply = led_presets.listing()
+                        case "LED_PRESET_SAVE":
+                            reply = led_presets.save(params.get("name"), params.get("settings"), params.get("id"), params.get("light"))
+                        case "LED_PRESET_DELETE":
+                            reply = led_presets.delete(params.get("id"))
                         case "COLOR_PROFILE_LIST":
                             reply = color_profiles.list()
                         case "COLOR_PROFILE_CHECK":
@@ -1737,7 +1744,7 @@ async def ws_control_handler(websocket, path):
                         reply = digitizer.get_state(True)
                 except Exception as e:
                     logging.getLogger().error(e, exc_info=True)
-                    reply = {"error": str(e)} if cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_")) else repr(e)
+                    reply = {"error": str(e)} if cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LED_PRESET_")) else repr(e)
 
                 if isinstance(reply, (dict, list, set)):
                     if client_context != None:
@@ -2211,6 +2218,8 @@ def main():
     digitizer = film_xboard_class(mainboard, broadcast)
     global backlight_calibration
     backlight_calibration = BacklightCalibration(digitizer, color_profiles)
+    global led_presets
+    led_presets = LedPresets(local_storage, backlight_calibration)
     try:
         if issubclass(film_xboard_class, digie35board.GulpExtensionBoard):
             digitizer_info = digitizer._xboard_memory.read_header()

@@ -83,7 +83,8 @@ const backlightProfiles = {
             await this.request("COLOR_PROFILE_DELETE", {id});
             localStorage.setItem("control.backlight.profile", "");
             await this.refresh("");
-            this.status("Profile deleted.");
+            this.status("");
+            screen_notification(`Profile “${profile.name}” deleted.`, true);
         } catch (error) {
             this.status(error.message);
         }
@@ -114,6 +115,9 @@ const backlightProfiles = {
 
     check(run) {
         if (run.cancelled) throw new Error("Calibration cancelled.");
+        if (run.cameraId !== undefined && document.getElementById("camera-list").value !== run.cameraId) {
+            throw new Error("The selected camera changed or was disconnected. Select a camera and repeat calibration.");
+        }
         if (!window.snapshot_canvas_ctx || !document.getElementById("stream-analyze-cb").checked) {
             throw new Error("Enable Analyze in Preview before calibration.");
         }
@@ -286,10 +290,12 @@ const backlightProfiles = {
 
     async start() {
         if (this.running) return;
+        const cameraId = document.getElementById("camera-list").value;
+        if (!cameraId) {this.status("Select a camera before starting calibration.", true); return;}
         const nameInput = document.getElementById("backlight-profile-name");
         const name = nameInput.value.trim();
         if (!name) {this.status("Enter a profile name.", true); return;}
-        const run = {cancelled: false,
+        const run = {cancelled: false, cameraId,
             usbpreview: window.current_usbpreview, settings: preview_settings()};
         try {run.mode = this.calibrationMode();} catch (error) {this.status(error.message, true); return;}
         const analyze = document.getElementById("stream-analyze-cb");
@@ -349,7 +355,7 @@ const backlightProfiles = {
                 samples, verification, sampling: {method: "center_crop_trimmed_mean", border_fraction: 0.05,
                     trim_fraction: 0.1, dimensions: run.dimensions, bounds: run.bounds},
                 preview: {source: run.usbpreview ? "camera" : "hdmi", ...run.settings},
-                camera: {id: document.getElementById("camera-list").value, model: window.current_camera?.model || ""},
+                camera: {id: run.cameraId, model: window.current_camera?.model || ""},
                 setup: session.setup, light: session.light, mode: run.mode, capabilities: window.capabilities, film: null};
         } catch (error) {
             failure = error;
