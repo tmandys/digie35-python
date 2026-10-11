@@ -27,6 +27,7 @@ function setup() {
     const ctx = {
         // Profile UI has its own suite; keep these adapter scenarios isolated.
         backlightProfiles: {receive: () => false, disconnected() {}, refresh: () => Promise.resolve(), status() {}},
+        ledPresets: {mode: () => element('backlight-color-list').value, changed() {}, disconnected() {}, refresh: () => Promise.resolve()},
         Date: Clock, Math: math,
         console: {log() {}, info() {}, error() {}, debug() {}},
         document: {getElementById: element},
@@ -297,7 +298,7 @@ test('Null path in an error DOWNLOAD is accepted', t => {
 });
 test('White to IR with equal exposure sends a new backlight command', t => {
     // Restore the actual function, normally stubbed to keep state tests focused.
-    const fresh = {window: t.ctx, document: t.ctx.document, backlightProfiles: t.ctx.backlightProfiles};
+    const fresh = {window: t.ctx, document: t.ctx.document, backlightProfiles: t.ctx.backlightProfiles, ledPresets:t.ctx.ledPresets};
     vm.createContext(fresh); vm.runInContext(script, fresh);
     t.ctx.adjust_backlight = fresh.adjust_backlight;
     fresh.set_visible = () => {};

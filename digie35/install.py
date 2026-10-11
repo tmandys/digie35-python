@@ -115,6 +115,7 @@ def main():
         "dragsort.css": [],
         "dragsort.js": [],
         "backlight_profiles.js": [],
+        "led_presets.js": [],
         "tagify.css": [],
         "tagify.js": [],
         "tagify.polyfills.min.js": [],

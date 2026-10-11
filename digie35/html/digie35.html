@@ -12,6 +12,7 @@
     <link href="tagify.css" rel="stylesheet" type="text/css" />
 	<script type="text/javascript" src="dragsort.js"></script>
     <script src="backlight_profiles.js"></script>
+    <script src="led_presets.js"></script>
     <link href="dragsort.css" rel="stylesheet" type="text/css" />
     <title>Digie35</title>
 
@@ -45,6 +46,16 @@
 
         select {
             width: 26ch;
+        }
+
+        #backlight-color-list optgroup {
+            background-color: #dce3eb;
+            color: #263544;
+        }
+
+        #backlight-color-list option {
+            background-color: #fff;
+            color: #000;
         }
 
         textarea.description {
@@ -357,6 +368,17 @@
         .form-group .hint {
             font-size: 12px;
             color: gray;
+        }
+
+        #backlight-calibration-status:not(:empty) {
+            padding: 10px 12px;
+            background: #edf2f7;
+            border-left: 4px solid #526d88;
+            border-radius: 3px;
+            color: #263544;
+            font-weight: 600;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .switch-container {
@@ -932,6 +954,22 @@
             pointer-events: none;
         }
 
+        .screen-notification.compact {
+            top: auto;
+            left: auto;
+            right: 16px;
+            bottom: 16px;
+            transform: none;
+            max-width: calc(100vw - 64px);
+            padding: 10px 16px;
+            border-radius: 6px;
+            background: #263544;
+            color: white;
+            font-weight: normal;
+            text-shadow: none;
+            overflow-wrap: anywhere;
+        }
+
         @keyframes tilt-shaking {
             0% { transform: rotate(0deg); }
             25% { transform: rotate(5deg); }
@@ -1182,7 +1220,7 @@
                     <div class="control-set">
                         <div id="backlight-exposure-fieldset" class="centered-btn">
                             <div class="horizontal-spacer">
-                                <select id="backlight-color-list" style="width:16ch" onchange="adjust_backlight(true)" title="Set backlight LED to illuminate film. RGB color gain can be adjusted individually to mask off color negative orange mask. Press (B) to on/off">
+                                <select id="backlight-color-list" style="width:100%; min-width:0" onchange="ledPresets.choose()" title="Set backlight LED to illuminate film. Select a saved LED gain preset below the basic modes. KeyB to on/off">
                                     <option value="">OFF</option>
                                     <option value="white" selected>White</option>
                                     <option value="red+green+blue">RGB</option>
@@ -1857,13 +1895,11 @@
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="backlight-profile-list">Color profile</label>
-                            <select id="backlight-profile-list" onchange="backlightProfiles.selectionChanged()">
+                            <select id="backlight-profile-list" style="flex:1; min-width:0" onchange="backlightProfiles.selectionChanged()">
                                 <option value="">No profile</option>
                             </select>
-                        </div>
-                        <div class="vertical-spacer">
-                            <button type="button" onclick="backlightProfiles.openCalibration()">New calibration…</button>
-                            <button type="button" id="backlight-profile-delete" disabled onclick="backlightProfiles.remove()">Delete profile</button>
+                            <button type="button" onclick="backlightProfiles.openCalibration()" title="Measure the light and camera response to create a new calibration profile. Remove the film before calibrating.">Calibrate</button>
+                            <button type="button" id="backlight-profile-delete" disabled onclick="backlightProfiles.remove()" title="Delete the selected user calibration profile. Built-in profiles cannot be deleted.">Delete</button>
                         </div>
                         <p class="hint" id="backlight-profile-help">A profile records how changes to individual LED channels affect the RGB values seen by your camera. Create it without film, using fixed camera exposure and white balance, and use a profile measured with the same light and camera settings. It provides the response data for automatic white-balance correction; selecting a profile does not yet adjust the LEDs.</p>
                         <small id="backlight-profile-status" class="hint" role="status" aria-live="polite"></small>
@@ -1940,6 +1976,36 @@
             </div>
         </div>
 
+        <input type="hidden" id="led-preset-state" />
+        <div id="led-preset-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header"><span class="title">Save LED preset</span><button class="close">&times;</button></div>
+                <div class="content">
+                    <div class="form-group">
+                    <div style="display:flex; align-items:center; gap:8px">
+                        <label for="led-preset-name">Preset name</label>
+                        <input id="led-preset-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
+                        <button id="led-preset-save" type="button" onclick="ledPresets.save()">Save</button>
+                    </div>
+                    <small class="hint">Save the current channel gains and switches for this light and mode. Applying a preset keeps the current exposure (EV).</small>
+                    </div>
+                    <p id="led-preset-status" role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </div>
+        <div id="led-preset-delete-modal" class="modal-overlay">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="led-preset-delete-title">
+                <div class="header"><span class="title" id="led-preset-delete-title">Delete LED preset</span><button class="close">&times;</button></div>
+                <div class="content">
+                    <p id="led-preset-delete-question"></p>
+                    <div style="display:flex; justify-content:flex-end; gap:8px">
+                        <button type="button" onclick="close_modal()">Cancel</button>
+                        <button id="led-preset-delete-confirm" type="button" onclick="ledPresets.confirmRemove()">Delete</button>
+                    </div>
+                    <p id="led-preset-delete-status" role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </div>
         <div id="backlight-calibration-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
@@ -1953,19 +2019,17 @@
                         <li>Analyze is enabled automatically and restored afterwards. Calibration measures the central 90% of the source snapshot width and height, ignoring 5% at each edge for both averaging and clipping checks. The darkest and brightest 10% of values in each RGB channel are excluded from the average to reduce dust and reflection effects. Clipping is checked before this exclusion. The eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
                         <li>Enter a unique profile name. During measurement, keep the camera and light settings unchanged.</li>
                     </ol>
-                    <p>Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. LED exposure is adjusted automatically in 0.5 EV steps before measurement, preserving PWM headroom on supported lights. Camera exposure and WB must stay fixed. The original light and Analyze state are restored when calibration ends or is cancelled.</p>
                     <div class="form-group vertical-spacer">
                         <small id="backlight-calibration-light" class="hint"></small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
                             <label for="backlight-profile-name">Profile name</label>
-                            <input id="backlight-profile-name" type="text" maxlength="100" autocomplete="off" />
+                            <input id="backlight-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
+                            <button type="button" id="backlight-calibration-start" onclick="backlightProfiles.start()" style="white-space:nowrap">Start calibration</button>
+                            <button type="button" id="backlight-calibration-cancel" disabled onclick="backlightProfiles.cancel()">Cancel</button>
                         </div>
-                    </div>
-                    <div class="vertical-spacer">
-                        <button type="button" id="backlight-calibration-start" onclick="backlightProfiles.start()">Start calibration</button>
-                        <button type="button" id="backlight-calibration-cancel" disabled onclick="backlightProfiles.cancel()">Cancel</button>
+                        <small class="hint">Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. LED exposure is adjusted automatically in 0.5 EV steps before measurement, preserving PWM headroom on supported lights. Camera exposure and WB must stay fixed. The original light and Analyze state are restored when calibration ends or is cancelled.</small>
                     </div>
                     <p id="backlight-calibration-status" role="status" aria-live="polite"></p>
                 </div>
@@ -2361,6 +2425,7 @@
         let change_value = false;
         let enabled_value = "";
         for (const opt of elem.options) {
+            if (opt.parentElement?.dataset.ledPresets) continue;
             if (opt.value == "") {
                 // OFF is always available, even on a board without RGB LEDs.
                 opt.disabled = false;
@@ -2375,7 +2440,9 @@
             } else if (opt.value == "white+red+green+blue") {
                 opt.hidden = opt.disabled = !window.capabilities.rgb_backlight || !window.capabilities.white_backlight;
             } else if (opt.value == "red+green+blue") {
-                opt.hidden = opt.disabled = !window.capabilities.rgb_backlight || window.capabilities.white_backlight;
+                opt.hidden = opt.disabled = !window.capabilities.rgb_backlight;
+            } else if (opt.value == "") {
+                opt.hidden = opt.disabled = false;
             } else {
                 opt.disabled = !window.capabilities.rgb_backlight;
             }
@@ -2620,13 +2687,15 @@
         }, 300 );
     }
 
-    function screen_notification(text) {
+    function screen_notification(text, compact = false) {
         const notification = document.getElementById("screen-notification");
+        notification.classList.toggle("compact", compact);
         // change font size to fit, simple algorithm
-        notification.style.fontSize = (text.length > 10) ? "50px" : "";
+        notification.style.fontSize = compact ? "14px" : (text.length > 10) ? "50px" : "";
         notification.textContent = text;
         notification.style.opacity = "1";
-        setTimeout(() => {
+        clearTimeout(window.screen_notification_timeout);
+        window.screen_notification_timeout = setTimeout(() => {
             notification.style.opacity = "0";
         }, 2000);
     }
@@ -2810,6 +2879,8 @@
                                     window.steps_per_mm = data.payload.steps_per_mm;
                                     window.capabilities = data.payload.capabilities;
                                     adjust_capabilities(false)
+                                    ledPresets.disconnected();
+                                    ledPresets.refresh().catch(error => update_status_info(error.message, "BACKLIGHT"));
                                 }
                                 if (typeof data.payload.adapter_class != "undefined") {
                                     window.current_adapter = data.payload.adapter_class;
@@ -2911,8 +2982,7 @@
                             if (data.payload.action=="TRIGGER" && document.getElementById("external-trigger-cb").checked) {
                                 if (data.payload.input_event == "long_press") {
                                     if (!color_list.disabled) {
-                                        color_list.value = color_list.value ? "" : window.last_backlight_color;
-                                        color_list.dispatchEvent(new Event("change"));
+                                        ledPresets.toggle();
                                     }
                                 } else if (data.payload.input_event == "click") {
                                     get_adapter_button("shoot", "").click();
@@ -3075,7 +3145,9 @@
                                 } else {
                                     window.last_backlight = null   // force backlight refresh
                                 }
-                                adjust_capabilities(data.payload.client_count == 1)
+                                adjust_capabilities(false);
+                                ledPresets.refresh(data.cmd === "HELLO" && data.payload.client_count == 1)
+                                    .catch(error => update_status_info(error.message, "BACKLIGHT"));
                                 if (typeof data.payload.volume_list == "undefined") {
                                     set_visible(document.getElementById("select-volume"), false);
                                     window.current_volume = true
@@ -3297,6 +3369,7 @@
 
     function do_disconnect()  {
         backlightProfiles.disconnected();
+        ledPresets.disconnected();
         cancel_alignment();
         document.onkeydown = function(event) {};
         document.onkeyup = function(event) {};
@@ -5066,6 +5139,7 @@
             "control.flattening": "flattening-cb",
             "control.backlight.color": "backlight-color-list",
             "control.backlight.profile": "backlight-profile-list",
+            "control.backlight.ledPresets": "led-preset-state",
 			"control.backlight.exposure": "backlight-exposure",
 			"control.backlight.exposure.ir": "backlight-ir-exposure",
 			"control.backlight.exposure.preview": "backlight-preview-exposure",
@@ -5421,6 +5495,7 @@
                 }
             }
         }
+        ledPresets.init();
         adjust_preview_settings();
         window.save_usb_preview = document.getElementById("usb-preview-cb").checked;
         adjust_camera_list(localStorage.getItem("select.camera"));
@@ -5551,8 +5626,7 @@
             case "KeyB":
                 const color_list = document.getElementById("backlight-color-list");
                 if (!color_list.disabled) {
-                    color_list.value = color_list.value ? "" : window.last_backlight_color;
-                    color_list.dispatchEvent(new Event("change"));
+                    ledPresets.toggle();
                 }
                 break;
             case "KeyP":
@@ -5772,7 +5846,7 @@
 
     function is_color_active(color) {
         const color_list = document.getElementById("backlight-color-list");
-        const active_colors = color_list.value.split("+");
+        const active_colors = ledPresets.mode().split("+");
         return active_colors.includes(color);
     }
 
@@ -5795,7 +5869,7 @@
                 }
             }
         }
-        const color = color_list.value;
+        const color = ledPresets.mode();
         const is_on = color != "";
         var exposure = null;
         if (is_on) {
@@ -5814,7 +5888,7 @@
             const elem = document.getElementById(exposure_elem_name);
             exposure = Number(elem.getAttribute("data-ev_step")) * Number(elem.value);
         }
-        document.getElementById("header-backlight-color").innerHTML = color_list.options[color_list.selectedIndex].text;
+        document.getElementById("header-backlight-color").textContent = color_list.options[color_list.selectedIndex].text;
 
         gain = {}
         const elems = document.getElementById("backlight-color-ranges").getElementsByTagName("div");
@@ -5859,6 +5933,8 @@
         } else {
             window.last_backlight = bck;
 		}
+
+        ledPresets.changed();
 	}
 
     function adjust_delay_value(range_elem) {
@@ -6167,7 +6243,7 @@
                         val = elem.checked;
                     }
                 } else {
-                    val = elem.value;
+                    val = elem.id === "backlight-color-list" ? ledPresets.mode() : elem.value;
                 }
                 localStorage.setItem(key, val);
             } else if (elem.type  == "radio" && elem.name==window.settings[key]) {

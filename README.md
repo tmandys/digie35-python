@@ -175,6 +175,23 @@ The resulting matrix is local to those settings and describes decoded preview
 RGB per unit of channel gain, not linear RAW values or a full-range PWM model.
 Automatic WB correction is not implemented by selecting a profile yet.
 
+LED gain presets are separate from response profiles. The light-mode dropdown
+keeps the basic modes first, followed by nonempty preset groups for RGB,
+RGB+White and RGBAW, and actions to save, update or delete presets. Only presets
+matching the connected light identity and supported mode are listed. Presets
+store channel gains and enable switches, never EV or white temperature, in
+individual JSON files under `led_presets/` in server storage. Duplicate names
+are rejected within the same light and mode. Without a serial number, compatible
+units with the same adapter identity cannot be distinguished.
+
+Selecting a preset applies its mode and gains while retaining current EV. The
+panel shows its name, with `*` after manual gain/switch edits. OFF retains the
+last active mode, selected preset and working channel values, including unsaved
+edits. These values are persisted per light in browser settings; refreshing an
+OFF session does not turn the light on. On connection with other clients, live
+server state takes precedence. Calibration's temporary changes are not saved
+over the preset's working state.
+
 PCA9634 light adapters (including the manual 120 light box) report logical
 channel PWM in `backlight.pwm`: requested value, actual value, maximum,
 `clipped` (request above maximum), and `at_limit` (output at maximum).
