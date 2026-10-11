@@ -149,6 +149,15 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             super().log_message(format, *args)
 
     def do_GET(self):
+        try:
+            self._serve_get()
+        except (BrokenPipeError, ConnectionResetError) as error:
+            # A browser may abort a snapshot on timeout or when switching preview.
+            # Do not attempt another HTTP response on the closed connection.
+            self.close_connection = True
+            logging.getLogger().debug("Preview client disconnected while serving %s: %s", self.path, error)
+
+    def _serve_get(self):
         # TODO: CORS headers also to send_error()
         parsed = urlparse(self.path)
         query_params = parse_qs(parsed.query)

@@ -59,7 +59,7 @@ const backlightProfiles = {
         this.profiles = data.profiles;
         select.replaceChildren(new Option("No profile", ""));
         for (const profile of this.profiles) {
-            const light = profile.light ? ` — ${profile.light.name}` : "";
+            const light = profile.light ? ` | ${profile.light.name}` : "";
             const option = new Option(`${profile.name}${light} (${profile.source === "builtin" ? "built-in" : "user"})`, profile.id);
             option.title = profile.light ? `${profile.light.adapter_class}; S/N ${profile.light.serial_number || "not assigned"}` : "";
             select.add(option);
@@ -73,6 +73,7 @@ const backlightProfiles = {
         const select = document.getElementById("backlight-profile-list");
         const profile = this.profiles.find(p => p.id === select.value);
         document.getElementById("backlight-profile-delete").disabled = this.running || profile?.source !== "user";
+        window.whiteBalance?.update();
     },
 
     async remove() {
@@ -108,8 +109,8 @@ const backlightProfiles = {
         const label = document.getElementById("backlight-calibration-light");
         label.textContent = "Reading connected light…";
         try {
-            const {light, channels} = await this.request("CALIBRATION_INFO");
-            label.textContent = `${light.name} (${light.adapter_class}) · ${light.serial_number ? "S/N " + light.serial_number : "S/N not assigned"} · Channels: ${channels.join(", ")}`;
+            const {light, channels, channel_labels} = await this.request("CALIBRATION_INFO");
+            label.textContent = `${light.name} (${light.adapter_class}) · ${light.serial_number ? "S/N " + light.serial_number : "S/N not assigned"} · Channels: ${channels.map(c => channel_labels?.[c] || c).join(", ")}`;
         } catch (error) {label.textContent = error.message;}
     },
 
@@ -161,13 +162,13 @@ const backlightProfiles = {
             bounds: [left, top, sampleWidth, sampleHeight]};
     },
 
-    validateSample(sample) {
+    validateSample(sample, run = {}) {
         const details = `RGB: [${sample.rgb.map(v => v.toFixed(1)).join(", ")}]; highlights >=254: ${(100 * sample.clipped_fraction).toFixed(2)}%; dark <=1: ${(100 * (sample.dark_fraction || 0)).toFixed(2)}% (central 90% area).`;
         let reason;
         if (sample.rgb.some(v => !Number.isFinite(v))) reason = "Invalid RGB measurement.";
         else if (sample.clipped_fraction > 0.05) reason = "Too many clipped highlights (limit 5%). Suggested first step: reduce camera exposure by 1 EV (-1 EV, e.g. 1/60 s to 1/125 s), or halve overall LED brightness, then repeat calibration.";
         else if (sample.rgb.some(v => v > 245)) reason = "A mean RGB channel exceeds 245. Suggested first step: reduce camera exposure by 1 EV (-1 EV, e.g. 1/60 s to 1/125 s), or halve overall LED brightness, then repeat calibration.";
-        else if (sample.rgb.some(v => v < 5)) {
+        else if (run.isolatedChannel ? Math.max(...sample.rgb) < 5 : sample.rgb.some(v => v < 5)) {
             const maximum = Math.max(...sample.rgb);
             const suggestion = maximum < 32
                 ? "Suggested first step: increase camera exposure by 2 EV (+2 EV, e.g. 1/60 s to 1/15 s), then repeat calibration."
@@ -251,25 +252,26 @@ const backlightProfiles = {
             }
             run.dimensions = [sample.width, sample.height];
             run.bounds = sample.bounds;
-            this.validateSample(sample);
+            this.validateSample(sample, run);
             if (stable.length && sample.rgb.some((v, c) => Math.abs(v - stable[0][c]) > 2)) stable = [];
             stable.push([...sample.rgb]);
             if (stable.length >= 3) return stable[0].map((_, c) => stable.reduce((sum, rgb) => sum + rgb[c], 0) / stable.length);
         }
-        throw new Error("No stable new snapshots arrived. Check the preview and increase its settling delay if needed.");
+        throw Object.assign(new Error("No stable new snapshots arrived. Check the preview and increase its settling delay if needed."), {snapshotUnavailable:true});
     },
 
     responseMatrix(baseline, samples, channels) {
         return [0, 1, 2].map(c => channels.map(channel => {
             const {low, high, low_level, high_level} = samples[channel];
+            const midpoint = samples[channel].baseline || baseline;
             const format = rgb => rgb.map(v => v.toFixed(2)).join(", ");
-            const measured = `RGB low (gain ${low_level}): [${format(low)}]; baseline: [${format(baseline)}]; high (gain ${high_level}): [${format(high)}].`;
+            const measured = `RGB low (gain ${low_level}): [${format(low)}]; baseline: [${format(midpoint)}]; high (gain ${high_level}): [${format(high)}].`;
             if (Math.max(...high.map((v, i) => Math.abs(v - low[i]))) < 2) {
                 throw new Error(`No measurable response from ${channel}. ${measured} Largest low-to-high RGB change is below 2. Check channel levels and preview delay.`);
             }
             const dominant = high.map((v, i) => Math.abs(v - low[i])).indexOf(Math.max(...high.map((v, i) => Math.abs(v - low[i]))));
-            const lower = baseline[dominant] - low[dominant];
-            const upper = high[dominant] - baseline[dominant];
+            const lower = midpoint[dominant] - low[dominant];
+            const upper = high[dominant] - midpoint[dominant];
             if (lower * upper <= 0 || Math.min(Math.abs(lower), Math.abs(upper)) < 0.25 * Math.max(Math.abs(lower), Math.abs(upper))) {
                 const details = `${measured} Evaluated ${["R", "G", "B"][dominant]}: baseline-low = ${lower.toFixed(2)}, high-baseline = ${upper.toFixed(2)}; changes must have the same sign and the smaller magnitude must be at least 25% of the larger. Leave more light headroom or increase the settling delay.`;
                 console.warn(`Uneven response from ${channel}. ${details}`);
@@ -277,6 +279,63 @@ const backlightProfiles = {
             }
             return (high[c] - low[c]) / (high_level - low_level);
         }));
+    },
+
+    async measureIsolated(run, session, channel) {
+        const label = session.channel_labels?.[channel] || channel;
+        const step = (factor = 1, level) => this.request("CALIBRATION_STEP", {
+            token:session.token, channel, factor, phase:"isolated", ...(level === undefined ? {} : {level}),
+        });
+        run.isolatedChannel = channel;
+        try {
+            let level = 1, baseline, settings, lastGood = null;
+            for (let attempt = 0; attempt < 12; attempt++) {
+                this.check(run);
+                this.status(`Measuring ${label} alone: gain ${level} (other LEDs off)…`, true);
+                const applied = await step(1, level);
+                if (applied.limited) {
+                    if (!lastGood) throw new Error(`${label}: no PWM headroom for isolated measurement.`);
+                    level = lastGood.level;
+                    await step(1, level);
+                    baseline = await this.measure(run);
+                    settings = lastGood.settings;
+                    break;
+                }
+                settings = applied.settings;
+                let direction;
+                try {
+                    baseline = await this.measure(run);
+                    lastGood = {level, settings};
+                    const peak = Math.max(...baseline);
+                    direction = peak < 80 ? 1 : peak > 180 ? -1 : 0;
+                } catch (error) {
+                    if (!error.exposureDirection) throw error;
+                    direction = error.exposureDirection;
+                    baseline = null;
+                }
+                const next = Math.max(0.1, Math.min(8.33, Math.round(level * (direction > 0 ? 1.5 : 0.65) * 100) / 100));
+                if (!direction || next === level || attempt === 11) break;
+                level = next;
+            }
+            if (!baseline || Math.max(...baseline) < 20) throw new Error(`${label} alone is too dark or clipped. Adjust the fixed camera exposure and repeat calibration.`);
+            this.status(`Measuring ${label} alone: lower level…`, true);
+            const lowStep = await step(0.8);
+            if (lowStep.limited) throw new Error(`${label}: insufficient PWM headroom.`);
+            this.status(`Measuring ${label} alone: lower level, gain ${Number(lowStep.level.toFixed(3))} (other LEDs off)…`, true);
+            const low = await this.measure(run);
+            this.status(`Measuring ${label} alone: higher level…`, true);
+            const highStep = await step(1.2);
+            if (highStep.limited) throw new Error(`${label}: insufficient PWM headroom.`);
+            this.status(`Measuring ${label} alone: higher level, gain ${Number(highStep.level.toFixed(3))} (other LEDs off)…`, true);
+            const high = await this.measure(run);
+            await step();
+            const verification = await this.measure(run);
+            if (verification.some((v, c) => Math.abs(v - baseline[c]) > 6)) throw new Error(`${label}: isolated baseline drifted. Check fixed camera exposure/WB and settling delay.`);
+            const sample = {baseline, low, high, low_level:lowStep.level, high_level:highStep.level, settings, verification};
+            this.responseMatrix(baseline, {[channel]:sample}, [channel]);
+            console.info("Isolated light channel", JSON.stringify({channel, ...sample}));
+            return sample;
+        } finally {delete run.isolatedChannel;}
     },
 
     cancel() {
@@ -290,12 +349,18 @@ const backlightProfiles = {
 
     async start() {
         if (this.running) return;
+        if (window.whiteBalance?.running) {this.status("Cancel white balance before calibration.", true); return;}
         const cameraId = document.getElementById("camera-list").value;
         if (!cameraId) {this.status("Select a camera before starting calibration.", true); return;}
         const nameInput = document.getElementById("backlight-profile-name");
         const name = nameInput.value.trim();
         if (!name) {this.status("Enter a profile name.", true); return;}
-        const run = {cancelled: false, cameraId,
+        const whiteBalanceKelvin = Number(document.getElementById("backlight-calibration-kelvin").value || 5000);
+        if (!Number.isFinite(whiteBalanceKelvin) || whiteBalanceKelvin < 2000 || whiteBalanceKelvin > 15000) {
+            this.status("Enter the fixed camera white balance between 2000 and 15000 K.", true); return;
+        }
+        const run = {cancelled: false, cameraId, whiteBalanceKelvin,
+            whiteBalanceShift:document.getElementById("backlight-calibration-shift").value,
             usbpreview: window.current_usbpreview, settings: preview_settings()};
         try {run.mode = this.calibrationMode();} catch (error) {this.status(error.message, true); return;}
         const analyze = document.getElementById("stream-analyze-cb");
@@ -319,8 +384,9 @@ const backlightProfiles = {
             await this.request("COLOR_PROFILE_CHECK", {name});
             this.check(run);
             beginAttempted = true;
-            const session = await this.request("CALIBRATION_BEGIN", {name});
+            const session = await this.request("CALIBRATION_BEGIN", {name, method:"whole_lightbox"});
             run.token = session.token;
+            if (session.method !== "whole_lightbox") throw new Error("Restart the updated server before whole-lightbox calibration.");
             if (session.base.color !== run.mode) throw new Error("Light capabilities changed. Reconnect and repeat calibration.");
             this.check(run);
             const step = async (channel = null, factor = 1) => {
@@ -329,13 +395,20 @@ const backlightProfiles = {
             };
             const baseline = await this.tuneExposure(run, session);
             console.info("Backlight calibration baseline", {rgb: baseline, settings: session.base});
+            const isolatedSamples = {};
+            if (session.method === "whole_lightbox") {
+                for (const channel of session.channels) isolatedSamples[channel] = await this.measureIsolated(run, session, channel);
+            }
             const samples = {};
             for (const channel of session.channels) {
-                this.status(`Measuring ${channel}: lower level…`, true);
+                const label = session.channel_labels?.[channel] || channel;
+                this.status(`Verifying ${label} in the mixture: lower level…`, true);
                 const lowStep = await step(channel, 0.8);
+                this.status(`Verifying ${label} in the mixture: lower level, gain ${Number(lowStep.settings.gain[channel].toFixed(3))}…`, true);
                 const low = await this.measure(run);
-                this.status(`Measuring ${channel}: higher level…`, true);
+                this.status(`Verifying ${label} in the mixture: higher level…`, true);
                 const highStep = await step(channel, 1.2);
+                this.status(`Verifying ${label} in the mixture: higher level, gain ${Number(highStep.settings.gain[channel].toFixed(3))}…`, true);
                 const high = await this.measure(run);
                 console.info("Backlight calibration channel", {channel, low, high});
                 samples[channel] = {low, high, low_level: lowStep.settings.gain[channel], high_level: highStep.settings.gain[channel]};
@@ -355,8 +428,15 @@ const backlightProfiles = {
                 samples, verification, sampling: {method: "center_crop_trimmed_mean", border_fraction: 0.05,
                     trim_fraction: 0.1, dimensions: run.dimensions, bounds: run.bounds},
                 preview: {source: run.usbpreview ? "camera" : "hdmi", ...run.settings},
-                camera: {id: run.cameraId, model: window.current_camera?.model || ""},
+                camera: {id: run.cameraId, model: window.current_camera?.model || "",
+                    white_balance:{kelvin:run.whiteBalanceKelvin, shift:run.whiteBalanceShift, source:"user_declared"},
+                    exposure_requirement:"fixed_manual_or_ae_lock"},
                 setup: session.setup, light: session.light, mode: run.mode, capabilities: window.capabilities, film: null};
+            if (session.method === "whole_lightbox") Object.assign(profile, {
+                scope:"lightbox", method:session.method, channel_labels:session.channel_labels,
+                isolated_samples:isolatedSamples, isolated_matrix:this.responseMatrix(null, isolatedSamples, session.channels),
+                matrix_context:"local_response_in_reference_mixture", isolated_matrix_context:"individually_lit_channels_at_recorded_gains",
+            });
         } catch (error) {
             failure = error;
         } finally {

@@ -13,6 +13,7 @@
 	<script type="text/javascript" src="dragsort.js"></script>
     <script src="backlight_profiles.js"></script>
     <script src="led_presets.js"></script>
+    <script src="white_balance.js"></script>
     <link href="dragsort.css" rel="stylesheet" type="text/css" />
     <title>Digie35</title>
 
@@ -1198,6 +1199,7 @@
                             <input type="checkbox" id="stream-crosshair-cb"/><label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle">Cross<u>h</u>air</label>
                             <input type="checkbox" id="stream-vision-cb"/><label for="stream-vision-cb" accesskey="v" title="Analyze preview image via computer vision"><u>V</u>ision</label>
                             <div id="snapshot-color-box" class="color-box inline-block" title="Source snapshot color around cursor/marker, before display inversion"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
+                            <button id="snapshot-wb" type="button" disabled onclick="whiteBalance.start()" title="Select a reference point, RGB light mode and color profile before WB.">WB</button>
                         </div>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
@@ -1725,7 +1727,7 @@
                         <input id="led-preset-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
                         <button id="led-preset-save" type="button" onclick="ledPresets.save()">Save</button>
                     </div>
-                    <small class="hint">Save the current channel gains and switches for this light and mode. Applying a preset keeps the current exposure (EV).</small>
+                    <small class="hint">Save the current channel gains, switches and LED exposure (EV) for this light and mode. Applying a preset restores them together. Camera exposure is unchanged. Older presets without EV keep the current LED exposure.</small>
                     </div>
                     <p id="led-preset-status" role="status" aria-live="polite"></p>
                 </div>
@@ -1744,6 +1746,19 @@
                 </div>
             </div>
         </div>
+        <div id="wb-interrupted-modal" class="modal-overlay">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wb-interrupted-title">
+                <div class="header"><span class="title" id="wb-interrupted-title">WB interrupted — no stable image</span><button class="close">&times;</button></div>
+                <div class="content">
+                    <p id="wb-interrupted-measurement"></p>
+                    <small class="hint">White balance is unfinished. The last LED change may not have been measured. Keep the current gains to resume from them next time, or restore the original gains. Closing this dialog or no response within 20 seconds restores the original gains.</small>
+                    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px">
+                        <button type="button" onclick="whiteBalance.choose(false)">Restore original LEDs</button>
+                        <button type="button" onclick="whiteBalance.choose(true)">Keep current LEDs</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="backlight-calibration-modal" class="modal-overlay">
             <div class="modal">
                 <div class="header">
@@ -1753,7 +1768,7 @@
                 <div class="content">
                     <ol>
                         <li>Remove the film and fill the entire preview with the illuminated diffuser. Keep holders, borders and other objects out of the frame.</li>
-                        <li>Fix camera exposure, ISO and white balance. Disable automatic image adjustments.</li>
+                        <li>Use manual camera exposure or a reliable AE lock; keep shutter time, aperture and ISO fixed throughout calibration. Set a fixed camera WB (recommended 5000 K), disable AWB and automatic image adjustments.</li>
                         <li>Analyze is enabled automatically and restored afterwards. Calibration measures the central 90% of the source snapshot width and height, ignoring 5% at each edge for both averaging and clipping checks. The darkest and brightest 10% of values in each RGB channel are excluded from the average to reduce dust and reflection effects. Clipping is checked before this exclusion. The eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
                         <li>Enter a unique profile name. During measurement, keep the camera and light settings unchanged.</li>
                     </ol>
@@ -1762,12 +1777,21 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
+                            <label for="backlight-calibration-kelvin">Camera WB</label>
+                            <input id="backlight-calibration-kelvin" type="number" min="2000" max="15000" step="100" value="5000" style="width:8ch" /><span>K</span>
+                            <label for="backlight-calibration-shift" style="width:auto">WB shift</label>
+                            <input id="backlight-calibration-shift" type="text" value="0" maxlength="80" style="flex:1; min-width:0" />
+                        </div>
+                        <small class="hint">Enter the settings used on the camera, including any A/B or G/M shift. These values are saved with the profile; Digie35 does not yet read or set camera WB or exposure.</small>
+                    </div>
+                    <div class="form-group vertical-spacer">
+                        <div class="input-row">
                             <label for="backlight-profile-name">Profile name</label>
                             <input id="backlight-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
                             <button type="button" id="backlight-calibration-start" onclick="backlightProfiles.start()" style="white-space:nowrap">Start calibration</button>
                             <button type="button" id="backlight-calibration-cancel" disabled onclick="backlightProfiles.cancel()">Cancel</button>
                         </div>
-                        <small class="hint">Available visible channels are selected automatically from the connected light's capabilities. RGBAW measures amber, white, red, green and blue independently; otherwise RGB+White, RGB or White is used. A different mode starts with unit gains. LED exposure is adjusted automatically in 0.5 EV steps before measurement, preserving PWM headroom on supported lights. Camera exposure and WB must stay fixed. The original light and Analyze state are restored when calibration ends or is cancelled.</small>
+                        <small class="hint">One profile covers the whole lightbox, independent of the selected LED mode. Every supported visible channel is measured alone with the others off, including both 3000 K and 5000 K whites on tunable-white lights. Initial LED gains start at 1. LED exposure is chosen once for the reference mixture; isolated channel gains are adjusted for usable measurements with PWM headroom. The mixture response is measured separately because preview RGB is not linear. Keep camera exposure and WB fixed for the entire run. Original light settings and Analyze state are restored afterwards.</small>
                     </div>
                     <p id="backlight-calibration-status" role="status" aria-live="polite"></p>
                 </div>
@@ -2310,7 +2334,7 @@
         list.value = sel2;
     }
 
-    function update_status_info(msg, key = "", clear = false) {
+    function update_status_info(msg, key = "", clear = false, silent = false) {
         const content = document.getElementById("error-content");
         if (msg != "" || key != "") {
             let found = false;
@@ -2334,7 +2358,7 @@
                 line.textContent = `${msg}`;
                 content.appendChild(line);
             }
-            if (msg != "" && document.getElementById("play-sound-cb").checked) {
+            if (msg != "" && !silent && document.getElementById("play-sound-cb").checked) {
                 const audio = document.getElementById("error-sound");
                 if (audio.paused || audio.ended) {
                     audio.play();
@@ -3428,6 +3452,7 @@
         color_box.style.backgroundColor = rgb;
         color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
         color_value.title = `${bounds[2]} × ${bounds[3]} source snapshot pixels; 10% trimmed mean per channel; before display inversion`;
+        window.whiteBalance?.update();
     };
 
     function clear_snapshot_sample() {
@@ -3435,6 +3460,7 @@
         document.getElementById("snapshot-color-box").style.backgroundColor = "";
         document.getElementById("snapshot-color-value").textContent = "";
         document.getElementById("snapshot-color-value").title = "";
+        window.whiteBalance?.update();
     }
 
     function snapshot_draw_marker(ctx, position) {
@@ -4066,6 +4092,7 @@
                 window.snapshot_marker_position = null;
                 update_color_box(window.snapshot_canvas_ctx, position);
             }
+            window.whiteBalance?.update();
             refresh_snapshot();
         });
 
@@ -4125,6 +4152,8 @@
             "control.flattening": "flattening-cb",
             "control.backlight.color": "backlight-color-list",
             "control.backlight.profile": "backlight-profile-list",
+            "control.backlight.calibrationKelvin": "backlight-calibration-kelvin",
+            "control.backlight.calibrationShift": "backlight-calibration-shift",
             "control.backlight.ledPresets": "led-preset-state",
 			"control.backlight.exposure": "backlight-exposure",
 			"control.backlight.exposure.ir": "backlight-ir-exposure",
@@ -4790,7 +4819,7 @@
     }
 
 	function adjust_backlight(adjust_range = false, send_cmd = true) {
-        if (backlightProfiles.running) {
+        if (backlightProfiles.running || window.whiteBalance?.running) {
             send_cmd = false;
         }
         const color_list = document.getElementById("backlight-color-list");
@@ -4874,6 +4903,7 @@
 		}
 
         ledPresets.changed();
+        window.whiteBalance?.update();
 	}
 
     function adjust_delay_value(range_elem) {

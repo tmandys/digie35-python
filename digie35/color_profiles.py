@@ -147,7 +147,11 @@ class BacklightCalibration:
 
     def info(self):
         mode = self.calibration_mode()
-        return {"mode": mode, "channels": mode.split("+"), "light": self.light_identity(mode)}
+        labels = {c: c.capitalize() for c in mode.split("+")}
+        if self.digitizer.get_capabilities().get("temperature_backlight") and "amber" in labels:
+            labels.update(white="White 5000 K", amber="White 3000 K")
+        return {"mode": mode, "channels": mode.split("+"), "channel_labels": labels,
+                "light": self.light_identity(mode)}
 
     def _touch(self):
         if self.timer:
@@ -160,7 +164,7 @@ class BacklightCalibration:
         except Exception:
             logging.exception("Cannot restore backlight after calibration timeout")
 
-    def begin(self, owner, name):
+    def begin(self, owner, name, isolated=False):
         if self.session:
             raise ValueError("A backlight calibration is already running")
         name = self.profiles.check_name(name)["name"]
@@ -172,13 +176,13 @@ class BacklightCalibration:
         original = {key: light[key] for key in ("color", "exposure", "gain", "temp") if key in light}
         if not original.get("color"):
             original = {"color": None}
-        gains = light.get("gain", {}) if color == light.get("color") else {}
+        gains = light.get("gain", {}) if not isolated and color == light.get("color") else {}
         channels = color.split("+")
         levels = {c: gains[c] if gains.get(c, 0) > 0 else 1 for c in channels}
         if any(not math.isfinite(v) or v < 0 or v > 10 for v in levels.values()):
             raise ValueError("Invalid starting channel levels")
         base = {"color": color, "exposure": light.get("exposure") if light.get("exposure") is not None else 0,
-                "gain": levels, "temp": light.get("temp")}
+                "gain": levels, "temp": None if isolated else light.get("temp")}
         identity = self.light_identity(color)
         hardware = self._light(color)
         if any(value * 1.2 > 10 for value in levels.values()):
@@ -202,6 +206,9 @@ class BacklightCalibration:
                         "original": original, "hardware": self._light(color), "light": identity,
                         "levels": levels, "channels": channels, "exposure_options": exposure_options,
                         "setup": {"board": type(self.digitizer).__name__}}
+        if isolated:
+            self.session.update(method="whole_lightbox", channel_labels=self.info()["channel_labels"],
+                                isolated_levels=dict(levels), isolated_settings={})
         self._touch()
         return {k: copy.deepcopy(v) for k, v in self.session.items() if k not in ("owner", "hardware", "original")}
 
@@ -214,8 +221,13 @@ class BacklightCalibration:
             raise ValueError("Light capabilities changed during calibration")
         return self.session
 
-    def step(self, owner, token, channel=None, factor=1, exposure=None):
+    def step(self, owner, token, channel=None, factor=1, exposure=None, phase="mixture", level=None):
         session = self._check(owner, token)
+        if phase not in ("mixture", "isolated") or (phase == "isolated" and (session.get("method") != "whole_lightbox" or channel is None)):
+            raise ValueError("Unsupported calibration phase")
+        if level is not None and (phase != "isolated" or factor != 1 or type(level) not in (int, float)
+                                  or not math.isfinite(level) or not 0.1 <= level <= 8.33):
+            raise ValueError("Unsupported isolated channel level")
         if channel is not None and channel not in session["channels"]:
             raise ValueError("Channel is not part of this calibration")
         if type(factor) not in (int, float) or factor not in (0.8, 1, 1.2):
@@ -227,17 +239,33 @@ class BacklightCalibration:
         if exposure is not None:
             settings["exposure"] = exposure
         settings["gain"] = dict(session["levels"])
+        if phase == "isolated":
+            settings["gain"] = {c: 0 for c in session["channels"]}
         if channel:
-            value = settings["gain"][channel] * factor
+            channel_level = (level if level is not None else session["isolated_levels"][channel]) if phase == "isolated" else session["levels"][channel]
+            value = channel_level * factor
             maximum = 1 if settings.get("exposure") is None else 10
             if value > maximum:
                 raise ValueError("Lower the starting channel level to leave calibration headroom")
             settings["gain"][channel] = value
+        if phase == "isolated":
+            hardware = session["hardware"]
+            if hasattr(hardware, "get_backlight_pwm_status"):
+                for probe_factor in (0.8, 1.2):
+                    probe = copy.deepcopy(settings)
+                    probe["gain"][channel] = channel_level * probe_factor
+                    pwm = hardware.get_backlight_pwm_status(**probe)[channel]
+                    if pwm["clipped"] or pwm["at_limit"] or pwm["actual"] <= 0:
+                        self._touch()
+                        return {"limited": True, "reason": "PWM headroom", "settings": settings}
         self.digitizer.set_backlight(**settings)
+        if phase == "isolated":
+            session["isolated_levels"][channel] = channel_level
+            session["isolated_settings"][channel] = dict(copy.deepcopy(settings), gain={c: channel_level if c == channel else 0 for c in session["channels"]})
         if exposure is not None:
             session["base"]["exposure"] = exposure
         self._touch()
-        return {"settings": settings}
+        return {"settings": settings, "level": settings["gain"].get(channel) if channel else None}
 
     def end(self, owner, token):
         session = self.session
@@ -247,6 +275,9 @@ class BacklightCalibration:
             self._check(owner, token)
             self.digitizer.set_backlight(**session["original"])
             self.completed[owner] = {k: copy.deepcopy(session[k]) for k in ("token", "name", "base", "channels", "light", "setup")}
+            for key in ("method", "channel_labels", "isolated_settings"):
+                if key in session:
+                    self.completed[owner][key] = copy.deepcopy(session[key])
         finally:
             self.session = None
             if self.timer:
@@ -269,6 +300,13 @@ class BacklightCalibration:
         profile.update({"name": session["name"], "light": session["light"], "setup": session["setup"],
                         "channels": session["channels"], "mode": session["base"]["color"]})
         profile["baseline"]["settings"] = session["base"]
+        if session.get("method") == "whole_lightbox":
+            profile.update(scope="lightbox", method=session["method"], channel_labels=session["channel_labels"])
+            for channel in session["channels"]:
+                sample = profile.get("isolated_samples", {}).get(channel)
+                if not sample or channel not in session["isolated_settings"]:
+                    raise ValueError("Missing isolated channel measurements")
+                sample["settings"] = session["isolated_settings"][channel]
         result = self.profiles.save(profile)
         self.completed.pop(owner, None)
         return result

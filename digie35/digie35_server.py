@@ -55,6 +55,7 @@ import errno
 import digie35.mjpgserver as mjpgserver
 from digie35.storage import LocalStorage, default_storage_directory
 from digie35.color_profiles import ColorProfiles, BacklightCalibration
+from digie35.white_balance import WhiteBalance
 from digie35.led_presets import LedPresets
 import netifaces
 import shutil
@@ -1565,6 +1566,14 @@ async def ws_control_handler(websocket, path):
                 reply = ""
                 reply_status = False
                 try:
+                    if white_balance.session and cmd in ("STOP", "BYE"):
+                        session = white_balance.session
+                        white_balance.end(session["owner"], session["token"])
+                    if white_balance.session and not (
+                        cmd.startswith(("WB_", "LIST_", "GET"))
+                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "LED_PRESET_LIST", "COLOR_PROFILE_LIST", "COLOR_PROFILE_GET")
+                    ):
+                        raise ValueError("White balance is running; cancel it before changing hardware")
                     if backlight_calibration.session and cmd in ("STOP", "BYE"):
                         session = backlight_calibration.session
                         backlight_calibration.end(session["owner"], session["token"])
@@ -1574,6 +1583,30 @@ async def ws_control_handler(websocket, path):
                     ):
                         raise ValueError("Backlight calibration is running; cancel it before changing hardware")
                     match cmd:
+                        case "WB_BEGIN":
+                            if camera._capture_in_progress:
+                                raise ValueError("Wait for capture to finish before white balance")
+                            if not params.get("camera_id") or params["camera_id"] != camera._camera_id:
+                                raise ValueError("Select the connected camera before white balance")
+                            reply = white_balance.begin(websocket, params.get("profile_id"), params["camera_id"], params.get("enable_gains"))
+                        case "WB_STEP":
+                            reply = white_balance.step(websocket, params.get("token"), params.get("rgb"))
+                        case "WB_END":
+                            session = white_balance.session
+                            if session and session["owner"] is websocket:
+                                if params.get("token") and params["token"] != session["token"]:
+                                    raise ValueError("White balance session expired")
+                                reply = white_balance.end(websocket, session["token"], params.get("commit") is True, params.get("keep_partial") is True)
+                            else:
+                                completed = white_balance.completed.get(websocket)
+                                if completed and completed["token"] == params.get("token"):
+                                    if params.get("commit") and completed["result"]["restored"]:
+                                        raise ValueError("White balance was cancelled or expired; original gains were restored")
+                                    reply = completed["result"]
+                                elif params.get("commit"):
+                                    raise ValueError("White balance session expired")
+                                else:
+                                    reply = {"restored": True}
                         case "LED_PRESET_LIST":
                             reply = led_presets.listing()
                         case "LED_PRESET_SAVE":
@@ -1593,11 +1626,11 @@ async def ws_control_handler(websocket, path):
                         case "CALIBRATION_BEGIN":
                             if camera._capture_in_progress:
                                 raise ValueError("Wait for capture to finish before calibration")
-                            reply = backlight_calibration.begin(websocket, params.get("name"))
+                            reply = backlight_calibration.begin(websocket, params.get("name"), params.get("method") == "whole_lightbox")
                         case "CALIBRATION_INFO":
                             reply = backlight_calibration.info()
                         case "CALIBRATION_STEP":
-                            reply = backlight_calibration.step(websocket, params.get("token"), params.get("channel"), params.get("factor", 1), params.get("exposure"))
+                            reply = backlight_calibration.step(websocket, params.get("token"), params.get("channel"), params.get("factor", 1), params.get("exposure"), params.get("phase", "mixture"), params.get("level"))
                         case "CALIBRATION_END":
                             session = backlight_calibration.session
                             if session and session["owner"] is websocket:
@@ -1744,7 +1777,7 @@ async def ws_control_handler(websocket, path):
                         reply = digitizer.get_state(True)
                 except Exception as e:
                     logging.getLogger().error(e, exc_info=True)
-                    reply = {"error": str(e)} if cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LED_PRESET_")) else repr(e)
+                    reply = {"error": str(e)} if cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LED_PRESET_", "WB_")) else repr(e)
 
                 if isinstance(reply, (dict, list, set)):
                     if client_context != None:
@@ -1773,6 +1806,10 @@ async def ws_control_handler(websocket, path):
             except websockets.exceptions.ConnectionClosedOK:
                 break
     finally:
+        try:
+            white_balance.disconnect(websocket)
+        except Exception:
+            logging.getLogger().exception("Cannot restore backlight after white balance disconnect")
         try:
             backlight_calibration.disconnect(websocket)
         except Exception:
@@ -2218,6 +2255,8 @@ def main():
     digitizer = film_xboard_class(mainboard, broadcast)
     global backlight_calibration
     backlight_calibration = BacklightCalibration(digitizer, color_profiles)
+    global white_balance
+    white_balance = WhiteBalance(digitizer, color_profiles)
     global led_presets
     led_presets = LedPresets(local_storage, backlight_calibration)
     try:

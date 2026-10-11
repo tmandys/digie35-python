@@ -28,6 +28,22 @@ def handler(path, buffer=None):
 
 
 class MjpgTests(unittest.TestCase):
+    def test_aborted_snapshot_closes_connection_without_second_response(self):
+        buffer = mjpg.FrameBuffer()
+        buffer.write(memoryview(b"\xff\xd8image"))
+        for error in (BrokenPipeError, ConnectionResetError):
+            class AbortedOutput:
+                def write(self, data):
+                    raise error("Client disconnected")
+            h = handler("/snapshot", buffer)
+            h.wfile = AbortedOutput()
+            h.do_GET()
+            self.assertTrue(h.close_connection)
+            self.assertEqual(h.responses, [200])
+        healthy = handler("/snapshot", buffer)
+        healthy.do_GET()
+        self.assertEqual(healthy.wfile.getvalue(), b"\xff\xd8image")
+
     def test_archive_paths_and_bad_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "photos"

@@ -16,14 +16,22 @@ class LedPresetTests(unittest.TestCase):
                                       light_identity=lambda mode:dict(self.light))
         self.manager = LedPresets(LocalStorage(tmp.name), calibration)
         self.settings = {"mode":"red+green+blue", "gains":{"red":1.2,"green":0.8,"blue":2},
-                         "enabled":{"red":True,"green":False,"blue":True}, "exposure":99}
+                         "enabled":{"red":True,"green":False,"blue":True}, "exposure":1}
 
     def save(self, name="Test", identifier=None):
         return self.manager.save(name,self.settings,identifier,dict(self.light))
 
-    def test_create_update_reload_delete_and_no_exposure(self):
+    def test_exposure_validation_and_legacy_presets(self):
+        legacy = dict(self.settings)
+        legacy.pop("exposure")
+        self.assertNotIn("exposure", self.manager.settings(legacy))
+        for value in (True, None, float("nan"), 3, -3, 0.2):
+            with self.assertRaises(ValueError):
+                self.manager.settings(dict(legacy, exposure=value))
+
+    def test_create_update_reload_delete_and_exposure(self):
         saved = self.save()
-        self.assertNotIn("exposure",saved)
+        self.assertEqual(saved["exposure"],1)
         self.assertEqual(saved["gains"]["green"],0.8)
         self.assertFalse(saved["enabled"]["green"])
         self.settings["gains"]["red"] = 1.5

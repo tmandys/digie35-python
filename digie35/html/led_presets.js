@@ -20,10 +20,11 @@ const ledPresets = {
             gains[channel] = Number(document.getElementById(`backlight-${channel}-num`).value);
             enabled[channel] = document.getElementById(`backlight-${channel}-switch`).checked;
         }
-        return {mode, gains, enabled};
+        const ev = document.getElementById("backlight-exposure");
+        return {mode, gains, enabled, exposure:Number(ev.value) * Number(ev.getAttribute("data-ev_step"))};
     },
     validState(state) {
-        return state && typeof state.on === "boolean" && this.baseOptions.some(o => o.value === state.mode && state.mode)
+        return state && (state.exposure === undefined || (Number.isFinite(state.exposure) && Math.abs(state.exposure) <= 2.5 && Number.isInteger(state.exposure * 2))) && typeof state.on === "boolean" && this.baseOptions.some(o => o.value === state.mode && state.mode)
             && (!this.modes[state.mode] || state.mode.split("+").every(c =>
                 Number.isFinite(state.gains?.[c]) && state.gains[c] >= 0.1 && state.gains[c] <= 10 && typeof state.enabled?.[c] === "boolean"));
     },
@@ -47,12 +48,16 @@ const ledPresets = {
     },
     dirty() {
         const preset = this.selected();
-        return !!preset && preset.mode.split("+").some(c => preset.gains[c] !== this.state.gains[c] || preset.enabled[c] !== this.state.enabled[c]);
+        return !!preset && ((preset.exposure !== undefined && preset.exposure !== this.state.exposure) || preset.mode.split("+").some(c => preset.gains[c] !== this.state.gains[c] || preset.enabled[c] !== this.state.enabled[c]));
     },
     setUI(state) {
         const select = document.getElementById("backlight-color-list");
         select.value = state.on ? state.mode : "";
         window.last_backlight_color = state.mode;
+        if (state.exposure !== undefined) {
+            const ev = document.getElementById("backlight-exposure");
+            ev.value = String(state.exposure / Number(ev.getAttribute("data-ev_step")));
+        }
         if (this.modes[state.mode]) for (const channel of state.mode.split("+")) {
             document.getElementById(`backlight-${channel}-num`).value = state.gains[channel];
             document.getElementById(`backlight-${channel}-switch`).checked = state.enabled[channel];
@@ -60,7 +65,7 @@ const ledPresets = {
     },
     changed() {
         if (!this.ready) return;
-        if (backlightProfiles.running) {this.renderLabels(); return;}
+        if ((backlightProfiles.running || window.whiteBalance?.running)) {this.renderLabels(); return;}
         const mode = this.mode();
         if (mode && !this.baseOptions.some(o => o.value === mode)) return;
         if (mode) {
@@ -79,14 +84,14 @@ const ledPresets = {
         const preset = this.selected(), suffix = preset ? ` · ${preset.name}${this.dirty() ? " *" : ""}` : "";
         for (const option of this.baseOptions) option.text = option.dataset.baseLabel;
         const select = document.getElementById("backlight-color-list");
-        if (!backlightProfiles.running && this.ready && this.state) {
+        if (!(backlightProfiles.running || window.whiteBalance?.running) && this.ready && this.state) {
             const value = preset && Array.from(select.options).some(o => o.value === `preset:${preset.id}`)
                 ? `preset:${preset.id}` : this.state.mode;
             select.value = this.state.on ? value : "";
         }
         const current = this.baseOptions.find(o => o.value === this.mode());
-        if (current) document.getElementById("header-backlight-color").textContent = current.text + (current.value && !backlightProfiles.running ? suffix : "");
-        const canManage = this.ready && !backlightProfiles.running && this.state?.on
+        if (current) document.getElementById("header-backlight-color").textContent = current.text + (current.value && !(backlightProfiles.running || window.whiteBalance?.running) ? suffix : "");
+        const canManage = this.ready && !(backlightProfiles.running || window.whiteBalance?.running) && this.state?.on
             && this.availableModes?.includes(this.state.mode) && this.modes[this.state.mode];
         const actions = canManage ? (preset ? "save,update,delete" : "save") : "";
         if (actions !== this.managementActions) {
@@ -151,7 +156,7 @@ const ledPresets = {
         const select = document.getElementById("backlight-color-list"), value = select.value;
         if (value.startsWith("action:") || value.startsWith("preset:")) {
             select.value = this.state?.on ? this.state.mode : "";
-            if (backlightProfiles.running) return;
+            if ((backlightProfiles.running || window.whiteBalance?.running)) return;
             try {
                 if (value.startsWith("preset:")) {
                     // Refresh before applying to avoid stale/deleted presets or hotplug.
@@ -159,7 +164,7 @@ const ledPresets = {
                     await this.refresh();
                     const preset = this.records.find(p => p.id === id);
                     if (key !== this.lightKey || !preset) throw new Error("Preset is no longer available for this light.");
-                    this.state = {mode:preset.mode,gains:{...preset.gains},enabled:{...preset.enabled},on:true,selected:id};
+                    this.state = {mode:preset.mode,exposure:preset.exposure,gains:{...preset.gains},enabled:{...preset.enabled},on:true,selected:id};
                     this.setUI(this.state);
                     window.last_backlight = null;
                     adjust_backlight(true);
