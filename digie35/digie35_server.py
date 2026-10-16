@@ -53,6 +53,7 @@ import subprocess
 import stat
 import errno
 import digie35.mjpgserver as mjpgserver
+from digie35.storage import LocalStorage, default_storage_directory
 import netifaces
 import shutil
 import signal
@@ -2039,6 +2040,7 @@ def main():
     global SHUTDOWN_HELPER
     #argParser.add_argument("-c", "--config", dest="configFile", metavar="FILEPATH", type=argparse.FileType('r'), help="RPi+HAT configuration file in YAML")
     argParser.add_argument("-d", "--directory", dest="proj_dir", metavar="PATH", default="/media/pi/*", help=f"Project directory, via asterisk are supported dynamically mounted disks, env variables are supported, e.g.$HOME/.digie35/projects, default: %(default)s")
+    argParser.add_argument("--storage-directory", dest="storage_dir", metavar="PATH", default=default_storage_directory(), help="Local server data and profiles; supports ~ and environment variables, default: %(default)s")
     argParser.add_argument("-P", "--preset_directory", dest="preset_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "preset"), help=f"XMP preset directory, e.g.$HOME/.digie35/preset, default: %(default)s")
     argParser.add_argument("-T", "--file_template_directory", dest="file_template_dir", metavar="PATH", default=os.path.join(os.path.dirname(__file__), "file_template"), help=f"File template directory, e.g.$HOME/.digie35/file_template, default: %(default)s")
     argParser.add_argument("-w", "--addr", dest="wsAddr", metavar="ADDR", default="0.0.0.0", help=f"Websocket listener bind address ('0.0.0.0' = all addresses), default: %(default)s")
@@ -2087,6 +2089,13 @@ def main():
             log_callback_obj = gp.gp_log_add_func(gp_level, _gphoto2_logger_cb, (log_func, full_mapping))
 
     logging.getLogger().debug("Parsed args: %s", args)
+
+    global local_storage
+    try:
+        local_storage = LocalStorage(args.storage_dir)
+    except (OSError, ValueError) as error:
+        argParser.error(f"Cannot initialize storage directory '{args.storage_dir}': {error}")
+    logging.getLogger().info("Local storage: %s", local_storage.directory)
 
     if args.previewPort != 0:
         http_thread, frame_buffer, snapshot_list, httpd = mjpgserver.start_http_server(args.wsAddr, args.previewPort)
