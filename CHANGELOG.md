@@ -24,6 +24,7 @@ Features
   - reset factory settings
   - save accordion/panel state
   - backlight color temperature
+  - shared local JSON storage for persistent server-side profiles and settings
 
 Fixes
 -----
