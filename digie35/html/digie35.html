@@ -164,6 +164,41 @@
             max-height: 80vh;
         }
 
+        #camera-profile-modal .modal {
+            max-width: 700px;
+        }
+
+        .camera-profile-modes {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .camera-profile-modes button.active {
+            background-color: lightslategrey;
+            color: white;
+        }
+
+        .camera-profile-parameter {
+            border-top: 1px solid #ccc;
+            padding: 10px 0;
+        }
+
+        .camera-profile-parameter:first-child {
+            border-top: 0;
+        }
+
+        .camera-profile-parameter .input-row label {
+            flex: 1;
+            min-width: 10ch;
+        }
+
+        .camera-profile-parameter small {
+            display: block;
+            color: #555;
+            margin-top: 3px;
+        }
+
         .modal-active {
             display: flex !important;
             z-index: 1000;
@@ -908,13 +943,14 @@
 
             <div class="accordion" id="camera-accordion">
                 <div class="header">
+                    <button class="modal-open" data-modal_id="camera-profile-modal" title="Camera profile settings" onclick="cameraProfiles.refresh()">&#9881</button>
                     <span class="title">Camera<span class="subtitle" id="header-camera-name"></span></span>
                     <span class="arrow">&#9660;</span>
                 </div>
                 <fieldset id="camera-fieldset">
                     <div class="control-set">
                         <div>
-                            <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'])">
+                            <select id="camera-list" name="camera_id" onchange="adjust(); sendCommand('SET_CAMERA', ['camera-list'], {include_config: true})">
                                 <option value="" selected disabled>select camera...</option>
                             </select>
                             <button onclick="sendCommand('LIST_CAMERAS')" title="Reinitialize gphoto camera list">Refresh&#x21bb;</button>
@@ -1269,6 +1305,51 @@
                     </div>
                     <div class="vertical-spacer">
                         <textarea id="server-info" readonly placeholder="click Connect button to connect..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="camera-profile-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header"><span class="title">Camera profiles</span><button class="close" onclick="close_modal()">&times;</button></div>
+                <div class="content">
+                    <div class="form-group vertical-spacer"><div class="input-row">
+                        <label for="camera-profile-list">Profile</label>
+                        <select id="camera-profile-list" style="flex:1; min-width:0" onchange="cameraProfiles.selectionChanged()"><option value="" selected>No profile</option></select>
+                        <button type="button" onclick="cameraProfiles.add()">Add</button>
+                        <button type="button" id="camera-profile-edit" onclick="cameraProfiles.edit()" disabled>Edit</button>
+                        <button type="button" id="camera-profile-delete" onclick="cameraProfiles.remove()" disabled>Delete</button>
+                    </div><small id="camera-profile-description" class="hint">Profiles define camera settings used while shooting and focusing. They are stored on the Digie35 server.</small><small id="camera-profile-status" class="hint" role="status" aria-live="polite"></small></div>
+                </div>
+            </div>
+        </div>
+        <div id="camera-profile-editor-modal" class="modal-overlay">
+            <div class="modal">
+                <div class="header"><span class="title">Camera profile</span><button class="close" onclick="cameraProfiles.cancelEdit()">&times;</button></div>
+                <div class="content">
+                    <div id="camera-profile-editor">
+                        <div class="form-group vertical-spacer"><div class="input-row">
+                            <label for="camera-profile-name">Profile name</label>
+                            <input id="camera-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
+                        </div></div>
+                        <div class="form-group vertical-spacer"><div class="input-row">
+                            <label>Mode</label>
+                            <div class="camera-profile-modes" role="tablist" aria-label="Camera profile mode">
+                                <button type="button" data-mode="default" onclick="cameraProfiles.selectMode('default')">Default</button>
+                                <button type="button" data-mode="shooting" onclick="cameraProfiles.selectMode('shooting')">Shooting</button>
+                                <button type="button" data-mode="focusing" onclick="cameraProfiles.selectMode('focusing')">Focusing</button>
+                            </div>
+                        </div><small class="hint">Default applies generally. Shooting and Focusing contain only values that override Default.</small></div>
+                        <div class="form-group vertical-spacer"><div class="input-row">
+                            <label for="camera-profile-add-parameter">Add parameter</label>
+                            <select id="camera-profile-add-parameter" style="flex:1; min-width:0"></select>
+                            <button type="button" onclick="cameraProfiles.addParameter()">Add</button>
+                        </div><small id="camera-profile-camera-info" class="hint"></small></div>
+                        <div id="camera-profile-parameters" class="vertical-spacer"></div>
+                        <div class="input-row">
+                            <button type="button" onclick="cameraProfiles.saveChanges()">Save changes</button>
+                            <button type="button" onclick="cameraProfiles.cancelEdit()">Cancel</button>
+                        </div><small id="camera-profile-editor-status" class="hint" role="status" aria-live="polite"></small>
                     </div>
                 </div>
             </div>
@@ -2591,13 +2672,18 @@
                                 }
                                 update_select_options("file-template-list", list, "id", "name");
                             }
-                            if (data.cmd == "SET_CAMERA") {
+                            if (data.cmd == "LIST_CAMERA_PROFILES" || data.cmd == "SAVE_CAMERA_PROFILE" || data.cmd == "DELETE_CAMERA_PROFILE") {
+                                cameraProfiles.receive(data.payload);
+                            } else if (data.cmd == "SET_CAMERA") {
                                 document.getElementById("camera-list").value = data.payload.id;
                                 window.current_camera = data.payload;
+                                if (data.payload.camera_config) cameraProfiles.receiveCameraConfig(data.payload.camera_config);
                                 document.getElementById("camera-abilities").value = JSON.stringify(data.payload, null, 2);
                                 update_battery(data.payload.battery);
                                 adjust_capabilities(false);
                                 adjust_camera_preview(false)
+                            } else if (data.cmd == "GET_CAMERA_CONFIG") {
+                                cameraProfiles.receiveCameraConfig(data.payload);
                             } else if (data.cmd == "GET_PROJECT") {
                                 const project_list = document.getElementById("project-list");
                                 const film_list = document.getElementById("film-list");
@@ -3413,6 +3499,10 @@
     }
 
     function do_onload() {
+        // Do this first: later page setup is unrelated to camera profiles and
+        // must not prevent its inline buttons from finding their handlers.
+        window.cameraProfiles = createCameraProfiles();
+
         // setup hostname
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
         //window.current_usbpreview = false;
@@ -3709,6 +3799,183 @@
             add_event_listeners_for_input(elem);
         });
 
+        function createCameraProfiles() {
+            return {
+            profiles: [],
+            cameraConfig: null,
+            draft: null,
+            mode: "default",
+            refresh() {
+                sendCommand("LIST_CAMERA_PROFILES");
+                if (this.cameraConfig) this.renderEditor();
+                else sendCommand("GET_CAMERA_CONFIG");
+            },
+            receive(data) {
+                this.profiles = data.profiles || [];
+                const select = document.getElementById("camera-profile-list");
+                const wanted = data.saved_profile?.id || select.value || localStorage.getItem("control.camera.profile") || "";
+                select.replaceChildren(new Option("No profile", ""));
+                this.profiles.forEach(profile => select.add(new Option(profile.name, profile.id)));
+                select.value = this.profiles.some(profile => profile.id === wanted) ? wanted : "";
+                this.updateSelection();
+            },
+            receiveCameraConfig(config) {
+                this.cameraConfig = config;
+                this.renderEditor();
+            },
+            selected() {
+                return this.profiles.find(profile => profile.id === document.getElementById("camera-profile-list").value);
+            },
+            selectionChanged() {
+                this.cancelEdit();
+                this.updateSelection();
+            },
+            updateSelection() {
+                const selected = this.selected();
+                document.getElementById("camera-profile-delete").disabled = !selected;
+                document.getElementById("camera-profile-edit").disabled = !selected;
+                document.getElementById("camera-profile-description").textContent = selected?.description || "Profiles define camera settings used while shooting and focusing. They are stored on the Digie35 server; the selected profile is remembered only in this browser.";
+                localStorage.setItem("control.camera.profile", selected?.id || "");
+            },
+            add() {
+                this.draft = {schema_version: 1, name: "", parameters: {}};
+                this.mode = "default";
+                this.renderEditor();
+                show_modal("camera-profile-editor-modal");
+                document.getElementById("camera-profile-name").focus();
+            },
+            edit() {
+                const selected = this.selected();
+                if (!selected) return;
+                this.draft = structuredClone(selected);
+                this.mode = "default";
+                this.renderEditor();
+                show_modal("camera-profile-editor-modal");
+            },
+            cancelEdit() {
+                this.draft = null;
+                if (get_modal()?.id === "camera-profile-editor-modal") close_modal();
+            },
+            selectMode(mode) {
+                this.mode = mode;
+                this.renderEditor();
+            },
+            parameterKey(item) { return `${item.id}#${item.occurrence || 0}`; },
+            catalogItem(parameter) {
+                return this.cameraConfig?.parameters?.find(item => item.id === parameter.id && (item.occurrence || 0) === (parameter.occurrence || 0));
+            },
+            renderEditor() {
+                if (!this.draft) return;
+                document.getElementById("camera-profile-name").value = this.draft.name || "";
+                document.querySelectorAll(".camera-profile-modes button").forEach(button => button.classList.toggle("active", button.dataset.mode === this.mode));
+                const catalog = this.cameraConfig?.parameters || [];
+                const addSelect = document.getElementById("camera-profile-add-parameter");
+                addSelect.replaceChildren(new Option(catalog.length ? "select camera parameter..." : "camera configuration is not available", ""));
+                catalog.filter(item => !item.error && !["window", "section", "button"].includes(item.type_name)).forEach(item => {
+                    const suffix = item.readonly ? " (read-only)" : "";
+                    addSelect.add(new Option(`${item.label || item.name || item.id}${suffix}`, this.parameterKey(item)));
+                });
+                addSelect.disabled = !catalog.length;
+                document.getElementById("camera-profile-camera-info").textContent = this.cameraConfig
+                    ? `${this.cameraConfig.camera.model || "Camera"}: values and writable state come from gphoto2.`
+                    : "Camera configuration is not available. Select a camera or start preview, then reopen this dialog.";
+
+                const container = document.getElementById("camera-profile-parameters");
+                container.replaceChildren();
+                const parameters = this.draft.parameters || {};
+                const active = Object.entries(parameters).filter(([, parameter]) => parameter.modes?.[this.mode]);
+                if (!active.length) {
+                    const empty = document.createElement("small");
+                    empty.className = "hint";
+                    empty.textContent = "No parameters in this mode. Add only the settings this profile needs.";
+                    container.append(empty);
+                }
+                active.forEach(([key, parameter]) => this.renderParameter(container, key, parameter));
+            },
+            renderParameter(container, key, parameter) {
+                const item = this.catalogItem(parameter);
+                const setting = parameter.modes[this.mode];
+                const row = document.createElement("div");
+                row.className = "camera-profile-parameter";
+                const inputRow = document.createElement("div");
+                inputRow.className = "input-row";
+                const label = document.createElement("label");
+                label.textContent = parameter.label || item?.label || parameter.id;
+                inputRow.append(label);
+                let value;
+                if (item?.choices?.length) {
+                    value = document.createElement("select");
+                    item.choices.forEach(choice => value.add(new Option(choice, choice)));
+                } else {
+                    value = document.createElement("input");
+                    value.type = item?.range ? "number" : "text";
+                    if (item?.range) {
+                        value.min = item.range.minimum;
+                        value.max = item.range.maximum;
+                        value.step = item.range.increment || "any";
+                    }
+                }
+                value.value = setting.value ?? item?.value ?? "";
+                value.disabled = item?.readonly;
+                value.onchange = () => { setting.value = value.value; };
+                inputRow.append(value);
+                ["set", "check"].forEach(action => {
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.checked = Boolean(setting[action]);
+                    checkbox.disabled = action === "set" && item?.readonly;
+                    checkbox.onchange = () => { setting[action] = checkbox.checked; };
+                    const checkboxLabel = document.createElement("label");
+                    checkboxLabel.textContent = action === "set" ? "Set" : "Check";
+                    checkboxLabel.style.width = "auto";
+                    checkboxLabel.prepend(checkbox);
+                    inputRow.append(checkboxLabel);
+                });
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.textContent = "Delete";
+                remove.onclick = () => this.removeParameter(key);
+                inputRow.append(remove);
+                row.append(inputRow);
+                const detail = document.createElement("small");
+                detail.textContent = item ? `${parameter.id}${item.readonly ? " — read-only, check only" : ""}` : `${parameter.id} — not available on this camera`;
+                row.append(detail);
+                container.append(row);
+            },
+            addParameter() {
+                const value = document.getElementById("camera-profile-add-parameter").value;
+                const item = this.cameraConfig?.parameters?.find(candidate => this.parameterKey(candidate) === value);
+                if (!item || !this.draft) return;
+                this.draft.parameters ||= {};
+                const key = this.parameterKey(item);
+                const parameter = this.draft.parameters[key] ||= {id: item.id, occurrence: item.occurrence || 0, label: item.label || item.name || item.id, modes: {}};
+                parameter.modes ||= {};
+                parameter.modes[this.mode] ||= {value: item.value ?? "", set: !item.readonly, check: false};
+                this.renderEditor();
+            },
+            removeParameter(key) {
+                const parameter = this.draft?.parameters?.[key];
+                if (!parameter) return;
+                delete parameter.modes[this.mode];
+                if (!Object.keys(parameter.modes).length) delete this.draft.parameters[key];
+                this.renderEditor();
+            },
+            saveChanges() {
+                if (!this.draft) return;
+                const name = document.getElementById("camera-profile-name").value.trim();
+                if (!name) { document.getElementById("camera-profile-editor-status").textContent = "Profile name is required."; return; }
+                this.draft.name = name;
+                sendCommand("SAVE_CAMERA_PROFILE", [], {profile: this.draft});
+                this.draft = null;
+                close_modal();
+            },
+            remove() {
+                const id = document.getElementById("camera-profile-list").value;
+                if (id && confirm("Delete selected camera profile?")) sendCommand("DELETE_CAMERA_PROFILE", [], {id});
+            },
+            };
+        }
+
         window.settings = {
             "connection.logger": "logger-cb",
             "capture.capture.mode": "capture-mode",
@@ -3758,6 +4025,7 @@
             "capture.preview.latency": "preview-latency-rng",
             "capture.shoot.trigger_delay": "trigger-delay-rng",
             "select.camera": "camera-list",
+            "control.camera.profile": "camera-profile-list",
             "select.volume": "volume-list",
             "select.project": "project-list",
             "select.film": "film-list",

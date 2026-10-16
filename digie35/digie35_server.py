@@ -48,6 +48,7 @@ import websockets.legacy
 import websockets.legacy.framing
 import digie35.digie35core as digie35core
 import digie35.digie35board as digie35board
+from digie35.camera_profiles import CameraProfiles
 import importlib
 import subprocess
 import stat
@@ -101,6 +102,12 @@ class CameraWrapper:
         self._camera_counter = 0
         self._camera_preview = False
         self._camera_id = None
+        # This catalogue is a snapshot created when a camera is opened.  Keep
+        # it as a list: libgphoto2 drivers may expose multiple widgets with
+        # the same short name (and, in a few cases, even the same path).
+        # It will later be the source for the camera-profile editor.
+        self._camera_config_catalog = []
+        self._camera_config_list = {}
         self._capture_in_progress = False
         if kwargs["fifopath"] != None:
             self._fifopath = os.path.abspath(os.path.expandvars(kwargs["fifopath"]))
@@ -254,6 +261,167 @@ class CameraWrapper:
                 raise CameraControlError(f"Cannot reinit camera: %s" % model)
             time.sleep(0.2*count)
 
+    def _read_camera_config_catalog(self):
+        """Read the complete libgphoto2 configuration catalogue.
+
+        The snapshot is made while the camera is open, so a later websocket
+        request never has to guess whether a widget is writable or what values
+        are accepted. Some proprietary widgets can fail independently; retain
+        those catalogue entries with an error instead of failing the camera.
+        """
+        logging.getLogger().debug("gp.gp_camera_list_config()")
+        config_list = gp.check_result(gp.gp_camera_list_config(self._camera))
+        catalog = []
+        lookup = {}
+        occurrences = {}
+
+        for index in range(len(config_list)):
+            config_id = config_list.get_name(index)
+            occurrence = occurrences.get(config_id, 0)
+            occurrences[config_id] = occurrence + 1
+            entry = {
+                "id": config_id,
+                "occurrence": occurrence,
+            }
+
+            try:
+                widget = self._camera.get_single_config(config_id)
+                entry["name"] = widget.get_name()
+                entry["label"] = widget.get_label()
+                entry["type"] = widget.get_type()
+                entry["type_name"] = self._camera_widget_type_name(entry["type"])
+                entry["readonly"] = bool(widget.get_readonly())
+                entry["value"] = self._camera_config_value(widget.get_value())
+
+                try:
+                    entry["info"] = widget.get_info()
+                except Exception:
+                    pass
+
+                try:
+                    entry["choices"] = [
+                        self._camera_config_value(widget.get_choice(choice_index))
+                        for choice_index in range(widget.count_choices())
+                    ]
+                except Exception:
+                    pass
+
+                try:
+                    minimum, maximum, increment = widget.get_range()
+                    entry["range"] = {
+                        "minimum": self._camera_config_value(minimum),
+                        "maximum": self._camera_config_value(maximum),
+                        "increment": self._camera_config_value(increment),
+                    }
+                except Exception:
+                    pass
+            except Exception as e:
+                entry["error"] = str(e)
+                logging.getLogger().debug(
+                    "Cannot read camera configuration item %s: %s", config_id, e)
+
+            catalog.append(entry)
+            # Preserve the legacy short lookup used by capturetarget.  The
+            # first occurrence matches the old list-to-dict behaviour.
+            if config_id not in lookup:
+                lookup[config_id] = entry
+
+        self._camera_config_catalog = catalog
+        self._camera_config_list = lookup
+        logging.getLogger().debug("Read %d camera configuration items", len(catalog))
+
+    @staticmethod
+    def _camera_config_value(value):
+        """Return a value which can be serialized through the websocket."""
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        return str(value)
+
+    @staticmethod
+    def _camera_widget_type_name(widget_type):
+        return {
+            gp.GP_WIDGET_WINDOW: "window",
+            gp.GP_WIDGET_SECTION: "section",
+            gp.GP_WIDGET_TEXT: "text",
+            gp.GP_WIDGET_RANGE: "range",
+            gp.GP_WIDGET_TOGGLE: "toggle",
+            gp.GP_WIDGET_RADIO: "radio",
+            gp.GP_WIDGET_MENU: "menu",
+            gp.GP_WIDGET_BUTTON: "button",
+            gp.GP_WIDGET_DATE: "date",
+        }.get(widget_type, "unknown")
+
+    @staticmethod
+    def _camera_brand(model, camera_id):
+        identity = "%s %s" % (model or "", camera_id or "")
+        identity = identity.lower()
+        if "sony" in identity or "ilce" in identity:
+            return "sony"
+        if "canon" in identity or "eos" in identity:
+            return "canon"
+        if "nikon" in identity:
+            return "nikon"
+        return None
+
+    @staticmethod
+    def _load_default_camera_profile():
+        profile_path = os.path.join(
+            os.path.dirname(__file__), "camera_profiles", "default-scan.yaml")
+        with open(profile_path, encoding="utf-8") as profile_file:
+            return yaml.safe_load(profile_file)
+
+    def _match_default_camera_profile(self):
+        """Match the built-in logical settings to this camera's widget IDs."""
+        profile = self._load_default_camera_profile()
+        brand = self._camera_brand(self._camera_model, self._camera_id)
+        by_id = {}
+        for item in self._camera_config_catalog:
+            by_id.setdefault(item["id"], item)
+
+        matched_parameters = []
+        for parameter_id, parameter in profile["parameters"].items():
+            mappings = parameter.get("mapping", {})
+            mapping = mappings.get(brand) or mappings.get("default")
+            item = by_id.get(mapping["id"]) if mapping else None
+            matched_parameters.append({
+                "id": parameter_id,
+                "label": parameter["label"],
+                "group": parameter.get("group", "advanced"),
+                "default": parameter.get("default", {}),
+                "overrides": parameter.get("overrides", {}),
+                "mapping": mapping,
+                "available": item is not None,
+                "camera_parameter": item,
+            })
+
+        return {
+            "schema_version": profile["schema_version"],
+            "profile_version": profile["profile_version"],
+            "id": profile["id"],
+            "label": profile["label"],
+            "brand": brand,
+            "parameters": matched_parameters,
+        }
+
+    def get_camera_config_catalog(self):
+        """Return the last catalogue snapshot without opening the camera."""
+        return list(self._camera_config_catalog)
+
+    def get_camera_config(self):
+        """Return current raw widgets plus the built-in default-profile match."""
+        if self._camera_counter == 0 or not hasattr(self, "_camera"):
+            raise CameraControlError(
+                "Camera is not open. Start preview or request configuration with SET_CAMERA include_config.")
+        return {
+            "camera": {
+                "id": self._camera_id,
+                "model": self._camera_model,
+                "brand": self._camera_brand(self._camera_model, self._camera_id),
+            },
+            "parameters": self.get_camera_config_catalog(),
+            "default_profile": self._match_default_camera_profile(),
+        }
+
 
     def _open_camera(self, camera_id):
         #logging.getLogger().debug("open_camera:camera.acquire")
@@ -270,11 +438,7 @@ class CameraWrapper:
                     logging.getLogger().error(e, exc_info=True)
                     self._reinit_camera()
                 try:
-                    self._camera_config_list = {}
-                    # get list of supported config items
-                    config_list = gp.check_result(gp.gp_camera_list_config(self._camera))
-                    for i in range(len(config_list)):
-                        self._camera_config_list[config_list.get_name(i)] = config_list.get_value(i)
+                    self._read_camera_config_catalog()
 
                     camera_config = self._camera.get_config()
                     # get the camera model (or from abilities.model)
@@ -396,13 +560,16 @@ class CameraWrapper:
 
         return {"camera_list": result}
 
-    def set_camera(self, camera_id):
+    def set_camera(self, camera_id, include_config=False):
         # TODO: unselect/stop preview, ...
         if camera_id == "":
             return
         self._open_camera(camera_id)
         try:
             result = {"model": self._camera_model, "id": self._camera_id, "battery": self._camera_battery}
+            result["config_catalog_count"] = len(self._camera_config_catalog)
+            if include_config:
+                result["camera_config"] = self.get_camera_config()
             result["device_type"] = self._camera_abilities.device_type
             result["device_status"] = self._camera_abilities.status
             result["library"] = self._camera_abilities.library
@@ -1607,6 +1774,14 @@ async def ws_control_handler(websocket, path):
                             reply = camera.list_cameras()
                         case "SET_CAMERA":
                             reply = safe_call(camera.set_camera, **params)
+                        case "GET_CAMERA_CONFIG":
+                            reply = camera.get_camera_config()
+                        case "LIST_CAMERA_PROFILES":
+                            reply = camera_profiles.list()
+                        case "SAVE_CAMERA_PROFILE":
+                            reply = camera_profiles.save(params.get("profile"))
+                        case "DELETE_CAMERA_PROFILE":
+                            reply = camera_profiles.delete(params.get("id"))
 
                         case "START_PREVIEW":
                             digitizer.prolongBacklight()
@@ -1720,7 +1895,11 @@ async def ws_control_handler(websocket, path):
                         logging.getLogger().error(e, exc_info=True)
                         reply = repr(e)
 
-                log.debug("ws.send: %s" % reply)
+                if cmd in ["GET_CAMERA_CONFIG"] or (
+                        cmd == "SET_CAMERA" and params.get("include_config", False)):
+                    log.debug("ws.send: %s response (%d bytes)", cmd, len(reply))
+                else:
+                    log.debug("ws.send: %s" % reply)
                 global ws_lock
                 ws_lock.acquire()
                 try:
@@ -2105,6 +2284,8 @@ def main():
 
     global camera
     camera = CameraWrapper(frame_buffer, snapshot_list, **args.__dict__)
+    global camera_profiles
+    camera_profiles = CameraProfiles(local_storage)
 
     board = args.board.upper()
     extra_io_map = {}

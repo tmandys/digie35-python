@@ -68,3 +68,9 @@ class LocalStorage:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+    def delete(self, category, name):
+        path = self._path(category, name)
+        if not path.is_file() or path.is_symlink():
+            raise ValueError("Storage record not found")
+        path.unlink()

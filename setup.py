@@ -41,7 +41,8 @@ setup(
             "images/*",
             "nginx/*",
             "preset/*.xmp",
-            "file_template/*"
+            "file_template/*",
+            "camera_profiles/*.yaml",
         ],
     },
     entry_points={
