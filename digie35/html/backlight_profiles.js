@@ -352,17 +352,16 @@ const backlightProfiles = {
         if (window.whiteBalance?.running) {this.status("Cancel white balance before calibration.", true); return;}
         const cameraId = document.getElementById("camera-list").value;
         if (!cameraId) {this.status("Select a camera before starting calibration.", true); return;}
+        let mode;
+        try {mode = this.calibrationMode();} catch (error) {this.status(error.message, true); return;}
+        const cameraProfileId = document.getElementById("camera-profile-list").value;
+        if (!cameraProfileId) {this.status("Select a camera profile with Calibration settings before starting calibration.", true); return;}
         const nameInput = document.getElementById("backlight-profile-name");
         const name = nameInput.value.trim();
         if (!name) {this.status("Enter a profile name.", true); return;}
-        const whiteBalanceKelvin = Number(document.getElementById("backlight-calibration-kelvin").value || 5000);
-        if (!Number.isFinite(whiteBalanceKelvin) || whiteBalanceKelvin < 2000 || whiteBalanceKelvin > 15000) {
-            this.status("Enter the fixed camera white balance between 2000 and 15000 K.", true); return;
-        }
-        const run = {cancelled: false, cameraId, whiteBalanceKelvin,
-            whiteBalanceShift:document.getElementById("backlight-calibration-shift").value,
+        const run = {cancelled: false, cameraId, cameraProfileId,
             usbpreview: window.current_usbpreview, settings: preview_settings()};
-        try {run.mode = this.calibrationMode();} catch (error) {this.status(error.message, true); return;}
+        run.mode = mode;
         const analyze = document.getElementById("stream-analyze-cb");
         run.originalAnalyze = analyze.checked;
         this.running = true;
@@ -384,7 +383,7 @@ const backlightProfiles = {
             await this.request("COLOR_PROFILE_CHECK", {name});
             this.check(run);
             beginAttempted = true;
-            const session = await this.request("CALIBRATION_BEGIN", {name, method:"whole_lightbox"});
+            const session = await this.request("CALIBRATION_BEGIN", {name, method:"whole_lightbox", camera_id:cameraId, camera_profile_id:cameraProfileId});
             run.token = session.token;
             if (session.method !== "whole_lightbox") throw new Error("Restart the updated server before whole-lightbox calibration.");
             if (session.base.color !== run.mode) throw new Error("Light capabilities changed. Reconnect and repeat calibration.");
@@ -429,8 +428,8 @@ const backlightProfiles = {
                     trim_fraction: 0.1, dimensions: run.dimensions, bounds: run.bounds},
                 preview: {source: run.usbpreview ? "camera" : "hdmi", ...run.settings},
                 camera: {id: run.cameraId, model: window.current_camera?.model || "",
-                    white_balance:{kelvin:run.whiteBalanceKelvin, shift:run.whiteBalanceShift, source:"user_declared"},
-                    exposure_requirement:"fixed_manual_or_ae_lock"},
+                    profile_id:run.cameraProfileId, white_balance:{source:"calibration_profile"},
+                    exposure_requirement:"fixed_by_calibration_profile"},
                 setup: session.setup, light: session.light, mode: run.mode, capabilities: window.capabilities, film: null};
             if (session.method === "whole_lightbox") Object.assign(profile, {
                 scope:"lightbox", method:session.method, channel_labels:session.channel_labels,
@@ -441,7 +440,12 @@ const backlightProfiles = {
             failure = error;
         } finally {
             if (beginAttempted) {
-                try {await this.request("CALIBRATION_END");}
+                try {
+                    const restoration = await this.request("CALIBRATION_END");
+                    if (restoration.camera_restore && !restoration.camera_restore.restored) {
+                        throw new Error(restoration.camera_restore.warning || "Camera settings could not be restored.");
+                    }
+                }
                 catch (error) {failure = new Error(`Could not confirm light restoration: ${error.message} The server expires abandoned sessions after 120 seconds.`);}
             }
         }

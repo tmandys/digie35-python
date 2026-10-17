@@ -28,6 +28,10 @@
             font-size: 12px;
         }
 
+        u {
+            text-decoration-skip-ink: none;
+        }
+
         .current-action {
             background-color: #4CAF50;
         }
@@ -1328,7 +1332,7 @@
                     <div id="stream-control" class="control">
                         <label for="stream-analyze-cb" accesskey="l" title="Stop stream to analyze preview image"><input type="checkbox" id="stream-analyze-cb" onchange="adjust_preview_mode()" /> Ana<u>l</u>yze</label>
                             <label for="stream-invert-cb" accesskey="i" title="Invert preview"><input type="checkbox" id="stream-invert-cb" value="invert" onchange="adjust_media_viewer()" /><u>I</u>nvert</label>
-                            <label for="metering-cb" title="Show selected camera values over the preview"><input type="checkbox" id="metering-cb" onchange="cameraProfiles.renderMetering()" />Metering</label>
+                            <label for="metering-cb" accesskey="g" title="Show selected camera values over the preview"><input type="checkbox" id="metering-cb" onchange="cameraProfiles.renderMetering()" />Meterin<u>g</u></label>
                         <div id="stream-only-control" class="inline-block">
                             <label for="stream-rotate0-rb" accesskey="t" title="Rotate 0&deg;"><input type="radio" name="stream-rotate" id="stream-rotate0-rb" value="rotate0" onchange="adjust_media_viewer()" checked />Ro<u>t</u>ate 0&deg;</label>
                             <label for="stream-rotate270-rb" accesskey="a" title="Rotate -90&deg;"><input type="radio" name="stream-rotate" id="stream-rotate270-rb" value="rotate270" onchange="adjust_media_viewer()" />Rot<u>a</u>te -90&deg;</label>
@@ -1388,7 +1392,7 @@
                 <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="snapshot-sample-size">Color sample</label>
+                            <label for="snapshot-sample-size" accesskey="s">Color <u>s</u>ample</label>
                             <select id="snapshot-sample-size" style="width:10ch" onchange="adjust_preview_settings()">
                                 <option value="1">1 × 1</option>
                                 <option value="5">5 × 5</option>
@@ -1401,21 +1405,21 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="snapshot-interval">Snapshot interval</label>
+                            <label for="snapshot-interval" accesskey="i">Snapshot <u>i</u>nterval</label>
                             <input id="snapshot-interval" type="number" min="50" max="10000" step="50" value="250" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
                         </div>
                         <small class="hint">Pause after each snapshot attempt before requesting the next one in Analyze mode.</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="snapshot-timeout">Snapshot timeout</label>
+                            <label for="snapshot-timeout" accesskey="t">Snapshot <u>t</u>imeout</label>
                             <input id="snapshot-timeout" type="number" min="500" max="30000" step="100" value="3000" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
                         </div>
                         <small class="hint">Maximum wait for a snapshot to load. On timeout, cancel the attempt and retry after the snapshot interval.</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="snapshot-wb-delay">WB settling delay</label>
+                            <label for="snapshot-wb-delay" accesskey="d">WB settling <u>d</u>elay</label>
                             <input id="snapshot-wb-delay" type="number" min="0" max="10000" step="50" value="1000" style="width:10ch" onchange="adjust_preview_settings()" /> <span>ms</span>
                         </div>
                         <small class="hint">Minimum wait after an LED change before evaluating the next calibration snapshot.</small>
@@ -1558,9 +1562,10 @@
                                 <button type="button" data-mode="af" onclick="cameraProfiles.selectMode('af')">AF</button>
                                 <button type="button" data-mode="mf" onclick="cameraProfiles.selectMode('mf')">MF</button>
                                 <button type="button" data-mode="focus" onclick="cameraProfiles.selectMode('focus')">Focus</button>
+                                <button type="button" data-mode="calibration" onclick="cameraProfiles.selectMode('calibration')">Calibration</button>
                                 <button type="button" data-mode="off" onclick="cameraProfiles.selectMode('off')">Disconnect</button>
                             </div>
-                        </div><small class="hint">Default is shared by every state. AF and MF are used for normal scanning; Focus is the temporary f/2.8 manual-focusing state; Disconnect is applied before the camera is deselected. Each state contains only values that override Default.</small></div>
+                        </div><small class="hint">Default is shared by every state. AF and MF are used for normal scanning; Focus is the temporary f/2.8 manual-focusing state; Calibration is applied temporarily while measuring the backlight and then restored; Disconnect is applied before the camera is deselected. Each state contains only values that override Default.</small></div>
                         <div class="form-group vertical-spacer"><div class="input-row">
                             <label for="camera-profile-add-parameter" accesskey="a"><u>A</u>dd parameter</label>
                             <select id="camera-profile-add-parameter" style="flex:1; min-width:0"></select>
@@ -1896,7 +1901,7 @@
                 <div class="content">
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="backlight-profile-list">Color profile</label>
+                            <label for="backlight-profile-list" accesskey="c"><u>C</u>olor profile</label>
                             <select id="backlight-profile-list" style="flex:1; min-width:0" onchange="backlightProfiles.selectionChanged()">
                                 <option value="">No profile</option>
                             </select>
@@ -2030,7 +2035,7 @@
                 <div class="content">
                     <ol>
                         <li>Remove the film and fill the entire preview with the illuminated diffuser. Keep holders, borders and other objects out of the frame.</li>
-                        <li>Use manual camera exposure or a reliable AE lock; keep shutter time, aperture and ISO fixed throughout calibration. Set a fixed camera WB (recommended 5000 K), disable AWB and automatic image adjustments.</li>
+                        <li>Use a camera profile with Calibration settings to fix exposure and white balance (recommended 5000 K) and disable AWB or other automatic image adjustments. If the profile cannot control a setting on your camera, set it manually: use manual exposure or reliable AE lock, and keep shutter time, aperture, ISO, and white balance fixed throughout calibration.</li>
                         <li>Analyze is enabled automatically and restored afterwards. Calibration measures the central 90% of the source snapshot width and height, ignoring 5% at each edge for both averaging and clipping checks. The darkest and brightest 10% of values in each RGB channel are excluded from the average to reduce dust and reflection effects. Clipping is checked before this exclusion. The eyedropper is not used. Precise focus is not required on a uniform diffuser; disable autofocus.</li>
                         <li>Enter a unique profile name. During measurement, keep the camera and light settings unchanged.</li>
                     </ol>
@@ -2039,16 +2044,16 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="backlight-calibration-kelvin">Camera WB</label>
+                            <label for="backlight-calibration-kelvin" accesskey="c"><u>C</u>amera WB</label>
                             <input id="backlight-calibration-kelvin" type="number" min="2000" max="15000" step="100" value="5000" style="width:8ch" /><span>K</span>
-                            <label for="backlight-calibration-shift" style="width:auto">WB shift</label>
+                            <label for="backlight-calibration-shift" style="width:auto" accesskey="s">WB <u>s</u>hift</label>
                             <input id="backlight-calibration-shift" type="text" value="0" maxlength="80" style="flex:1; min-width:0" />
                         </div>
                         <small class="hint">Enter the settings used on the camera, including any A/B or G/M shift. These values are saved with the profile; Digie35 does not yet read or set camera WB or exposure.</small>
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="backlight-profile-name">Profile name</label>
+                            <label for="backlight-profile-name" accesskey="n">Profile <u>n</u>ame</label>
                             <input id="backlight-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
                             <button type="button" id="backlight-calibration-start" onclick="backlightProfiles.start()" style="white-space:nowrap">Start calibration</button>
                             <button type="button" id="backlight-calibration-cancel" disabled onclick="backlightProfiles.cancel()">Cancel</button>
@@ -3186,7 +3191,7 @@
                                 document.getElementById("rc-url").value = url;
                                 elem = document.getElementById("rc-qrcode");
                                 elem.innerHTML = "";
-                                if (is_lan_control) {
+                                if (is_lan_control && have_external_dependencies(["QRCode"], "QR-code display")) {
                                     const qrcode = new QRCode(elem, {"text": url, "height": 100, "width": 100, });
                                 }
                                 sendCommand("LIST_CAMERAS");
@@ -4151,6 +4156,13 @@
         }
     }
 
+    function have_external_dependencies(names, feature) {
+        const missing = names.filter(name => typeof window[name] !== "function");
+        if (!missing.length) return true;
+        console.error(`${missing.join(", ")} unavailable; ${feature} is disabled.`);
+        return false;
+    }
+
     function do_onload() {
         // Do this first: later page setup is unrelated to camera profiles and
         // must not prevent its inline buttons from finding their handlers.
@@ -4524,6 +4536,12 @@
         });
 
         var multi_container = document.getElementById("file-template-options-capture-multi");
+        if (!have_external_dependencies(["Tagify", "DragSort"], "multi-capture file templates")) {
+            // These libraries are supplied through Git submodules.  Do not
+            // prevent the scanner controls from starting when an asset is missing.
+            window.multi_tags = {has_multi: false, value: []};
+            multi_container.classList.add("hidden");
+        } else {
         window.multi_tags = new Tagify(multi_container.querySelector(".tags-control"), {
             "tagTextProp": "text",
             "duplicates": true,
@@ -4562,6 +4580,7 @@
                 window.multi_tags.addTags([{"value": JSON.stringify(multi), "text": txt.join(""), "title": txt.join(" ")}]);
             }
         });
+        }
         document.getElementById("error-close").addEventListener('click', function() {
             update_status_info("", "", true);
         });

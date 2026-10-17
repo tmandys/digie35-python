@@ -366,6 +366,8 @@ class CameraWrapper:
             return "canon"
         if "nikon" in identity:
             return "nikon"
+        if "panasonic" in identity or "lumix" in identity or "dc-" in identity:
+            return "panasonic"
         return None
 
     @staticmethod
@@ -591,6 +593,101 @@ class CameraWrapper:
             self._release_capture_lock("profile_apply")
         report["check"] = self.check_camera_profile(profile, camera_id, mode)
         return report
+
+    def begin_camera_profile_transaction(self, profile, camera_id, mode="calibration"):
+        """Temporarily apply a profile and retain only values it actually changed."""
+        if not camera_id:
+            raise CameraControlError("Select a camera before calibration")
+        if self._capture_in_progress:
+            raise CameraControlError("Capture in progress")
+        if not any(parameter.get("modes", {}).get(mode, {}).get(action)
+                   for parameter in profile.get("parameters", {}).values()
+                   for action in ("set", "check")):
+            raise CameraControlError("Camera profile has no explicit Calibration settings")
+        transaction = {"camera_id": camera_id, "profile_id": profile.get("id"),
+                       "mode": mode, "changes": []}
+        self._acquire_capture_lock("profile_transaction_begin")
+        try:
+            self._open_camera(camera_id)
+            config = self._camera.get_config()
+            changed = False
+            for parameter in profile.get("parameters", {}).values():
+                setting = self._profile_mode_setting(parameter, mode)
+                if not setting or not setting.get("set"):
+                    continue
+                item = {"id": parameter.get("id"), "label": parameter.get("label") or parameter.get("id"),
+                        "value": self._camera_config_value(setting.get("value"))}
+                try:
+                    status, widget = gp.gp_widget_get_child_by_name(config, item["id"].rsplit("/", 1)[-1])
+                    if status < gp.GP_OK or widget.get_readonly():
+                        raise CameraControlError("Camera parameter is not available or writable")
+                    original = self._camera_config_value(widget.get_value())
+                    if str(original) == str(item["value"]):
+                        continue
+                    widget.set_value(item["value"])
+                    transaction["changes"].append(dict(item, original=original, applied=item["value"]))
+                    changed = True
+                except Exception as error:
+                    item["error"] = str(error)
+                    transaction.setdefault("errors", []).append(item)
+            if transaction.get("errors"):
+                raise CameraControlError("Could not apply calibration profile: " + ", ".join(
+                    item["label"] for item in transaction["errors"]))
+            if changed:
+                self._camera.set_config(config)
+                self._read_camera_config_catalog()
+        finally:
+            self._close_camera()
+            self._release_capture_lock("profile_transaction_begin")
+        check = self.check_camera_profile(profile, camera_id, mode)
+        transaction["check"] = check
+        if not check["ok"]:
+            restore = self.restore_camera_profile_transaction(transaction)
+            failed = ", ".join(item["label"] for item in check["mismatches"] + check["errors"])
+            raise CameraControlError("Calibration profile check failed: " + failed +
+                                     ("; original settings restored" if restore["restored"] else "; restoration failed"))
+        return transaction
+
+    def restore_camera_profile_transaction(self, transaction):
+        """Best-effort conditional restore; never overwrite a later manual edit."""
+        result = {"restored": True, "restored_parameters": [], "unchanged_parameters": [],
+                  "warning": None}
+        changes = transaction.get("changes", []) if transaction else []
+        if not changes:
+            return result
+        try:
+            self._acquire_capture_lock("profile_transaction_restore")
+            try:
+                self._open_camera(transaction["camera_id"])
+                config = self._camera.get_config()
+                changed = False
+                for item in changes:
+                    try:
+                        status, widget = gp.gp_widget_get_child_by_name(config, item["id"].rsplit("/", 1)[-1])
+                        if status < gp.GP_OK:
+                            raise CameraControlError("Camera parameter is not available")
+                        actual = self._camera_config_value(widget.get_value())
+                        if str(actual) != str(item["applied"]):
+                            result["unchanged_parameters"].append(item["label"])
+                            continue
+                        widget.set_value(item["original"])
+                        result["restored_parameters"].append(item["label"])
+                        changed = True
+                    except Exception as error:
+                        result["restored"] = False
+                        result.setdefault("errors", []).append({"label": item["label"], "error": str(error)})
+                if changed:
+                    self._camera.set_config(config)
+                    self._read_camera_config_catalog()
+            finally:
+                self._close_camera()
+                self._release_capture_lock("profile_transaction_restore")
+        except Exception as error:
+            result["restored"] = False
+            result.setdefault("errors", []).append({"error": str(error)})
+        if not result["restored"]:
+            result["warning"] = "Camera settings could not be fully restored; the camera may have been disconnected or switched off."
+        return result
 
     def run_camera_action(self, camera_id, mapping, action):
         """Run one named camera-mapping action without capturing."""
@@ -2036,7 +2133,9 @@ async def ws_control_handler(websocket, path):
                         case "CALIBRATION_BEGIN":
                             if camera._capture_in_progress:
                                 raise ValueError("Wait for capture to finish before calibration")
-                            reply = backlight_calibration.begin(websocket, params.get("name"), params.get("method") == "whole_lightbox")
+                            reply = backlight_calibration.begin(
+                                websocket, params.get("name"), params.get("method") == "whole_lightbox",
+                                camera_profiles.get(params.get("camera_profile_id")), params.get("camera_id"))
                         case "CALIBRATION_INFO":
                             reply = backlight_calibration.info()
                         case "CALIBRATION_STEP":
@@ -2044,8 +2143,9 @@ async def ws_control_handler(websocket, path):
                         case "CALIBRATION_END":
                             session = backlight_calibration.session
                             if session and session["owner"] is websocket:
-                                backlight_calibration.end(websocket, session["token"])
-                            reply = {"restored": True}
+                                reply = backlight_calibration.end(websocket, session["token"])
+                            else:
+                                reply = {"restored": True}
                         case "":
                             pass
                         case "LIST_VOLUMES":
@@ -2717,7 +2817,7 @@ def main():
     logging.getLogger().debug("film_xboard_class: %s", film_xboard_class.__name__)
     digitizer = film_xboard_class(mainboard, broadcast)
     global backlight_calibration
-    backlight_calibration = BacklightCalibration(digitizer, color_profiles)
+    backlight_calibration = BacklightCalibration(digitizer, color_profiles, camera)
     global white_balance
     white_balance = WhiteBalance(digitizer, color_profiles)
     global led_presets

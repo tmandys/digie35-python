@@ -11,6 +11,7 @@ function setup() {
     el('snapshot-sample-size').value = '9';
     el('backlight-profile-name').value = 'Test';
     el('camera-list').value = 'camera:test';
+    el('camera-profile-list').value = 'camera:profile';
     const stored = new Map();
     const calls = [];
     const context = {console, performance, setTimeout, clearTimeout,
@@ -51,9 +52,12 @@ test('successful calibration restores light before saving portable measurements'
     assert.equal(h.stored.get('control.backlight.profile'), 'user:one');
     assert.equal(h.api.running, false);
     assert.equal(profile.scope,'lightbox');
-    assert.equal(profile.camera.white_balance.kelvin,5000);
-    assert.equal(profile.camera.white_balance.source,'user_declared');
+    assert.equal(profile.camera.profile_id,'camera:profile');
+    assert.equal(profile.camera.white_balance.source,'calibration_profile');
     assert.equal(profile.isolated_samples.red.baseline[0],50);
+    const begin = h.calls.find(c=>c.cmd === 'CALIBRATION_BEGIN').params;
+    assert.equal(begin.camera_id, 'camera:test');
+    assert.equal(begin.camera_profile_id, 'camera:profile');
 });
 
 test('isolated measurement tolerates dark cross channels and records its own baseline',async()=>{

@@ -16,11 +16,16 @@ parameters:
     default:
       set: Av
       check: Av
+    overrides:
+      calibration:
+        set: M
+        check: M
     mapping:
       canon:
         ids: [autoexposuremode, /main/capturesettings/autoexposuremode]
         values:
           Av: Av
+          M: M
       sony:
         id: /main/other/500e
         values:
@@ -146,3 +151,69 @@ parameters:
         id: /main/capturesettings/bracketmode
         values:
           off: "Off"
+
+  white_balance:
+    label: White balance
+    group: primary
+    overrides:
+      calibration:
+        set: color_temperature
+        check: color_temperature
+        blocking: true
+    mapping:
+      canon:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Color Temperature"
+      sony:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Choose Color Temperature"
+      nikon:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Color Temperature"
+
+  color_temperature:
+    label: Color temperature
+    group: primary
+    overrides:
+      calibration:
+        set: "5000"
+        check: "5000"
+        blocking: true
+    mapping:
+      canon:
+        ids: [colortemperature, /main/imgsettings/colortemperature]
+      sony:
+        ids: [colortemperature, /main/imgsettings/colortemperature]
+      nikon:
+        ids: [/main/other/d01e]
+
+  white_balance_adjust_ab:
+    label: White balance shift A/B
+    group: primary
+    overrides:
+      calibration:
+        set: "0"
+        check: "0"
+        blocking: true
+    mapping:
+      canon:
+        ids: [whitebalanceadjusta, /main/imgsettings/whitebalanceadjusta]
+      panasonic:
+        ids: [whitebalanceadjustab, /main/capturesettings/whitebalanceadjustab]
+
+  white_balance_adjust_gm:
+    label: White balance shift G/M
+    group: primary
+    overrides:
+      calibration:
+        set: "0"
+        check: "0"
+        blocking: true
+    mapping:
+      canon:
+        ids: [whitebalanceadjustb, /main/imgsettings/whitebalanceadjustb]
+      panasonic:
+        ids: [whitebalanceadjustgm, /main/capturesettings/whitebalanceadjustgm]

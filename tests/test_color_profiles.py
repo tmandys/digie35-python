@@ -70,15 +70,29 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
             def set_backlight(self, **settings): self.light = settings
             def get_adapter(self, name): return None
             def get_capabilities(self): return {"white_backlight": True, "rgb_backlight": True}
+        class Camera:
+            def __init__(self): self.started = []; self.restored = []
+            def begin_camera_profile_transaction(self, profile, camera_id, mode):
+                transaction = {"profile": profile, "camera_id": camera_id, "mode": mode, "changes": []}
+                self.started.append(transaction)
+                return transaction
+            def restore_camera_profile_transaction(self, transaction):
+                self.restored.append(transaction)
+                return {"restored": True, "restored_parameters": [], "unchanged_parameters": [], "warning": None}
         self.digitizer = Digitizer()
-        self.calibration = BacklightCalibration(self.digitizer, profiles)
+        self.camera = Camera()
+        self.camera_profile = {"id": "camera-profile"}
+        self.calibration = BacklightCalibration(self.digitizer, profiles, self.camera)
         self.owner = object()
+
+    def begin(self, name="Test", isolated=False):
+        return self.calibration.begin(self.owner, name, isolated, self.camera_profile, "camera")
 
     async def asyncTearDown(self):
         self.calibration.disconnect(self.owner)
 
     async def test_steps_restore_other_channels_and_original_temperature(self):
-        start = self.calibration.begin(self.owner, "Test")
+        start = self.begin()
         token = start["token"]
         self.calibration.step(self.owner, token, "red", 0.8)
         self.assertEqual(self.digitizer.light["gain"]["red"], 0.8)
@@ -87,11 +101,22 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.calibration.end(self.owner, token)
         self.assertEqual(self.digitizer.light, self.original)
         self.assertIsNone(self.calibration.timer)
+        self.assertEqual(self.camera.started[0]["mode"], "calibration")
+        self.assertEqual(self.camera.restored, self.camera.started)
+
+    async def test_failed_camera_restore_is_reported_after_light_restore(self):
+        self.camera.restore_camera_profile_transaction = lambda transaction: {
+            "restored": False, "restored_parameters": [], "unchanged_parameters": [], "warning": "Camera disconnected"}
+        session = self.begin()
+        result = self.calibration.end(self.owner, session["token"])
+        self.assertEqual(self.digitizer.light, self.original)
+        self.assertFalse(result["camera_restore"]["restored"])
+        self.assertEqual(result["camera_restore"]["warning"], "Camera disconnected")
 
     async def test_whole_lightbox_ignores_selected_mode_and_isolates_channels(self):
         self.digitizer.light["color"] = "white"
         original = copy.deepcopy(self.digitizer.light)
-        session = self.calibration.begin(self.owner, "Whole light", isolated=True)
+        session = self.begin("Whole light", isolated=True)
         self.assertEqual(session["method"], "whole_lightbox")
         self.assertEqual(session["base"]["gain"], {c:1 for c in session["channels"]})
         token = session["token"]
@@ -109,7 +134,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_two_whites_are_measured_independently_without_temperature_split(self):
         self.digitizer.get_capabilities = lambda: {"rgbaw_backlight":True,"rgb_backlight":True,
                                                   "white_backlight":True,"temperature_backlight":True}
-        session = self.calibration.begin(self.owner, "Both whites", isolated=True)
+        session = self.begin("Both whites", isolated=True)
         self.assertEqual(session["channel_labels"]["white"], "White 5000 K")
         self.assertEqual(session["channel_labels"]["amber"], "White 3000 K")
         for channel in ("white", "amber"):
@@ -119,7 +144,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.digitizer.light["gain"], {c:int(c == channel) for c in session["channels"]})
 
     async def test_whole_lightbox_profile_requires_all_independent_measurements(self):
-        session = self.calibration.begin(self.owner, "Portable", isolated=True)
+        session = self.begin("Portable", isolated=True)
         for c in session["channels"]:
             self.calibration.step(self.owner, session["token"], c, phase="isolated")
         self.calibration.end(self.owner, session["token"])
@@ -133,8 +158,8 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record["isolated_samples"]["red"]["settings"]["gain"]["white"], 0)
 
     async def test_ownership_disconnect_and_late_steps(self):
-        token = self.calibration.begin(self.owner, "Test")["token"]
-        with self.assertRaises(ValueError): self.calibration.begin(object(), "Other")
+        token = self.begin()["token"]
+        with self.assertRaises(ValueError): self.calibration.begin(object(), "Other", False, self.camera_profile, "camera")
         with self.assertRaises(ValueError): self.calibration.step(object(), token, "red", 0.8)
         self.calibration.disconnect(object())
         self.assertIsNotNone(self.calibration.session)
@@ -145,7 +170,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expiry_restores_light(self):
         self.calibration.TIMEOUT = 0.01
-        token = self.calibration.begin(self.owner, "Test")["token"]
+        token = self.begin()["token"]
         self.calibration.step(self.owner, token, "blue", 0.8)
         await asyncio.sleep(0.03)
         self.assertIsNone(self.calibration.session)
@@ -161,7 +186,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.digitizer.get_adapter = lambda name: light
         self.digitizer.light["exposure"] = 2.5
         self.original["exposure"] = 2.5
-        session = self.calibration.begin(self.owner, "Test")
+        session = self.begin()
         self.assertEqual(session["base"]["exposure"], 2)
         self.assertNotIn(2.5, session["exposure_options"])
         with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], exposure=2.5)
@@ -171,7 +196,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.digitizer.light, self.original)
 
     async def test_auto_ev_rejects_invalid_values_and_keeps_original_for_disconnect(self):
-        session = self.calibration.begin(self.owner, "Test")
+        session = self.begin()
         for ev in [True, float('nan'), 100, -100, 0.1]:
             with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], exposure=ev)
         with self.assertRaises(ValueError): self.calibration.step(self.owner, session["token"], 'red', 1.2, exposure=1)
@@ -180,7 +205,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.digitizer.light, self.original)
 
     async def test_saved_profile_uses_final_auto_ev_not_original_ev(self):
-        session = self.calibration.begin(self.owner, "Auto EV")
+        session = self.begin("Auto EV")
         self.calibration.step(self.owner, session["token"], exposure=1.5)
         self.calibration.end(self.owner, session["token"])
         data = profile() | {"channels": session["channels"], "matrix": [[1]*4]*3,
@@ -191,21 +216,21 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.digitizer.light, self.original)
 
     async def test_bad_steps_are_rejected_without_changing_light(self):
-        token = self.calibration.begin(self.owner, "Test")["token"]
+        token = self.begin()["token"]
         for channel, factor in [("ir", 1), ("red", 100), ("red", float("nan"))]:
             with self.assertRaises(ValueError): self.calibration.step(self.owner, token, channel, factor)
         self.assertEqual(self.digitizer.light, self.original)
 
     async def test_automatic_white_mode_and_restore_original(self):
         self.digitizer.get_capabilities = lambda: {"white_backlight": True}
-        token = self.calibration.begin(self.owner, "White")["token"]
+        token = self.begin("White")["token"]
         self.calibration.step(self.owner, token)
         self.assertEqual(self.digitizer.light["color"], "white")
         self.assertEqual(self.digitizer.light["gain"], {"white": 1})
         self.calibration.end(self.owner, token)
         self.assertEqual(self.digitizer.light, self.original)
         self.digitizer.get_capabilities = lambda: {"ir_backlight": True}
-        with self.assertRaises(ValueError): self.calibration.begin(self.owner, "IR")
+        with self.assertRaises(ValueError): self.begin("IR")
 
     async def test_capabilities_choose_all_available_visible_channels(self):
         for caps, expected in [
@@ -218,7 +243,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(caps=caps):
                 self.digitizer.get_capabilities = lambda: caps
                 info = self.calibration.info()
-                session = self.calibration.begin(self.owner, "Test")
+                session = self.begin()
                 self.assertEqual(info["mode"], expected)
                 self.assertEqual(session["channels"], expected.split("+"))
                 self.assertEqual(session["base"]["color"], expected)
@@ -232,7 +257,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
             def read_header(self): return header
         light = Light()
         self.digitizer.get_adapter = lambda name: light
-        session = self.calibration.begin(self.owner, "Test")
+        session = self.begin()
         self.assertEqual(session["light"]["name"], "Medium format LB")
         self.assertEqual(session["light"]["serial_number"], "12345678901234567890")
         self.calibration.end(self.owner, session["token"])
@@ -250,7 +275,7 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
             pass
         self.digitizer.get_adapter = lambda name: old
         old = Light()
-        session = self.calibration.begin(self.owner, "Test")
+        session = self.begin()
         self.digitizer.get_adapter = lambda name: Light()
         with self.assertRaisesRegex(ValueError, "light changed"):
             self.calibration.step(self.owner, session["token"])

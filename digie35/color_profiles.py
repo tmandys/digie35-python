@@ -111,9 +111,10 @@ class BacklightCalibration:
     """Only one owner may change light during calibration; inactivity restores it."""
     TIMEOUT = 120
 
-    def __init__(self, digitizer, profiles):
+    def __init__(self, digitizer, profiles, camera=None):
         self.digitizer = digitizer
         self.profiles = profiles
+        self.camera = camera
         self.session = None
         self.timer = None
         self.completed = {}
@@ -164,10 +165,24 @@ class BacklightCalibration:
         except Exception:
             logging.exception("Cannot restore backlight after calibration timeout")
 
-    def begin(self, owner, name, isolated=False):
+    def begin(self, owner, name, isolated=False, camera_profile=None, camera_id=None):
         if self.session:
             raise ValueError("A backlight calibration is already running")
         name = self.profiles.check_name(name)["name"]
+        if not camera_profile or not camera_id:
+            raise ValueError("Select a camera and a calibration camera profile before calibration")
+        if self.camera is None:
+            raise ValueError("Camera calibration profiles are not available")
+        camera_transaction = self.camera.begin_camera_profile_transaction(camera_profile, camera_id, "calibration")
+        try:
+            return self._begin(owner, name, isolated, camera_transaction)
+        except Exception:
+            restore = self.camera.restore_camera_profile_transaction(camera_transaction)
+            if not restore["restored"]:
+                logging.getLogger().warning(restore["warning"])
+            raise
+
+    def _begin(self, owner, name, isolated, camera_transaction):
         state = self.digitizer.get_state()
         if state.get("movement", 0):
             raise ValueError("Stop film movement before calibration")
@@ -205,7 +220,8 @@ class BacklightCalibration:
         self.session = {"owner": owner, "token": uuid.uuid4().hex, "name": name, "base": base,
                         "original": original, "hardware": self._light(color), "light": identity,
                         "levels": levels, "channels": channels, "exposure_options": exposure_options,
-                        "setup": {"board": type(self.digitizer).__name__}}
+                        "setup": {"board": type(self.digitizer).__name__},
+                        "camera_transaction": camera_transaction}
         if isolated:
             self.session.update(method="whole_lightbox", channel_labels=self.info()["channel_labels"],
                                 isolated_levels=dict(levels), isolated_settings={})
@@ -271,6 +287,7 @@ class BacklightCalibration:
         session = self.session
         if not session or session["owner"] is not owner or session["token"] != token:
             raise ValueError("Calibration session expired or belongs to another client")
+        camera_restore = {"restored": True, "restored_parameters": [], "unchanged_parameters": [], "warning": None}
         try:
             self._check(owner, token)
             self.digitizer.set_backlight(**session["original"])
@@ -279,11 +296,15 @@ class BacklightCalibration:
                 if key in session:
                     self.completed[owner][key] = copy.deepcopy(session[key])
         finally:
+            if session.get("camera_transaction"):
+                camera_restore = self.camera.restore_camera_profile_transaction(session["camera_transaction"])
+                if not camera_restore["restored"]:
+                    logging.getLogger().warning(camera_restore["warning"])
             self.session = None
             if self.timer:
                 self.timer.cancel()
                 self.timer = None
-        return {"restored": True}
+        return {"restored": True, "camera_restore": camera_restore}
 
     def disconnect(self, owner):
         if self.session and self.session["owner"] is owner:
