@@ -1,0 +1,148 @@
+# Built-in defaults for a camera used to scan film.
+#
+# The values in the default and override sections are logical values shown in
+# the UI. A mapping translates them to the value exposed by a specific
+# libgphoto2 driver. User profiles store concrete gphoto2 IDs and only their
+# overrides; this file remains upgradeable with Digie35.
+schema_version: 1
+profile_version: 1
+id: default-scan
+label: Default film-scanning camera setup
+
+parameters:
+  exposure_mode:
+    label: Exposure mode
+    group: primary
+    default:
+      set: Av
+      check: Av
+    mapping:
+      canon:
+        ids: [autoexposuremode, /main/capturesettings/autoexposuremode]
+        values:
+          Av: Av
+      sony:
+        id: /main/other/500e
+        values:
+          Av: 3
+      nikon:
+        id: /main/other/500e
+        values:
+          Av: 3
+
+  aperture:
+    label: Aperture
+    group: primary
+    default:
+      set: f/8
+      check: f/8
+    overrides:
+      focus:
+        set: f/2.8
+    mapping:
+      canon:
+        ids: [aperture, /main/capturesettings/aperture]
+        values:
+          f/8: "8"
+          f/2.8: "2.8"
+      default:
+        id: /main/capturesettings/aperture
+      sony:
+        id: /main/capturesettings/f-number
+      nikon:
+        id: /main/capturesettings/f-number
+
+  iso:
+    label: ISO
+    group: primary
+    default:
+      set: "100"
+      check: "100"
+    mapping:
+      canon:
+        ids: [iso, /main/imgsettings/iso]
+      default:
+        id: /main/imgsettings/iso
+
+  shutter_speed:
+    label: Shutter speed
+    group: primary
+    default:
+      display: true
+    mapping:
+      canon:
+        ids: [shutterspeed, /main/capturesettings/shutterspeed]
+      default:
+        id: /main/capturesettings/shutterspeed
+      sony:
+        id: /main/capturesettings/shutterspeed
+      nikon:
+        id: /main/capturesettings/shutterspeed
+
+  exposure_compensation:
+    label: Exposure compensation
+    group: primary
+    default:
+      display: true
+    mapping:
+      canon:
+        ids: [exposurecompensation, /main/capturesettings/exposurecompensation]
+      default:
+        id: /main/capturesettings/exposurecompensation
+      sony:
+        id: /main/capturesettings/exposurecompensation
+      nikon:
+        id: /main/capturesettings/exposurecompensation
+
+  focus_mode:
+    label: Focus mode
+    group: primary
+    overrides:
+      af:
+        set: autofocus
+        check: autofocus
+      mf:
+        set: manual_focus
+        check: manual_focus
+      focus:
+        set: manual_focus
+    mapping:
+      canon:
+        ids: [focusmode, /main/capturesettings/focusmode]
+        values:
+          manual_focus: Manual
+          autofocus: One Shot
+      default:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: Manual Focus
+          autofocus: Auto Focus
+      sony:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: Manual Focus
+          autofocus: AF-S
+      nikon:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: Manual
+          autofocus: AF-S
+
+  aeb:
+    label: Exposure bracketing
+    group: primary
+    default:
+      check: off
+      blocking: true
+    mapping:
+      canon:
+        ids: [aeb, /main/capturesettings/aeb]
+        values:
+          off: "off"
+      sony:
+        id: /main/capturesettings/capturemode
+        check_not_matching: Bracketing
+      nikon:
+        id: /main/capturesettings/bracketmode
+        values:
+          off: "Off"

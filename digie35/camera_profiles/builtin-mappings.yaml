@@ -1,0 +1,119 @@
+schema_version: 1
+mappings:
+  - id: canon-eos
+    schema_version: 1
+    mapping_version: 1
+    name: Canon EOS
+    actions:
+      half_press:
+        steps:
+          - id: eosremoterelease
+            value: Press 1
+          - delay_ms: 800
+          - id: eosremoterelease
+            value: Release 1
+      autofocus:
+        steps:
+          - id: autofocusdrive
+            value: 1
+      cancel_autofocus:
+        steps:
+          - id: cancelautofocus
+            value: 1
+      focus_near_1:
+        steps:
+          - id: manualfocusdrive
+            value: Near 1
+      focus_near_2:
+        steps:
+          - id: manualfocusdrive
+            value: Near 2
+      focus_near_3:
+        steps:
+          - id: manualfocusdrive
+            value: Near 3
+      focus_far_1:
+        steps:
+          - id: manualfocusdrive
+            value: Far 1
+      focus_far_2:
+        steps:
+          - id: manualfocusdrive
+            value: Far 2
+      focus_far_3:
+        steps:
+          - id: manualfocusdrive
+            value: Far 3
+  # Nikon D810, D850, Z 7 II and Z 9 expose autofocusdrive as a toggle and
+  # manualfocusdrive as a signed range (-32767..32767).  The magnitude is a
+  # deliberately conservative relative drive request; focus direction should
+  # be confirmed on the connected body before relying on it.
+  - id: nikon-dslr
+    schema_version: 1
+    mapping_version: 1
+    name: Nikon DSLR / Z
+    actions:
+      autofocus:
+        steps:
+          - id: autofocusdrive
+            value: 1
+      focus_near_1:
+        steps:
+          - id: manualfocusdrive
+            value: -1
+      focus_near_2:
+        steps:
+          - id: manualfocusdrive
+            value: -3
+      focus_near_3:
+        steps:
+          - id: manualfocusdrive
+            value: -7
+      focus_far_1:
+        steps:
+          - id: manualfocusdrive
+            value: 1
+      focus_far_2:
+        steps:
+          - id: manualfocusdrive
+            value: 3
+      focus_far_3:
+        steps:
+          - id: manualfocusdrive
+            value: 7
+  # Sony ILCE-7 III and ILCE-7R III expose the same actions, with a smaller
+  # signed manual-focus range (-7..7).  Other sampled Sony bodies expose only
+  # the autofocus trigger or no gphoto action widget at all.
+  - id: sony-ilce-7m3
+    schema_version: 1
+    mapping_version: 1
+    name: Sony ILCE-7 III / 7R III
+    actions:
+      autofocus:
+        steps:
+          - id: autofocus
+            value: 1
+      focus_near_1:
+        steps:
+          - id: manualfocus
+            value: -1
+      focus_near_2:
+        steps:
+          - id: manualfocus
+            value: -3
+      focus_near_3:
+        steps:
+          - id: manualfocus
+            value: -7
+      focus_far_1:
+        steps:
+          - id: manualfocus
+            value: 1
+      focus_far_2:
+        steps:
+          - id: manualfocus
+            value: 3
+      focus_far_3:
+        steps:
+          - id: manualfocus
+            value: 7

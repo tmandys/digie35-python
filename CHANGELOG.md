@@ -25,6 +25,11 @@ Features
   - save accordion/panel state
   - backlight color temperature
   - shared local JSON storage for persistent server-side profiles and settings
+  - camera profiles and command mapping
+  - half-press control
+  - AF/MF modes
+  - manual focusing
+  - display metering
 
 Fixes
 -----
