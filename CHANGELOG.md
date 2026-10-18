@@ -31,6 +31,7 @@ Features
   - manual focusing
   - display metering
   - backlight profiles and calibration
+  - autofocus driven by digie on particular point
 
 Fixes
 -----

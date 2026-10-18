@@ -81,6 +81,10 @@ class ImageAnalysis:
         self._image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if self._image is None:
             raise ValueError("Wrong JPEG image")
+        # Keep the decoded preview intact.  Frame analysis below may crop it to
+        # 3:2, but a point selected in the browser always refers to the source
+        # JPEG dimensions.
+        self._source_image = self._image
         h, w = self._image.shape[:2]
         # when image comes from grabber that ration might not be 3:2. So we need crop original image
         target_ratio = 3 / 2
@@ -151,6 +155,51 @@ class ImageAnalysis:
     def _focus_score(self, region):
         laplacian = cv2.Laplacian(region, cv2.CV_64F)
         return laplacian.var()
+
+    @log_duration
+    def analyze_focus(self, position, size=96):
+        """Measure contrast-detect focus at a relative point in the source JPEG.
+
+        ``position`` is an ``(x, y)`` pair in the 0..1 range, as used by the
+        preview marker in the browser.  ``size`` is the requested square ROI
+        side in source-image pixels.  The ROI is shifted at an image edge so it
+        remains as large as the source permits.
+
+        The three scores are calculated independently from the B, G and R
+        channels.  ``focus_score`` is their maximum, so a useful detail present
+        chiefly in one colour channel is not weakened by luminance conversion.
+        """
+        if (not isinstance(position, (list, tuple)) or len(position) != 2
+                or any(isinstance(value, bool) or not isinstance(value, (int, float))
+                       or not np.isfinite(value) for value in position)):
+            raise ValueError("Focus position must be a pair of finite numbers")
+        if any(value < 0 or value > 1 for value in position):
+            raise ValueError("Focus position must be between 0 and 1")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 3:
+            raise ValueError("Focus size must be an integer of at least 3 pixels")
+
+        image = self._source_image
+        height, width = image.shape[:2]
+        x = min(width - 1, int(position[0] * width))
+        y = min(height - 1, int(position[1] * height))
+        roi_width = min(size, width)
+        roi_height = min(size, height)
+        left = min(max(0, x - roi_width // 2), width - roi_width)
+        top = min(max(0, y - roi_height // 2), height - roi_height)
+        roi = image[top:top + roi_height, left:left + roi_width]
+
+        # OpenCV images are BGR; expose the result in the RGB terminology used
+        # by the UI and the rest of the public protocol.
+        bgr_scores = [float(self._focus_score(channel)) for channel in cv2.split(roi)]
+        rgb_scores = {"red": bgr_scores[2], "green": bgr_scores[1], "blue": bgr_scores[0]}
+        return {
+            "focus_score": max(rgb_scores.values()),
+            "focus_scores": rgb_scores,
+            "focus_channel": max(rgb_scores, key=rgb_scores.get),
+            "bounds": [left, top, roi_width, roi_height],
+            "width": width,
+            "height": height,
+        }
 
     def xx__detect_perforation_holes(self, band):
         # najit contrastni tvary

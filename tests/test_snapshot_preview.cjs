@@ -15,7 +15,7 @@ function setup() {
     const images = [];
     const revoked = [];
     const elements = {
-        'stream-analyze-cb': {checked: true}, 'stream-vision-cb': {checked: false},
+        'stream-analyze-cb': {checked: true}, 'stream-vision-cb': {checked: false}, 'snapshot-focus-cb': {checked: false},
         'snapshot-sample-size': {value: '9'},
     };
     for (const [id, value, min, max, step] of [
@@ -44,7 +44,7 @@ function setup() {
         get_stream_url: () => '/snapshot',
         clear_snapshot_sample() {context.window.snapshot_color_sample = null;},
         canvas_draw_empty() {failures++;},
-        update_color_box() {}, snapshot_draw_marker() {}, snapshot_draw_analysis() {},
+        update_color_box() {}, snapshot_draw_marker() {}, snapshot_draw_analysis() {}, request_focus_score() {},
     };
     vm.createContext(context);
     vm.runInContext(source, context);
@@ -57,7 +57,7 @@ function setup() {
 
 test('all inline scripts parse and preview control IDs are unique', () => {
     for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
-    for (const id of ['preview-settings-modal', 'snapshot-sample-size', 'snapshot-interval', 'snapshot-timeout', 'snapshot-wb-delay']) {
+    for (const id of ['preview-settings-modal', 'snapshot-sample-size', 'snapshot-interval', 'snapshot-timeout', 'snapshot-wb-delay', 'snapshot-focus-cb']) {
         assert.equal(html.split(` id="${id}"`).length - 1, 1);
     }
 });

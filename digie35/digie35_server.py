@@ -2010,6 +2010,27 @@ class CameraWrapper:
         logging.getLogger().debug(f"Analyze result: %s" % result)
         return result
 
+    def analyze_focus(self, **kwargs):
+        """Measure focus in a user-selected source-preview region."""
+        if not "digie35image" in globals():
+            raise CameraControlError("Image analyzer is disabled")
+        started_timestamp = datetime.datetime.now(datetime.timezone.utc)
+        self._get_snapshot(kwargs.get("snapshot_url", False))
+        frame = self._frame_buffer.get_latest_frame(started_timestamp - datetime.timedelta(seconds=2))
+        if not frame:
+            raise CameraControlError("No image to analyze")
+        analyzer = digie35image.ImageAnalysis(frame)
+        try:
+            result = analyzer.analyze_focus(kwargs.get("position"), kwargs.get("size", 96))
+        except ValueError as error:
+            raise CameraControlError(str(error)) from error
+        # The browser uses this to discard a response for a point that has
+        # since moved or been cleared.
+        if "request" in kwargs:
+            result["request"] = kwargs["request"]
+        logging.getLogger().debug("Focus analysis result: %s", result)
+        return result
+
 
 
 WS_PROTOCOL_VERSION = "0.2"
@@ -2078,7 +2099,7 @@ async def ws_control_handler(websocket, path):
                         white_balance.end(session["owner"], session["token"])
                     if white_balance.session and not (
                         cmd.startswith(("WB_", "LIST_", "GET"))
-                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "LED_PRESET_LIST", "COLOR_PROFILE_LIST", "COLOR_PROFILE_GET")
+                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "ANALYZE_FOCUS", "LED_PRESET_LIST", "COLOR_PROFILE_LIST", "COLOR_PROFILE_GET")
                     ):
                         raise ValueError("White balance is running; cancel it before changing hardware")
                     if backlight_calibration.session and cmd in ("STOP", "BYE"):
@@ -2086,7 +2107,7 @@ async def ws_control_handler(websocket, path):
                         backlight_calibration.end(session["owner"], session["token"])
                     if backlight_calibration.session and not (
                         cmd.startswith(("COLOR_PROFILE_", "CALIBRATION_", "LIST_", "GET"))
-                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "LED_PRESET_LIST")
+                        or cmd in ("HELLO", "VERBOSE", "ANALYZE", "ANALYZE_FOCUS", "LED_PRESET_LIST")
                     ):
                         raise ValueError("Backlight calibration is running; cancel it before changing hardware")
                     match cmd:
@@ -2293,6 +2314,8 @@ async def ws_control_handler(websocket, path):
                             reply = {"verbosity": logger_helper.getLevel()}
                         case "ANALYZE":
                             reply = camera.analyze(**params)
+                        case "ANALYZE_FOCUS":
+                            reply = camera.analyze_focus(**params)
                         case "HELLO" | "HOTPLUG":
                             digitizer.check_connected_adapter()
                             reply = VERSION_INFO.copy()

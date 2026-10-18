@@ -1346,8 +1346,11 @@
                         <div id="snapshot-only-control" class="inline-block hidden">
                             <label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle"><input type="checkbox" id="stream-crosshair-cb"/>Cross<u>h</u>air</label>
                             <label for="stream-vision-cb" accesskey="v" title="Analyze preview image via computer vision"><input type="checkbox" id="stream-vision-cb"/><u>V</u>ision</label>
+                            <label for="snapshot-focus-cb" accesskey="f" title="Measure contrast-detect focus at the selected marker"><input type="checkbox" id="snapshot-focus-cb" onchange="adjust_focus_score()"/><u>F</u>ocus score</label>
                             <div id="snapshot-color-box" class="color-box inline-block" title="Source snapshot color around cursor/marker, before display inversion"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
+                            <div id="snapshot-focus-value" class="color-value inline-block" title="Contrast-detect focus score at the selected marker; uses a 96 × 96 source-preview pixel area"></div>
                             <button id="snapshot-wb" type="button" disabled onclick="whiteBalance.start()" title="Select a reference point, RGB light mode and color profile before WB.">WB</button>
+                            <button id="snapshot-af" type="button" disabled onclick="window.autoFocus.start()" title="Select Focus mode, a point in the preview and a camera mapping with focus-near and focus-far commands.">AF</button>
                         </div>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
@@ -2385,6 +2388,7 @@
         if (elem.disabled) {
             elem.checked = false;
         }
+        window.autoFocus?.update();
     }
 
     function adjust_adapter(data) {
@@ -3261,8 +3265,24 @@
 								    window.analyze_in_progress = 0;
                                 }
                                 // TODO: focus, positive-negative
-								window.last_analyze_stamp =  Date.now();
+                                window.last_analyze_stamp =  Date.now();
                                 refresh_snapshot();
+                            } else if (data.cmd == "ANALYZE_FOCUS") {
+                                if (data.payload.request !== window.focus_request) return;
+                                window.focus_request_pending = false;
+                                window.focus_request_started_at = null;
+                                const resolver = window.focus_request_resolvers?.get(data.payload.request);
+                                if (resolver) {
+                                    window.focus_request_resolvers.delete(data.payload.request);
+                                    resolver.resolve(data.payload);
+                                }
+                                const score = data.payload.focus_score;
+                                if (Number.isFinite(score)) {
+                                    const channel = data.payload.focus_channel ? ` ${data.payload.focus_channel}` : "";
+                                    const elem = document.getElementById("snapshot-focus-value");
+                                    elem.textContent = `AF: ${score.toFixed(1)}${channel}`;
+                                    elem.title = `Contrast-detect focus score: ${score.toFixed(2)}${channel}; source ROI ${data.payload.bounds?.[2] ?? 0} × ${data.payload.bounds?.[3] ?? 0} px.`;
+                                }
                             }
                             adjust();
                             if (data.cmd == "DOWNLOAD") {
@@ -3273,6 +3293,7 @@
                     // console.debug(data);  it leaks likely memory as data are kept in memory till log entry exists
                 } else {
                     if (window.half_press_in_progress) {
+                        cameraMappings.lastActionError = event.data;
                         window.half_press_in_progress = false;
                         window.camera_capture_in_progress = false;
                         cameraMappings.actionFailed();
@@ -3801,6 +3822,193 @@
         window.whiteBalance?.update();
     }
 
+    function clear_focus_score() {
+        for (const resolver of window.focus_request_resolvers?.values() || []) {
+            resolver.reject(new Error("Focus measurement superseded."));
+        }
+        window.focus_request_resolvers?.clear();
+        window.focus_request = (window.focus_request ?? 0) + 1;
+        window.focus_request_pending = false;
+        window.focus_request_started_at = null;
+        const elem = document.getElementById("snapshot-focus-value");
+        if (elem) {
+            elem.textContent = "";
+            elem.title = "Contrast-detect focus score at the selected marker; uses a 96 × 96 source-preview pixel area";
+        }
+    }
+
+    function request_focus_score(wait_for_reply = false) {
+        const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
+        if (!document.getElementById("snapshot-focus-cb")?.checked || position == null
+            || !window.snapshot_frame || !window.control_socket
+            || window.control_socket.readyState != window.control_socket.OPEN) {
+            return wait_for_reply ? Promise.reject(new Error("Focus score is not available.")) : undefined;
+        }
+        if (window.autoFocus?.running && !wait_for_reply) return;
+        // A failed RPC is returned as a text error by older servers.  Do not
+        // let that permanently suppress measurements on following snapshots.
+        if (window.focus_request_pending && performance.now() - window.focus_request_started_at < 2000) return;
+        const request = (window.focus_request ?? 0) + 1;
+        window.focus_request = request;
+        window.focus_request_pending = true;
+        window.focus_request_started_at = performance.now();
+        const params = {position: [...position], size: 96, request};
+        if (!window.current_usbpreview) {
+            params.snapshot_url = get_stream_url(false, "snapshot");
+        }
+        sendCommand2("ANALYZE_FOCUS", params);
+        if (!wait_for_reply) return;
+        return new Promise((resolve, reject) => {
+            window.focus_request_resolvers.set(request, {resolve, reject});
+            setTimeout(() => {
+                const pending = window.focus_request_resolvers.get(request);
+                if (!pending) return;
+                window.focus_request_resolvers.delete(request);
+                if (window.focus_request === request) window.focus_request_pending = false;
+                reject(new Error("Focus measurement timed out."));
+            }, preview_settings().timeout);
+        });
+    }
+
+    function adjust_focus_score() {
+        if (!document.getElementById("snapshot-focus-cb")?.checked) {
+            clear_focus_score();
+            return;
+        }
+        request_focus_score();
+    }
+
+    window.autoFocus = {
+        running: false, cancelled: false,
+        pair() {
+            const actions = window.cameraMappings?.selected?.()?.actions || {};
+            for (const level of [1, 2, 3]) {
+                const near = `focus_near_${level}`, far = `focus_far_${level}`;
+                if ([near, far].every(action => actions[action]?.steps?.some(step => step?.id && step.value !== undefined))) {
+                    return {near, far};
+                }
+            }
+            return null;
+        },
+        available() {
+            return !this.running && window.cameraProfiles?.selectedMode() === "focus"
+                && Boolean(this.pair()) && Boolean(window.snapshot_marker_position)
+                && Boolean(window.snapshot_frame) && Boolean(window.snapshot_canvas_ctx)
+                && Boolean(window.capabilities?.vision) && Boolean(window.control_socket?.readyState === window.control_socket.OPEN)
+                && !window.camera_capture_in_progress && !window.half_press_in_progress;
+        },
+        update() {
+            const button = document.getElementById("snapshot-af");
+            if (!button) return;
+            button.textContent = this.running ? "Cancel AF" : "AF";
+            button.disabled = !this.running && !this.available();
+            button.title = this.running ? "Stop after the current focus step."
+                : "In Focus mode, find the contrast maximum at the selected preview marker.";
+        },
+        sleep(milliseconds) { return new Promise(resolve => setTimeout(resolve, milliseconds)); },
+        async waitFor(predicate, timeout, message) {
+            const deadline = performance.now() + timeout;
+            while (!predicate()) {
+                if (this.cancelled) throw new Error("Autofocus cancelled.");
+                if (performance.now() >= deadline) throw new Error(message);
+                await this.sleep(25);
+            }
+        },
+        async waitForFrame(sequence) {
+            await this.sleep(preview_settings().wb_delay);
+            await this.waitFor(() => (window.snapshot_frame?.sequence ?? 0) > sequence,
+                preview_settings().timeout, "No fresh preview after focus movement.");
+        },
+        async score(sequence) {
+            await this.waitForFrame(sequence);
+            const result = await request_focus_score(true);
+            if (!Number.isFinite(result?.focus_score)) throw new Error("Focus score is unavailable.");
+            return result.focus_score;
+        },
+        async move(action) {
+            const button = get_adapter_button(action.replaceAll("_", "-"), "");
+            if (!button || button.disabled) throw new Error(`Focus action is unavailable: ${action}`);
+            const sequence = window.snapshot_frame?.sequence ?? 0;
+            button.click(); // Use the normal control path so the active button is visible.
+            await this.waitFor(() => !window.camera_capture_in_progress && !window.half_press_in_progress,
+                10000, "Camera focus movement timed out.");
+            if (cameraMappings.lastActionError) throw new Error(cameraMappings.lastActionError);
+            return this.score(sequence);
+        },
+        async disableCameraAutofocus() {
+            const checkbox = document.getElementById("camera-af-cb");
+            if (!checkbox?.checked) return;
+            checkbox.checked = false;
+            cameraMappings.toggleAutofocus(false);
+            await this.waitFor(() => !window.camera_capture_in_progress && !window.half_press_in_progress,
+                10000, "Cancelling camera autofocus timed out.");
+            if (cameraMappings.lastActionError) throw new Error(cameraMappings.lastActionError);
+        },
+        async run() {
+            const pair = this.pair();
+            if (!pair) throw new Error("The selected mapping has no focus-near/focus-far pair.");
+            document.getElementById("snapshot-focus-cb").checked = true;
+            clear_focus_score();
+            await this.disableCameraAutofocus();
+            const initialSequence = window.snapshot_frame?.sequence ?? 0;
+            let best = {score: await this.score(initialSequence), position: 0};
+            const startingScore = best.score;
+            let position = 0;
+            const better = score => score > best.score * 1.005;
+            const step = async (action, delta) => {
+                const score = await this.move(action);
+                position += delta;
+                update_status_info(`AF: ${score.toFixed(1)} (${position > 0 ? "far" : position < 0 ? "near" : "start"})`, "AF");
+                if (better(score)) best = {score, position};
+                return score;
+            };
+
+            // Probe both sides of the starting position.  One action is used
+            // throughout, so reversal does not depend on body-specific step sizes.
+            const farScore = await step(pair.far, 1);
+            let direction;
+            if (farScore > startingScore * 1.005) {
+                direction = pair.far;
+            } else {
+                await step(pair.near, -1); // Return approximately to the start.
+                const nearScore = await step(pair.near, -1);
+                if (nearScore > startingScore * 1.005) {
+                    direction = pair.near;
+                } else {
+                    await step(pair.far, 1); // Leave the lens at the starting position.
+                    return best;
+                }
+            }
+            const reverse = direction === pair.far ? pair.near : pair.far;
+            for (let count = 0; count < 8; count++) {
+                const score = await step(direction, direction === pair.far ? 1 : -1);
+                if (score <= best.score * 1.005) {
+                    await step(reverse, reverse === pair.far ? 1 : -1);
+                    break;
+                }
+            }
+            return best;
+        },
+        async start() {
+            if (this.running) { this.cancelled = true; return; }
+            if (!this.available()) return;
+            this.running = true;
+            this.cancelled = false;
+            this.update();
+            try {
+                update_status_info("AF: measuring…", "AF");
+                const best = await this.run();
+                update_status_info(`AF: best score ${best.score.toFixed(1)}.`, "AF");
+            } catch (error) {
+                update_status_info(error.message, "AF");
+            } finally {
+                this.running = false;
+                this.cancelled = false;
+                this.update();
+            }
+        },
+    };
+
     function snapshot_draw_marker(ctx, position) {
         const x = position[0] * ctx.canvas.width;
         const y = position[1] * ctx.canvas.height;
@@ -4097,6 +4305,7 @@
                     if (window.snapshot_marker_position != null) {
                         snapshot_draw_marker(ctx, window.snapshot_marker_position);
                     }
+                    request_focus_score();
                 }
             } catch (error) {
                 console.warn("Snapshot processing failed:", error);
@@ -4203,6 +4412,7 @@
             runAction(action) {
                 const mapping = this.selected();
                 if (!mapping?.actions?.[action]?.steps?.some(step => step?.id && step.value !== undefined)) return;
+                this.lastActionError = null;
                 window.half_press_in_progress = true;
                 window.camera_capture_in_progress = true;
                 adjust();
@@ -4218,7 +4428,7 @@
                 this.autofocusPrevious = !enabled;
                 this.runAction(action);
             },
-            actionFinished() { this.autofocusPrevious = undefined; },
+            actionFinished() { this.autofocusPrevious = undefined; this.lastActionError = null; },
             actionFailed() {
                 if (this.autofocusPrevious !== undefined) {
                     document.querySelector("#camera-autofocus-control input").checked = this.autofocusPrevious;
@@ -4599,6 +4809,10 @@
         window.snapshot_canvas_ctx = null;
         window.snapshot_sample_ctx = null;
         window.snapshot_color_sample = null;
+        window.focus_request = 0;
+        window.focus_request_pending = false;
+        window.focus_request_started_at = null;
+        window.focus_request_resolvers = new Map();
         window.snapshot_marker_position = null;
         window.snapshot_cursor_position = null;
         window.snapshot_analysis = null;
@@ -4621,6 +4835,7 @@
                 window.snapshot_marker_position = position;
             } else {
                 window.snapshot_marker_position = null;
+                clear_focus_score();
                 update_color_box(window.snapshot_canvas_ctx, position);
             }
             window.whiteBalance?.update();
