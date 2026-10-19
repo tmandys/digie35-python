@@ -32,6 +32,7 @@ Features
   - display metering
   - backlight profiles and calibration
   - autofocus driven by digie on particular point
+  - zoom around cursor position
 
 Fixes
 -----

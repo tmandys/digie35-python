@@ -630,6 +630,31 @@
             cursor: crosshair;
         }
 
+        #snapshot-info {
+            position: absolute;
+            width: max-content;
+            z-index: 3;
+            pointer-events: none;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: rgba(25, 25, 25, 0.94);
+            color: white;
+            font: 12px monospace;
+            box-sizing: border-box;
+        }
+        #snapshot-info[hidden], #snapshot-info #snapshot-loupe[hidden], #snapshot-info #snapshot-focus-value[hidden] { display: none; }
+        #snapshot-info #snapshot-loupe {
+            position: static;
+            display: block;
+            width: 144px;
+            height: 144px;
+            margin: 0 auto 5px;
+        }
+        #snapshot-info .snapshot-readings { white-space: nowrap; }
+        #snapshot-info #snapshot-focus-value { display: block; margin-top: 3px; }
+        #snapshot-info .color-box { width: 12px; height: 12px; vertical-align: middle; }
+
         #stream-container {
             position: relative;
         }
@@ -1330,32 +1355,41 @@
                 <div id="stream-error" class="error-message"><span class="icon">&#x26a0;</span>Stream is not available</div>
                 <div class="inline-container">
                     <div id="stream-control" class="control">
-                        <label for="stream-analyze-cb" accesskey="l" title="Stop stream to analyze preview image"><input type="checkbox" id="stream-analyze-cb" onchange="adjust_preview_mode()" /> Ana<u>l</u>yze</label>
                             <label for="stream-invert-cb" accesskey="i" title="Invert preview"><input type="checkbox" id="stream-invert-cb" value="invert" onchange="adjust_media_viewer()" /><u>I</u>nvert</label>
                             <label for="metering-cb" accesskey="g" title="Show selected camera values over the preview"><input type="checkbox" id="metering-cb" onchange="cameraProfiles.renderMetering()" />Meterin<u>g</u></label>
-                        <div id="stream-only-control" class="inline-block">
                             <label for="stream-rotate0-rb" accesskey="t" title="Rotate 0&deg;"><input type="radio" name="stream-rotate" id="stream-rotate0-rb" value="rotate0" onchange="adjust_media_viewer()" checked />Ro<u>t</u>ate 0&deg;</label>
                             <label for="stream-rotate270-rb" accesskey="a" title="Rotate -90&deg;"><input type="radio" name="stream-rotate" id="stream-rotate270-rb" value="rotate270" onchange="adjust_media_viewer()" />Rot<u>a</u>te -90&deg;</label>
                             <label for="stream-rotate180-rb" accesskey="o" title="Rotate 180&deg;"><input type="radio" name="stream-rotate" id="stream-rotate180-rb" value="rotate180" onchange="adjust_media_viewer()" />R<u>o</u>tate 180&deg;</label>
                             <label for="stream-rotate90-rb" accesskey="e" title="Rotate 90&deg;"><input type="radio" name="stream-rotate" id="stream-rotate90-rb" value="rotate90" onchange="adjust_media_viewer()" />Rotat<u>e</u> 90&deg;</label>
                             <label for="stream-flip-cb" accesskey="f" title="Flip preview"><input type="checkbox" id="stream-flip-cb" value="flip" onchange="adjust_media_viewer()" /><u>F</u>lip</label>
+                        <div id="stream-only-control" class="inline-block">
                             <input type="range" id="stream-crop-x-rng" class="crop-x-ctrl" value="95" min="0" max="500" oninput="adjust_media_viewer()" title="Width clipping" />
                             <input type="range" id="stream-crop-y-rng" class="crop-y-ctrl" value="0" min="0" max="300" oninput="adjust_media_viewer()" title="Height clipping" />
                             <input type="range" id="stream-background-rng" class="background-ctrl" value="200" min="0" max="255" oninput="adjust_media_viewer()" title="Background color" />
                         </div>
+                        <details id="analyze-panel" ontoggle="toggle_analyze_panel()">
+                            <summary title="Show analysis tools over the live preview" onclick="if (document.getElementById('stream-analyze-cb').disabled) event.preventDefault()">Analyze</summary>
+                            <input type="checkbox" id="stream-analyze-cb" hidden onchange="adjust_preview_mode()" />
                         <div id="snapshot-only-control" class="inline-block hidden">
                             <label for="stream-crosshair-cb" accesskey="h" title="Change marker crosshair/circle"><input type="checkbox" id="stream-crosshair-cb"/>Cross<u>h</u>air</label>
                             <label for="stream-vision-cb" accesskey="v" title="Analyze preview image via computer vision"><input type="checkbox" id="stream-vision-cb"/><u>V</u>ision</label>
-                            <label for="snapshot-focus-cb" accesskey="f" title="Measure contrast-detect focus at the selected marker"><input type="checkbox" id="snapshot-focus-cb" onchange="adjust_focus_score()"/><u>F</u>ocus score</label>
-                            <div id="snapshot-color-box" class="color-box inline-block" title="Source snapshot color around cursor/marker, before display inversion"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
-                            <div id="snapshot-focus-value" class="color-value inline-block" title="Contrast-detect focus score at the selected marker; uses a 96 × 96 source-preview pixel area"></div>
+                            <label for="snapshot-focus-cb" accesskey="r" title="Measure contrast-detect focus at the selected marker"><input type="checkbox" id="snapshot-focus-cb" onchange="adjust_focus_score()"/>Focus sco<u>r</u>e</label>
+                            <label for="snapshot-zoom-cb" accesskey="z" title="Magnify the latest analysis snapshot around the cursor or locked marker"><input type="checkbox" id="snapshot-zoom-cb" onchange="redraw_snapshot_marker()"/><u>Z</u>oom 4×</label>
                             <button id="snapshot-wb" type="button" disabled onclick="whiteBalance.start()" title="Select a reference point, RGB light mode and color profile before WB.">WB</button>
                             <button id="snapshot-af" type="button" disabled onclick="window.autoFocus.start()" title="Select Focus mode, a point in the preview and a camera mapping with focus-near and focus-far commands.">AF</button>
                         </div>
+                        </details>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
-                        <canvas id="snapshot" class="hidden" data-draw_image="1"></canvas>
+                        <canvas id="snapshot" class="hidden"></canvas>
+                        <div id="snapshot-info" hidden>
+                            <canvas id="snapshot-loupe" width="144" height="144"></canvas>
+                            <div class="snapshot-readings">
+                            <div id="snapshot-color-box" class="color-box inline-block" title="Sample color with the preview inversion applied"></div><div id="snapshot-color-value" class="color-value inline-block"></div>
+                            <div id="snapshot-focus-value" class="color-value inline-block" title="Contrast-detect focus score at the selected marker; uses a 96 × 96 source-preview pixel area"></div>
+                            </div>
+                        </div>
                         <div id="metering-overlay" hidden></div>
                     </div>
                     <div id="stream-strip-container" class="filmstrip">
@@ -2154,7 +2188,7 @@
                     </div>
                     <div class="form-group vertical-spacer">
                         <div class="input-row">
-                            <label for="external-trigger-cb" accesskey="E"><u>E</u>xternal trigger</label>
+                            <label for="external-trigger-cb" accesskey="e"><u>E</u>xternal trigger</label>
                             <div class="switch-container">
                                 <label class="switch">
                                     <input type="checkbox" id="external-trigger-cb" value="1" />
@@ -2257,11 +2291,8 @@
             if (connected) {
             }
             window.current_usbpreview = usbpreview;
-            elem = document.getElementById("stream-analyze-cb");
-            if (!usbpreview && elem.checked) {
-                elem.checked = false;
-                adjust_preview_mode();
-            }
+            // Invalidate measurements from the previous source, keeping the panel open.
+            adjust_preview_mode();
     }
 
         document.getElementById("camera-fieldset").disabled = !connected;
@@ -3280,7 +3311,7 @@
                                 if (Number.isFinite(score)) {
                                     const channel = data.payload.focus_channel ? ` ${data.payload.focus_channel}` : "";
                                     const elem = document.getElementById("snapshot-focus-value");
-                                    elem.textContent = `AF: ${score.toFixed(1)}${channel}`;
+                                    elem.textContent = `Focus: ${score.toFixed(1)}${channel}`;
                                     elem.title = `Contrast-detect focus score: ${score.toFixed(2)}${channel}; source ROI ${data.payload.bounds?.[2] ?? 0} × ${data.payload.bounds?.[3] ?? 0} px.`;
                                 }
                             }
@@ -3409,7 +3440,7 @@
             generation: window.alignment_generation,
             request: window.analyze_request,
         }};
-        if (!document.getElementById("usb-preview-cb").checked) {
+        if (!window.current_usbpreview) {
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
 		window.last_analyze_stamp =  Date.now();
@@ -3746,8 +3777,17 @@
         if (!rect.width || !rect.height) {
             return null;
         }
-        return [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
-            Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
+        let x = (event.clientX - rect.left) / rect.width;
+        let y = (event.clientY - rect.top) / rect.height;
+        // CSS mirrors horizontally AFTER rotating. Undo those operations in
+        // reverse order, using the transformed bounding box (including scale).
+        const rotation = [0, 90, 180, 270].find(angle =>
+            canvas.classList.contains(`rotate${angle}`) || canvas.classList.contains(`flip-rotate${angle}`)) ?? 0;
+        if (canvas.classList.contains(`flip-rotate${rotation}`)) x = 1 - x;
+        if (rotation === 90) [x, y] = [y, 1 - x];
+        else if (rotation === 180) [x, y] = [1 - x, 1 - y];
+        else if (rotation === 270) [x, y] = [1 - y, x];
+        return [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))];
     }
 
     function snapshot_sample_bounds(canvas, position) {
@@ -3802,6 +3842,15 @@
                 [0, 1, 2].some(c => pixels[i * 4 + c] <= 1 || pixels[i * 4 + c] >= 254)
             ).filter(Boolean).length / (pixels.length / 4),
         };
+        render_snapshot_color();
+        window.whiteBalance?.update();
+    };
+
+    function render_snapshot_color() {
+        const sample = window.snapshot_color_sample;
+        if (!sample) return;
+        const inverted = document.getElementById("stream-invert-cb").checked;
+        const [r, g, b] = sample.rgb.map(value => inverted ? 255 - value : value);
         const rgb = `rgb(${r}, ${g}, ${b})`;
         const pad_rgb = function(x) {
             return Math.round(x).toString().padEnd(3, ' ');
@@ -3810,12 +3859,13 @@
         const color_value = document.getElementById("snapshot-color-value");
         color_box.style.backgroundColor = rgb;
         color_value.textContent = `[R:${pad_rgb(r)} G:${pad_rgb(g)} B:${pad_rgb(b)}]`;
-        color_value.title = `${bounds[2]} × ${bounds[3]} source snapshot pixels; 10% trimmed mean per channel; before display inversion`;
-        window.whiteBalance?.update();
-    };
+        color_value.title = `${sample.bounds[2]} × ${sample.bounds[3]} source snapshot pixels; 10% trimmed mean per channel; ${inverted ? "inverted display" : "original RGB"}; WB uses original RGB`;
+    }
 
     function clear_snapshot_sample() {
         window.snapshot_color_sample = null;
+        const panel = document.getElementById("snapshot-info");
+        if (panel) panel.hidden = true;
         document.getElementById("snapshot-color-box").style.backgroundColor = "";
         document.getElementById("snapshot-color-value").textContent = "";
         document.getElementById("snapshot-color-value").title = "";
@@ -3852,7 +3902,7 @@
         window.focus_request = request;
         window.focus_request_pending = true;
         window.focus_request_started_at = performance.now();
-        const params = {position: [...position], size: 96, request};
+        const params = {position: [...position], size: SNAPSHOT_FOCUS_SIZE, request};
         if (!window.current_usbpreview) {
             params.snapshot_url = get_stream_url(false, "snapshot");
         }
@@ -3871,6 +3921,7 @@
     }
 
     function adjust_focus_score() {
+        redraw_snapshot_marker();
         if (!document.getElementById("snapshot-focus-cb")?.checked) {
             clear_focus_score();
             return;
@@ -3949,6 +4000,7 @@
             if (!pair) throw new Error("The selected mapping has no focus-near/focus-far pair.");
             document.getElementById("snapshot-focus-cb").checked = true;
             clear_focus_score();
+            redraw_snapshot_marker();
             await this.disableCameraAutofocus();
             const initialSequence = window.snapshot_frame?.sequence ?? 0;
             let best = {score: await this.score(initialSequence), position: 0};
@@ -4009,56 +4061,166 @@
         },
     };
 
+    const SNAPSHOT_FOCUS_SIZE = 96;
+
+    function snapshot_focus_bounds(canvas, position) {
+        // Match ImageAnalyzer.analyze_focus: shift the ROI at edges, do not crop it.
+        const width = Math.min(SNAPSHOT_FOCUS_SIZE, canvas.width);
+        const height = Math.min(SNAPSHOT_FOCUS_SIZE, canvas.height);
+        const x = Math.min(canvas.width - 1, Math.floor(position[0] * canvas.width));
+        const y = Math.min(canvas.height - 1, Math.floor(position[1] * canvas.height));
+        return [Math.min(Math.max(0, x - Math.floor(width / 2)), canvas.width - width),
+            Math.min(Math.max(0, y - Math.floor(height / 2)), canvas.height - height), width, height];
+    }
+
     function snapshot_draw_marker(ctx, position) {
-        const x = position[0] * ctx.canvas.width;
-        const y = position[1] * ctx.canvas.height;
+        const source = window.snapshot_sample_ctx?.canvas;
+        if (!source?.width || !source.height) return;
+        const scale_x = ctx.canvas.width / source.width;
+        const scale_y = ctx.canvas.height / source.height;
+        const display_bounds = bounds => [bounds[0] * scale_x, bounds[1] * scale_y,
+            bounds[2] * scale_x, bounds[3] * scale_y];
+        const [left, top, width, height] = display_bounds(snapshot_sample_bounds(source, position));
+        ctx.save();
+        ctx.beginPath();
         if (document.getElementById("stream-crosshair-cb").checked) {
-
-            ctx.beginPath();
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = 3;
+            const x = position[0] * ctx.canvas.width;
+            const y = position[1] * ctx.canvas.height;
+            ctx.rect(left, top, width, height);
             ctx.moveTo(x, 0);
             ctx.lineTo(x, ctx.canvas.height);
             ctx.moveTo(0, y);
             ctx.lineTo(ctx.canvas.width, y);
-            ctx.stroke();
-
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 1;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, ctx.canvas.height);
-            ctx.moveTo(0, y);
-            ctx.lineTo(ctx.canvas.width, y);
-            ctx.stroke();
         } else {
-            ctx.beginPath();
-            ctx.arc(x, y, 10, 0, 2 * Math.PI);
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.strokeStyle = "black";
-            ctx.stroke();
+            ctx.ellipse(left + width / 2, top + height / 2, width / 2, height / 2, 0, 0, 2 * Math.PI);
+            ctx.rect(left, top, width, height);
         }
-        const source_canvas = window.snapshot_sample_ctx?.canvas;
-        if (source_canvas && Number(document.getElementById("snapshot-sample-size").value) > 1) {
-            const bounds = snapshot_sample_bounds(source_canvas, position);
-            const scale_x = ctx.canvas.width / source_canvas.width;
-            const scale_y = ctx.canvas.height / source_canvas.height;
-            const display_bounds = [bounds[0] * scale_x, bounds[1] * scale_y,
-                bounds[2] * scale_x, bounds[3] * scale_y];
-            ctx.save();
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (document.getElementById("snapshot-focus-cb").checked) {
+            const bounds = display_bounds(snapshot_focus_bounds(source, position));
             ctx.strokeStyle = "black";
             ctx.lineWidth = 3;
-            ctx.strokeRect(...display_bounds);
-            ctx.strokeStyle = "white";
+            ctx.strokeRect(...bounds);
+            ctx.strokeStyle = "#ffdf00";
             ctx.lineWidth = 1;
-            ctx.strokeRect(...display_bounds);
-            ctx.restore();
+            ctx.strokeRect(...bounds);
         }
-    };
+        ctx.restore();
+    }
+
+    function snapshot_display_point(canvas, position) {
+        let [x, y] = position;
+        const rotation = [0, 90, 180, 270].find(angle =>
+            canvas.classList.contains(`rotate${angle}`) || canvas.classList.contains(`flip-rotate${angle}`)) ?? 0;
+        if (rotation === 90) [x, y] = [1 - y, x];
+        else if (rotation === 180) [x, y] = [1 - x, 1 - y];
+        else if (rotation === 270) [x, y] = [y, 1 - x];
+        const flip = canvas.classList.contains(`flip-rotate${rotation}`);
+        if (flip) x = 1 - x;
+        return {x, y, rotation, flip};
+    }
+
+    function snapshot_info_position(view, roi, width, height) {
+        const gap = 12;
+        const clampX = x => Math.max(view.left, Math.min(view.right - width, x));
+        const clampY = y => Math.max(view.top, Math.min(view.bottom - height, y));
+        const centerX = (roi.left + roi.right - width) / 2;
+        const centerY = (roi.top + roi.bottom - height) / 2;
+        const candidates = [
+            [roi.right + gap, clampY(centerY)], [roi.left - gap - width, clampY(centerY)],
+            [clampX(centerX), roi.bottom + gap], [clampX(centerX), roi.top - gap - height],
+        ];
+        const fits = ([x, y]) => x >= view.left && y >= view.top
+            && x + width <= view.right && y + height <= view.bottom;
+        const fit = candidates.find(fits);
+        if (fit) return fit;
+        // On very small previews keep the readings visible with minimal ROI overlap.
+        const overlap = ([x, y]) => Math.max(0, Math.min(x + width, roi.right) - Math.max(x, roi.left))
+            * Math.max(0, Math.min(y + height, roi.bottom) - Math.max(y, roi.top));
+        return candidates.map(([x, y]) => [clampX(x), clampY(y)])
+            .sort((a, b) => overlap(a) - overlap(b))[0];
+    }
+
+    function snapshot_draw_zoom(ctx, position) {
+        const panel = document.getElementById("snapshot-info");
+        const source = window.snapshot_sample_ctx?.canvas;
+        if (!panel) return;
+        panel.hidden = !ctx || !position || !source?.width || !source.height;
+        if (panel.hidden) return;
+        const canvas = ctx.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const display = snapshot_display_point(canvas, position);
+        const zoom = document.getElementById("snapshot-zoom-cb").checked;
+        const focus = document.getElementById("snapshot-focus-cb").checked;
+        const lens = document.getElementById("snapshot-loupe");
+        lens.hidden = !zoom;
+        document.getElementById("snapshot-focus-value").hidden = !focus;
+        if (zoom) {
+            const lc = lens.getContext("2d");
+            const scale = rect.width / (display.rotation % 180 ? source.height : source.width) * 4;
+            lc.clearRect(0, 0, lens.width, lens.height);
+            lc.fillStyle = "#333";
+            lc.fillRect(0, 0, lens.width, lens.height);
+            lc.save();
+            lc.translate(lens.width / 2, lens.height / 2);
+            lc.scale(display.flip ? -1 : 1, 1);
+            lc.rotate(display.rotation * Math.PI / 180);
+            lc.imageSmoothingEnabled = false;
+            lc.filter = document.getElementById("stream-invert-cb").checked ? "invert(100%)" : "none";
+            lc.drawImage(source, -position[0] * source.width * scale,
+                -position[1] * source.height * scale, source.width * scale, source.height * scale);
+            lc.restore();
+            lc.beginPath();
+            lc.moveTo(64, 72); lc.lineTo(80, 72);
+            lc.moveTo(72, 64); lc.lineTo(72, 80);
+            lc.strokeStyle = "black"; lc.lineWidth = 3; lc.stroke();
+            lc.strokeStyle = "white"; lc.lineWidth = 1; lc.stroke();
+        }
+        const project = p => {
+            const point = snapshot_display_point(canvas, p);
+            return [rect.left + point.x * rect.width, rect.top + point.y * rect.height];
+        };
+        const box = (p1, p2) => {
+            const a = project(p1), b = project(p2);
+            return {left: Math.min(a[0], b[0]), right: Math.max(a[0], b[0]),
+                top: Math.min(a[1], b[1]), bottom: Math.max(a[1], b[1])};
+        };
+        const mx = Math.min(0.5, (Number(document.getElementById("stream-crop-x-rng").value) || 0) / canvas.clientWidth);
+        const my = Math.min(0.5, (Number(document.getElementById("stream-crop-y-rng").value) || 0) / canvas.clientHeight);
+        const view = box([mx, my], [1 - mx, 1 - my]);
+        let roi = box(position, position);
+        if (focus) {
+            const [x, y, w, h] = snapshot_focus_bounds(source, position);
+            roi = box([x / source.width, y / source.height], [(x + w) / source.width, (y + h) / source.height]);
+        }
+        const [left, top] = snapshot_info_position(view, roi, panel.offsetWidth, panel.offsetHeight);
+        const parent = panel.offsetParent;
+        const origin = parent.getBoundingClientRect();
+        panel.style.left = (left - origin.left - parent.clientLeft) + "px";
+        panel.style.top = (top - origin.top - parent.clientTop) + "px";
+    }
+
+    // The live image stays underneath; only the optional lens copies a snapshot.
+    function redraw_snapshot_marker() {
+        const ctx = window.snapshot_canvas_ctx;
+        const source = window.snapshot_sample_ctx?.canvas;
+        if (!ctx) { snapshot_draw_zoom(null, null); return; }
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        if (!source?.width || !source.height) { snapshot_draw_zoom(null, null); return; }
+        if (window.snapshot_analysis != null && document.getElementById("stream-vision-cb").checked) {
+            snapshot_draw_analysis(ctx, window.snapshot_analysis);
+        }
+        const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
+        if (position) {
+            snapshot_draw_marker(ctx, position);
+        }
+        snapshot_draw_zoom(ctx, position);
+    }
 
     function canvas_draw_empty(ctx) {
         ctx.strokeStyle = "red";
@@ -4218,6 +4380,7 @@
         const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
         if (position && window.snapshot_canvas_ctx) {
             update_color_box(window.snapshot_canvas_ctx, position);
+            redraw_snapshot_marker();
         }
         if (!window.snapshot_request && window.snapshot_canvas_ctx) {
             clearTimeout(window.snapshot_timer);
@@ -4241,10 +4404,11 @@
         }
         if (failed) {
             window.snapshot_sample_ctx = null;
+            window.snapshot_frame = null;
+            window.snapshot_analysis = null;
             clear_snapshot_sample();
-            if (window.snapshot_canvas_ctx) {
-                canvas_draw_empty(window.snapshot_canvas_ctx);
-            }
+            clear_focus_score();
+            redraw_snapshot_marker();
         }
         if (retry && window.snapshot_canvas_ctx && document.getElementById("stream-analyze-cb").checked) {
             window.snapshot_timer = setTimeout(refresh_snapshot, preview_settings().interval);
@@ -4282,7 +4446,6 @@
                 }
                 const ctx = window.snapshot_canvas_ctx;
                 if (ctx != null) {
-                    ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
                     if (!window.snapshot_sample_ctx) {
                         window.snapshot_sample_ctx = document.createElement("canvas").getContext("2d", {willReadFrequently: true});
                     }
@@ -4295,16 +4458,11 @@
                     window.snapshot_frame = {sequence: (window.snapshot_frame?.sequence ?? 0) + 1,
                         started_at: request.started_at, timestamp: request.timestamp};
                     clear_snapshot_sample();
-                    if (window.snapshot_analysis != null) {
-                        snapshot_draw_analysis(ctx, window.snapshot_analysis);
-                    }
                     const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
                     if (position != null) {
                         update_color_box(ctx, position);
                     }
-                    if (window.snapshot_marker_position != null) {
-                        snapshot_draw_marker(ctx, window.snapshot_marker_position);
-                    }
+                    redraw_snapshot_marker();
                     request_focus_score();
                 }
             } catch (error) {
@@ -4337,32 +4495,56 @@
         }
     }
 
-    function adjust_preview_mode() {
-        stop_snapshot_requests();
-        const snapshot_mode = document.getElementById("stream-analyze-cb").checked;
+    function toggle_analyze_panel() {
+        const panel = document.getElementById("analyze-panel");
+        const enabled = document.getElementById("stream-analyze-cb");
+        if (panel.open === enabled.checked) return;
+        if (enabled.disabled) {
+            panel.open = enabled.checked;
+            return;
+        }
+        enabled.checked = panel.open;
+        adjust_preview_mode();
+    }
+
+    function sync_snapshot_overlay() {
         const img = document.getElementById("stream");
         const canvas = document.getElementById("snapshot");
-        if (snapshot_mode) {
-            img.classList.add("invisible");
-            canvas.classList.remove("hidden");
-            document.getElementById("stream-only-control").classList.add("hidden");
-            document.getElementById("snapshot-only-control").classList.remove("hidden");
-            const rect = img.getBoundingClientRect();
-            canvas.width = rect.width;  /* img.naturalWidth; */
-            canvas.height = rect.height; /* img.naturalHeight;*/
-            window.snapshot_canvas_ctx = canvas.getContext("2d", {willReadFrequently: true});
-            window.snapshot_sample_ctx = null;
-            clear_snapshot_sample();
+        // Use the untransformed image box, including its offset inside the border.
+        canvas.style.left = img.offsetLeft + "px";
+        canvas.style.top = img.offsetTop + "px";
+        canvas.style.width = img.clientWidth + "px";
+        canvas.style.height = img.clientHeight + "px";
+        if (canvas.width !== img.clientWidth || canvas.height !== img.clientHeight) {
+            canvas.width = img.clientWidth;
+            canvas.height = img.clientHeight;
+        }
+        redraw_snapshot_marker();
+    }
+
+    function adjust_preview_mode() {
+        stop_snapshot_requests();
+        const enabled = document.getElementById("stream-analyze-cb").checked;
+        document.getElementById("analyze-panel").open = enabled;
+        const canvas = document.getElementById("snapshot");
+        document.getElementById("snapshot-only-control").classList.toggle("hidden", !enabled);
+        canvas.classList.toggle("hidden", !enabled);
+        if (window.autoFocus?.running) window.autoFocus.cancelled = true;
+        window.snapshot_sample_ctx = null;
+        window.snapshot_frame = null;
+        window.snapshot_analysis = null;
+        clear_snapshot_sample();
+        clear_focus_score();
+        if (enabled) {
+            window.snapshot_canvas_ctx = canvas.getContext("2d");
+            sync_snapshot_overlay();
             refresh_snapshot();
         } else {
-            img.classList.remove("invisible");
-            canvas.classList.add("hidden");
-            document.getElementById("stream-only-control").classList.remove("hidden");
-            document.getElementById("snapshot-only-control").classList.add("hidden");
+            window.snapshot_canvas_ctx?.clearRect(0, 0, canvas.width, canvas.height);
             window.snapshot_canvas_ctx = null;
-            window.snapshot_sample_ctx = null;
-            clear_snapshot_sample();
         }
+        adjust_media_viewer();
+        window.autoFocus?.update();
     }
 
     function have_external_dependencies(names, feature) {
@@ -4823,7 +5005,19 @@
             const position = snapshot_pointer_position(canvas, e);
             window.snapshot_cursor_position = position;
             update_color_box(window.snapshot_canvas_ctx, position);
+            redraw_snapshot_marker();
         });
+        canvas.addEventListener("mouseleave", () => {
+            window.snapshot_cursor_position = null;
+            if (window.snapshot_marker_position == null) {
+                clear_snapshot_sample();
+                clear_focus_score();
+                redraw_snapshot_marker();
+            }
+        });
+        document.getElementById("stream-crosshair-cb").addEventListener("change", redraw_snapshot_marker);
+        document.getElementById("stream-vision-cb").addEventListener("change", redraw_snapshot_marker);
+        new ResizeObserver(sync_snapshot_overlay).observe(document.getElementById("stream"));
 
         canvas.addEventListener("click", (e)=> {
             const position = snapshot_pointer_position(canvas, e);
@@ -4839,6 +5033,7 @@
                 update_color_box(window.snapshot_canvas_ctx, position);
             }
             window.whiteBalance?.update();
+            redraw_snapshot_marker();
             refresh_snapshot();
         });
 
@@ -5380,6 +5575,7 @@
             "praview.background_color": "stream-background-rng",
             "preview.usb": "usb-preview-cb",
             "preview.crosshair": "stream-crosshair-cb",
+            "preview.zoom": "snapshot-zoom-cb",
             "preview.sample_size": "snapshot-sample-size",
             "preview.snapshot_interval": "snapshot-interval",
             "preview.snapshot_timeout": "snapshot-timeout",
@@ -6039,7 +6235,7 @@
             control_name = viewer_name;
         }
 		const elem = document.getElementById(control_name+"-analyze-cb");
-		const analyze_mode = elem && elem.checked;
+		const analyze_mode = elem && elem.checked && control_name !== "stream";
         const viewer = document.getElementById(viewer_name);
         const viewer_control = document.getElementById(control_name+"-control");
         const elems = viewer_control.getElementsByTagName("input");
@@ -6078,16 +6274,22 @@
             }
         }
         const canvas = viewer.parentNode.querySelector("canvas");
-                 if (canvas) {
-                        if (canvas.getAttribute("data-draw_image")) {
-				const copy_style = ["invert"];
-				copy_style.forEach((val)=>{
-					if (canvas.classList.contains(val) != viewer.classList.contains(val)) {
-						canvas.classList.toggle(val);
-					}
-				});
-			}
-		}
+        if (canvas && (canvas.getAttribute("data-draw_image") || viewer_name === "stream")) {
+            // Invert the live image only; measurement overlays keep their colors.
+            const copy_style = viewer_name === "stream" ? [] : ["invert"];
+            if (viewer_name === "stream") {
+                for (const angle of [0, 90, 180, 270]) {
+                    copy_style.push(`rotate${angle}`, `flip-rotate${angle}`);
+                }
+            }
+            copy_style.forEach(value => {
+                canvas.classList.toggle(value, viewer.classList.contains(value));
+            });
+        }
+        if (viewer_name === "stream" && window.snapshot_canvas_ctx) {
+            render_snapshot_color();
+            redraw_snapshot_marker();
+        }
         if (skip_crop) {
             return;
         }
@@ -6095,6 +6297,7 @@
         const vc = document.getElementById(control_name+"-crop-y-rng");
         if (vc && hc) {
             viewer.style["clip-path"] = "inset("+vc.value+"px "+hc.value+"px "+vc.value+"px "+hc.value+"px)";
+            if (viewer_name === "stream" && canvas) canvas.style["clip-path"] = viewer.style["clip-path"];
         }
         const bck = document.getElementById(control_name+"-background-rng");
         if (bck) {
