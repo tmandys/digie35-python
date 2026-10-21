@@ -188,11 +188,12 @@ test('Analyze keeps the same transform classes as the live preview', () => {
             toggle: (value, force = !values.has(value)) => force ? values.add(value) : values.delete(value)};
     };
     const canvas = {classList: classes(), getAttribute: () => null};
+    const analysisCanvas = {classList: classes()};
     const viewer = {classList: classes(), parentNode: {querySelector: () => canvas}};
     const radios = [0, 90, 180, 270].map(angle => ({type: 'radio', value: `rotate${angle}`}));
     const flip = {type: 'checkbox', value: 'flip', checked: false};
     const invert = {type: 'checkbox', value: 'invert', checked: true};
-    const elements = {'stream': viewer, 'stream-analyze-cb': {checked: true}, 'stream-flip-cb': flip,
+    const elements = {'stream': viewer, 'snapshot': canvas, 'snapshot-analysis': analysisCanvas, 'stream-analyze-cb': {checked: true}, 'stream-flip-cb': flip,
         'stream-control': {getElementsByTagName: () => [...radios, flip, invert]}};
     const context = {window: {}, document: {getElementById: id => elements[id]}};
     vm.createContext(context);
@@ -204,9 +205,11 @@ test('Analyze keeps the same transform classes as the live preview', () => {
         context.adjust_media_viewer('stream', '', true);
         assert.equal(viewer.classList.contains('invert'), true);
         assert.equal(canvas.classList.contains('invert'), false);
+        assert.equal(analysisCanvas.classList.contains('invert'), false);
         for (const candidate of [0, 90, 180, 270]) for (const prefix of ['', 'flip-']) {
             const name = `${prefix}rotate${candidate}`;
             assert.equal(canvas.classList.contains(name), candidate === angle && Boolean(prefix) === mirrored);
+            assert.equal(analysisCanvas.classList.contains(name), candidate === angle && Boolean(prefix) === mirrored);
         }
     }
 });

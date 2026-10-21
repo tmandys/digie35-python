@@ -77,6 +77,7 @@ class CameraProfiles:
         self._validate(profile)
         with self.lock:
             profile = copy.deepcopy(profile)
+            profile.pop("mode_actions", None)  # Superseded by mapping entry actions.
             identifier = profile.get("id")
             if identifier is None:
                 identifier = uuid.uuid4().hex

@@ -28,6 +28,9 @@ __licence__ = "MIT"
 __version__ = "0.8"
 
 import argparse
+from digie35.camera_actions import PROFILE_ENTRY_ACTIONS, validate_camera_action_steps
+from digie35.camera_parameters import camera_value, logical_value, logical_catalog
+
 import yaml
 import logging
 import asyncio
@@ -373,16 +376,16 @@ class CameraWrapper:
     @staticmethod
     def _load_default_camera_profile():
         profile_path = os.path.join(
-            os.path.dirname(__file__), "camera_profiles", "default-scan.yaml")
+            os.path.dirname(__file__), "camera_profiles", "parameters.yaml")
         with open(profile_path, encoding="utf-8") as profile_file:
             return yaml.safe_load(profile_file)
 
-    def _match_default_camera_profile(self):
+    def _match_default_camera_profile(self, use_camera=True):
         """Match the built-in logical settings to this camera's widget IDs."""
         profile = self._load_default_camera_profile()
-        brand = self._camera_brand(self._camera_model, self._camera_id)
+        brand = self._camera_brand(self._camera_model, self._camera_id) if use_camera else None
         by_id = {}
-        for item in self._camera_config_catalog:
+        for item in self._camera_config_catalog if use_camera else []:
             by_id.setdefault(item["id"], item)
 
         matched_parameters = []
@@ -398,9 +401,9 @@ class CameraWrapper:
                 mapping = dict(mapping)
                 candidates = mapping.get("ids", [mapping.get("id")])
                 for candidate in candidates:
-                    item = by_id.get(candidate)
+                    item = by_id.get(candidate) or by_id.get(candidate.rsplit("/", 1)[-1]) if candidate else None
                     if item is not None:
-                        mapping["id"] = candidate
+                        mapping["id"] = item["id"]
                         break
             matched_parameters.append({
                 "id": parameter_id,
@@ -431,22 +434,13 @@ class CameraWrapper:
 
         This deliberately has no knowledge of profiles.  The browser owns the
         choice of displayed parameters and may consume this part of any camera
-        response (half press, an action, or capture).
+        response (a mapping action or capture).
         """
         return [
-            {key: item[key] for key in ("id", "occurrence", "value") if key in item}
-            for item in self._camera_config_catalog
+            {key: item[key] for key in ("id", "occurrence", "value", "kind") if key in item}
+            for item in self._camera_config_catalog + logical_catalog(self._match_default_camera_profile())
             if "value" in item
         ]
-
-    def get_half_press_capability(self):
-        """Return whether this driver exposes a half-press action we support."""
-        for item in self._camera_config_catalog:
-            if item.get("id") == "eosremoterelease":
-                choices = item.get("choices", [])
-                if "Press 1" in choices and "Release 1" in choices:
-                    return {"supported": True, "action": "eosremoterelease"}
-        return {"supported": False}
 
     def get_camera_config(self):
         """Return the last raw-widget snapshot plus the built-in profile match.
@@ -466,6 +460,7 @@ class CameraWrapper:
                 "brand": self._camera_brand(self._camera_model, self._camera_id),
             },
             "parameters": self.get_camera_config_catalog(),
+            "logical_parameters": logical_catalog(self._match_default_camera_profile()),
             "default_profile": self._match_default_camera_profile(),
         }
 
@@ -483,6 +478,9 @@ class CameraWrapper:
         self._acquire_capture_lock("camera_config_refresh")
         try:
             self._open_camera(camera_id)
+            # Refresh the complete widget tree even when Live View holds the
+            # session open: mode-dependent choices can otherwise stay cached.
+            self._camera.get_config()
             self._read_camera_config_catalog()
             return self.get_camera_config()
         finally:
@@ -507,91 +505,150 @@ class CameraWrapper:
             raise CameraControlError("Select a camera before checking its profile")
         if self._capture_in_progress:
             raise CameraControlError("Capture in progress")
-        report = {"profile_id": profile.get("id"), "profile_name": profile.get("name", ""),
-                  "mode": mode, "checked": [], "mismatches": [], "errors": []}
         self._acquire_capture_lock("profile_check")
         try:
             self._open_camera(camera_id)
-            for parameter in profile.get("parameters", {}).values():
-                setting = self._profile_mode_setting(parameter, mode)
-                if not setting or not setting.get("check"):
-                    continue
-                item = {"id": parameter.get("id"),
-                        "occurrence": parameter.get("occurrence", 0),
-                        "label": parameter.get("label") or parameter.get("id"),
-                        "expected": self._camera_config_value(setting.get("value")),
-                        "blocking": bool(setting.get("blocking"))}
-                try:
-                    widget = self._camera.get_single_config(item["id"])
-                    item["actual"] = self._camera_config_value(widget.get_value())
-                    if str(item["actual"]) == str(item["expected"]):
-                        report["checked"].append(item)
-                    else:
-                        report["mismatches"].append(item)
-                except Exception as error:
-                    item["error"] = str(error)
-                    report["errors"].append(item)
+            return self._check_camera_profile_open(profile, mode)
         finally:
             self._close_camera()
             self._release_capture_lock("profile_check")
+
+    def _resolve_logical_parameter(self, parameter, value, profile, for_check=False):
+        self._read_camera_config_catalog()
+        definitions = self._match_default_camera_profile()["parameters"]
+        definition = next((item for item in definitions if item["id"] == parameter["id"]), None)
+        raw = definition.get("camera_parameter") if definition else None
+        if not raw or raw.get("error"):
+            raise CameraControlError("No supported camera parameter for " + parameter["id"])
+        for other in profile.get("parameters", {}).values():
+            if other is parameter:
+                continue
+            if other.get("kind") == "logical":
+                match = next((item for item in definitions if item["id"] == other["id"]), {})
+                other_id = (match.get("camera_parameter") or {}).get("id")
+            else:
+                other_id = other.get("id", "").rsplit("/", 1)[-1]
+            if other_id == raw["id"]:
+                raise CameraControlError("Duplicate profile parameter for " + raw["id"])
+        mapping = definition.get("mapping") or {}
+        if for_check and isinstance(mapping.get("values", {}).get(str(value)), list):
+            return raw["id"], value, mapping
+        return raw["id"], camera_value(mapping, value, raw), mapping
+
+    def _check_camera_profile_open(self, profile, mode):
+        report = {"profile_id": profile.get("id"), "profile_name": profile.get("name", ""),
+                  "mode": mode, "checked": [], "mismatches": [], "errors": []}
+        for parameter in profile.get("parameters", {}).values():
+            setting = self._profile_mode_setting(parameter, mode)
+            if not setting or not setting.get("check"):
+                continue
+            item = {"id": parameter.get("id"),
+                    "occurrence": parameter.get("occurrence", 0),
+                    "label": parameter.get("label") or parameter.get("id"),
+                    "expected": self._camera_config_value(setting.get("value")),
+                    "blocking": bool(setting.get("blocking"))}
+            try:
+                name, expected, mapping = item["id"], item["expected"], None
+                if parameter.get("kind") == "logical":
+                    name, expected, mapping = self._resolve_logical_parameter(parameter, item["expected"], profile, for_check=True)
+                    item["kind"] = "logical"
+                widget = self._camera.get_single_config(name)
+                item["actual"] = self._camera_config_value(widget.get_value())
+                matches = str(item["actual"]) == str(expected)
+                if name.rsplit("/", 1)[-1] == "exposurecompensation":
+                    actual, expected = float(item["actual"]), float(expected)
+                    if not (-float("inf") < actual < float("inf") and -float("inf") < expected < float("inf")):
+                        raise ValueError("Exposure compensation is not a finite number")
+                    matches = actual == expected
+                if mapping is not None:
+                    aliases = mapping.get("values", {}).get(str(item["expected"]))
+                    if isinstance(aliases, list):
+                        matches = any(str(item["actual"]).casefold() == str(alias).casefold() for alias in aliases)
+                    item["actual"] = logical_value(mapping, item["actual"])
+                if matches:
+                    report["checked"].append(item)
+                else:
+                    report["mismatches"].append(item)
+            except Exception as error:
+                item["error"] = str(error)
+                report["errors"].append(item)
         report["ok"] = not report["mismatches"] and not report["errors"]
         report["blocking"] = [item for item in report["mismatches"] + report["errors"]
                               if item["blocking"]]
         return report
 
     def apply_camera_profile(self, profile, camera_id, mode):
-        """Apply writable settings for one profile state, then verify checks."""
+        """Apply only parameter values and checks; never enter another mapping."""
         if not camera_id:
             raise CameraControlError("Select a camera before applying its profile")
         if self._capture_in_progress:
             raise CameraControlError("Capture in progress")
-        report = {"profile_id": profile.get("id"), "profile_name": profile.get("name", ""),
-                  "mode": mode, "set": [], "unchanged": [], "errors": []}
         self._acquire_capture_lock("profile_apply")
         try:
             self._open_camera(camera_id)
-            config = self._camera.get_config()
-            changed = False
-            for parameter in profile.get("parameters", {}).values():
-                setting = self._profile_mode_setting(parameter, mode)
-                if not setting or not setting.get("set"):
-                    continue
-                item = {"id": parameter.get("id"), "label": parameter.get("label") or parameter.get("id"),
-                        "value": self._camera_config_value(setting.get("value"))}
-                try:
-                    name = item["id"].rsplit("/", 1)[-1]
-                    status, widget = gp.gp_widget_get_child_by_name(config, name)
-                    if status < gp.GP_OK:
-                        raise CameraControlError("Camera parameter is not available")
-                    if widget.get_readonly():
-                        raise CameraControlError("Camera parameter is read-only")
-                    item["actual"] = self._camera_config_value(widget.get_value())
-                    if str(item["actual"]) == str(item["value"]):
-                        report["unchanged"].append(item)
-                        continue
-                    logging.getLogger().info(
-                        "Camera profile %s: %s (%s) %r -> %r",
-                        mode, item["label"], item["id"], item["actual"], item["value"])
-                    widget.set_value(item["value"])
-                    changed = True
-                    report["set"].append(item)
-                except Exception as error:
-                    item["error"] = str(error)
-                    report["errors"].append(item)
-            if changed:
-                changes = ", ".join(
-                    "%s (%r -> %r)" % (item["id"], item["actual"], item["value"])
-                    for item in report["set"])
-                logging.getLogger().debug(
-                    "Camera profile %s: gp_camera_set_config() for %d changed value(s): %s",
-                    mode, len(report["set"]), changes)
-                self._camera.set_config(config)
-                logging.getLogger().debug("Camera profile %s: gp_camera_set_config() completed", mode)
-                self._read_camera_config_catalog()
+            return self._apply_camera_profile_open(profile, mode)
         finally:
             self._close_camera()
             self._release_capture_lock("profile_apply")
-        report["check"] = self.check_camera_profile(profile, camera_id, mode)
+
+    def _apply_camera_profile_open(self, profile, mode):
+        report = {"profile_id": profile.get("id"), "profile_name": profile.get("name", ""),
+                  "mode": mode, "set": [], "unchanged": [], "errors": []}
+        for parameter in profile.get("parameters", {}).values():
+            setting = self._profile_mode_setting(parameter, mode)
+            if not setting or not setting.get("set"):
+                continue
+            item = {"id": parameter.get("id"), "label": parameter.get("label") or parameter.get("id"),
+                    "value": self._camera_config_value(setting.get("value"))}
+            try:
+                name = item["id"].rsplit("/", 1)[-1]
+                if parameter.get("kind") == "logical":
+                    name, item["value"], _ = self._resolve_logical_parameter(parameter, item["value"], profile)
+                    item["kind"] = "logical"
+                widget = self._camera.get_single_config(name)
+                if widget.get_readonly():
+                    raise CameraControlError("Camera parameter is read-only")
+                item["actual"] = self._camera_config_value(widget.get_value())
+                if str(item["actual"]) == str(item["value"]):
+                    report["unchanged"].append(item)
+                    continue
+                logging.getLogger().info(
+                    "Camera profile %s: %s (%s) %r -> %r",
+                    mode, item["label"], item["id"], item["actual"], item["value"])
+                # Retry only an absolute profile value, never an action such
+                # as shutter release or relative focus movement.
+                for attempt in range(21):
+                    widget.set_value(item["value"])
+                    try:
+                        self._camera.set_single_config(name, widget)
+                        break
+                    except gp.GPhoto2Error as error:
+                        if error.code != gp.GP_ERROR_CAMERA_BUSY or attempt == 20:
+                            raise
+                        logging.getLogger().debug(
+                            "Camera profile %s: %s busy, retry %d/20",
+                            mode, name, attempt + 1)
+                        time.sleep(0.1)
+                report["set"].append(item)
+                logging.getLogger().debug("Camera profile %s: %s applied", mode, name)
+            except Exception as error:
+                item["error"] = str(error)
+                report["errors"].append(item)
+                logging.getLogger().exception("Camera profile %s: %s failed", mode, item["id"])
+                break
+        report["check"] = self._check_camera_profile_open(profile, mode)
+        self._read_camera_config_catalog()
+        report["metering"] = self.get_metering_values()
+        return report
+
+    def enter_camera_profile(self, profile, camera_id, mode, mapping=None):
+        action = PROFILE_ENTRY_ACTIONS.get(mode)
+        if action not in (mapping or {}).get("actions", {}):
+            return self.apply_camera_profile(profile, camera_id, mode)
+        result = self.run_camera_action(camera_id, mapping, action, profile=profile, profile_mode=mode)
+        report = next(step["profile"] for step in result["steps"] if "profile" in step)
+        report["actions"] = [{"mapping_id": mapping.get("id"), "action": action}]
+        report["metering"] = result["metering"]
         return report
 
     def begin_camera_profile_transaction(self, profile, camera_id, mode="calibration"):
@@ -689,7 +746,7 @@ class CameraWrapper:
             result["warning"] = "Camera settings could not be fully restored; the camera may have been disconnected or switched off."
         return result
 
-    def run_camera_action(self, camera_id, mapping, action):
+    def run_camera_action(self, camera_id, mapping, action, profile=None, profile_mode=None, mode=None):
         """Run one named camera-mapping action without capturing."""
         if not camera_id:
             raise CameraControlError("Select a camera before running an action")
@@ -698,19 +755,41 @@ class CameraWrapper:
         if self._capture_in_progress:
             raise CameraControlError("Capture in progress")
         steps = mapping.get("actions", {}).get(action, {}).get("steps", [])
-        if not isinstance(steps, list) or not any(step.get("id") for step in steps if isinstance(step, dict)):
+        modes = mapping.get("actions", {}).get(action, {}).get("modes")
+        if modes is not None and ("mf" if mode == "focus" else mode) not in modes:
+            raise CameraControlError("Camera action %s is not available in mode %s" % (action, mode))
+        validate_camera_action_steps(action, steps)
+        if not isinstance(steps, list) or not steps:
             raise CameraControlError("The selected mapping has no %s action" % action)
+        profile_steps = sum(isinstance(step, dict) and step.get("apply_profile") is True for step in steps)
+        if action in PROFILE_ENTRY_ACTIONS.values():
+            if profile_steps != 1 or profile is None or PROFILE_ENTRY_ACTIONS.get(profile_mode) != action:
+                raise CameraControlError("Entry action requires one Apply profile parameters step and a matching target mode")
+        elif profile_steps:
+            raise CameraControlError("Apply profile parameters is only supported in profile entry actions")
         self._acquire_capture_lock()
         self._capture_in_progress = True
         self._camera_action = action.replace("_", "-")
         self._broadcast_capture_status_from_event()
+        phase = "opening camera"
         try:
             self._open_camera(camera_id)
             try:
                 performed = []
-                for step in steps:
+                for index, step in enumerate(steps, 1):
+                    phase = f"step {index}/{len(steps)}: {step!r}"
+                    logging.getLogger().debug("Camera action %s: %s", action, phase)
                     if not isinstance(step, dict):
                         raise CameraControlError("Invalid camera-action step")
+                    if step.get("apply_profile") is True:
+                        report = self._apply_camera_profile_open(profile, profile_mode)
+                        if report["errors"]:
+                            details = "; ".join(
+                                f"{item.get('label') or item.get('id')}: {item.get('error')}"
+                                for item in report["errors"])
+                            raise CameraControlError("Profile parameters failed; remaining mapping steps were not executed: " + details)
+                        performed.append({"profile": report})
+                        continue
                     if "delay_ms" in step:
                         delay_ms = step["delay_ms"]
                         if not isinstance(delay_ms, (int, float)) or isinstance(delay_ms, bool):
@@ -730,6 +809,7 @@ class CameraWrapper:
                     widget.set_value(value)
                     self._camera.set_config(config)
                     performed.append({"id": identifier, "value": value})
+                phase = "refreshing configuration after all steps"
                 self._read_camera_config_catalog()
                 return {
                     "mapping_id": mapping.get("id"),
@@ -739,16 +819,15 @@ class CameraWrapper:
                 }
             finally:
                 self._close_camera()
+        except Exception as error:
+            message = f"Camera action {action}, {phase}: {error}"
+            logging.getLogger().exception(message)
+            raise CameraControlError(message) from error
         finally:
             self._camera_action = None
             self._capture_in_progress = False
             self._broadcast_capture_status_from_event()
             self._release_capture_lock()
-
-    def half_press(self, camera_id, mapping):
-        """Compatibility wrapper for the legacy HALF_PRESS websocket command."""
-        return self.run_camera_action(camera_id, mapping, "half_press")
-
 
     def _open_camera(self, camera_id):
         #logging.getLogger().debug("open_camera:camera.acquire")
@@ -891,15 +970,18 @@ class CameraWrapper:
 
         return {"camera_list": result}
 
-    def set_camera(self, camera_id, include_config=False):
+    def set_camera(self, camera_id, include_config=False, mapping=None):
         # TODO: unselect/stop preview, ...
         if camera_id == "":
             return
         self._open_camera(camera_id)
         try:
+            # Keep this in the explicit selection flow, not _open_camera:
+            # internal config reads and actions also acquire camera sessions.
+            if "after_open" in (mapping or {}).get("actions", {}):
+                self.run_camera_action(camera_id, mapping, "after_open")
             result = {"model": self._camera_model, "id": self._camera_id, "battery": self._camera_battery}
             result["config_catalog_count"] = len(self._camera_config_catalog)
-            result["half_press"] = self.get_half_press_capability()
             if include_config:
                 result["camera_config"] = self.get_camera_config()
             result["device_type"] = self._camera_abilities.device_type
@@ -1996,6 +2078,44 @@ class CameraWrapper:
         logging.getLogger().debug(f"targetinfo: %s" % info)
         return info["filesystems"][0]
 
+    def analyze_archived_preview(self, image_name):
+        """Analyze the saved source JPEG and atomically update its sidecar."""
+        from pathlib import Path
+        import tempfile
+        if "digie35image" not in globals():
+            raise CameraControlError("Image analyzer is disabled")
+        if not isinstance(image_name, str) or len(image_name.split("/")) != 3 or "\\" in image_name:
+            raise CameraControlError("Invalid preview name")
+        if any(part in ("", ".", "..") for part in image_name.split("/")):
+            raise CameraControlError("Invalid preview name")
+        root = Path(self._get_path("", preview=True)).resolve()
+        image_path = (root / (image_name + ".preview.jpg")).resolve()
+        info_path = (root / (image_name + ".preview.json")).resolve()
+        if not image_path.is_relative_to(root) or not info_path.is_relative_to(root):
+            raise CameraControlError("Invalid preview path")
+        if not image_path.is_file() or not info_path.is_file():
+            raise CameraControlError("A saved preview and its metadata are required; this preview may only be cached")
+        analyzer = digie35image.ImageAnalysis(image_path.read_bytes())
+        analyzer.analyze()
+        vision = analyzer.get_result()
+        with info_path.open(encoding="utf-8") as source:
+            metadata = json.load(source)
+        metadata["vision"] = vision
+        content = json.dumps(metadata, ensure_ascii=False, indent=2, cls=digie35image.NumpyEncoder)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=info_path.parent, delete=False) as target:
+                temporary = target.name
+                target.write(content)
+            os.replace(temporary, info_path)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
+        cached = self._snapshot_list.get(image_name) if self._snapshot_list else None
+        if cached is not None:
+            cached["json"] = json.loads(content)
+        return {"image_name": image_name, "vision": vision}
+
     def analyze(self, **kwargs):
         if not "digie35image" in globals():
             raise CameraControlError(f"Image analyzer is disabled")
@@ -2218,13 +2338,16 @@ async def ws_control_handler(websocket, path):
                         case "LIST_CAMERAS":
                             reply = camera.list_cameras()
                         case "SET_CAMERA":
-                            reply = safe_call(camera.set_camera, **params)
+                            mapping_id = params.pop("mapping_id", None)
+                            mapping = camera_mappings.get(mapping_id) if mapping_id else None
+                            reply = safe_call(camera.set_camera, mapping=mapping, **params)
                         case "GET_CAMERA_CONFIG":
                             reply = camera.get_camera_config()
                         case "REFRESH_CAMERA_CONFIG":
                             reply = camera.refresh_camera_config(params.get("camera_id"))
                         case "LIST_CAMERA_PROFILES":
                             reply = camera_profiles.list()
+                            reply["default_profile"] = camera._match_default_camera_profile(use_camera=False)
                         case "SAVE_CAMERA_PROFILE":
                             reply = camera_profiles.save(params.get("profile"))
                         case "DELETE_CAMERA_PROFILE":
@@ -2246,15 +2369,14 @@ async def ws_control_handler(websocket, path):
                             profile = params.get("profile")
                             if profile is None:
                                 profile = camera_profiles.get(params.get("id"))
-                            reply = camera.apply_camera_profile(
-                                profile, params.get("camera_id"), params.get("mode"))
-                        case "HALF_PRESS":
-                            mapping = camera_mappings.get(params.get("mapping_id"))
-                            reply = camera.half_press(params.get("camera_id"), mapping)
+                            mode = params.get("mode")
+                            mapping = camera_mappings.get(params["mapping_id"]) if params.get("mapping_id") else None
+                            reply = camera.enter_camera_profile(
+                                profile, params.get("camera_id"), mode, mapping=mapping)
                         case "RUN_CAMERA_ACTION":
                             mapping = camera_mappings.get(params.get("mapping_id"))
                             reply = camera.run_camera_action(
-                                params.get("camera_id"), mapping, params.get("action"))
+                                params.get("camera_id"), mapping, params.get("action"), mode=params.get("mode"))
 
                         case "START_PREVIEW":
                             digitizer.prolongBacklight()
@@ -2314,6 +2436,13 @@ async def ws_control_handler(websocket, path):
                             reply = {"verbosity": logger_helper.getLevel()}
                         case "ANALYZE":
                             reply = camera.analyze(**params)
+                        case "ANALYZE_ARCHIVED_PREVIEW":
+                            try:
+                                reply = await asyncio.to_thread(camera.analyze_archived_preview, params.get("image_name"))
+                            except Exception as error:
+                                logging.getLogger().exception("Archived preview analysis failed")
+                                reply = {"image_name": params.get("image_name"), "error": str(error)}
+                            reply["request_id"] = params.get("request_id")
                         case "ANALYZE_FOCUS":
                             reply = camera.analyze_focus(**params)
                         case "HELLO" | "HOTPLUG":

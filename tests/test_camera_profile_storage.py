@@ -41,3 +41,8 @@ class CameraProfileStorageTests(unittest.TestCase):
     def test_rejects_a_path_instead_of_a_uuid(self):
         with self.assertRaises(ValueError):
             self.profiles.delete("../../profile")
+
+    def test_saving_removes_superseded_mapping_references(self):
+        saved = self.profiles.save({"schema_version": 1, "name": "MF profile", "parameters": {},
+                                    "mode_actions": {"mf": {"mapping_id": "old", "action": "old"}}})["saved_profile"]
+        self.assertNotIn("mode_actions", self.profiles.get(saved["id"]))

@@ -44,6 +44,20 @@
             text-align: center;
         }
 
+        .compact-button-row:not([hidden]) {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.2em;
+        }
+
+        .compact-button-row > button {
+            margin: 0;
+            padding-inline: 0.35em;
+            white-space: nowrap;
+        }
+
         .vertical-spacer {
             padding-top: 3px;
             padding-bottom: 3px;
@@ -226,6 +240,22 @@
             border-top: 0;
         }
 
+        .camera-profile-metering-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .camera-profile-metering-row > label {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .camera-profile-metering-row > .parameter-action-buttons {
+            flex-shrink: 0;
+        }
+
         .camera-profile-parameter > .parameter-label {
             display: block;
             font-weight: bold;
@@ -336,6 +366,10 @@
             align-items: center;
             gap: 10px;
             font-size: 16px;
+        }
+
+        #camera-mapping-editor-modal [data-mapping-edit][hidden] {
+            display: none;
         }
 
         .form-group label {
@@ -1311,17 +1345,18 @@
                         <div id="camera-profile-mode" class="centered-btn vertical-spacer">
                             <label for="camera-profile-mode-mf" title="Apply the MF profile for manual-focus scanning. (Alt+1)" accesskey="1"><input type="radio" id="camera-profile-mode-mf" name="camera-profile-mode" value="mf" checked onchange="cameraProfiles.applySelectedMode()"> MF</label>
                             <label for="camera-profile-mode-af" title="Apply the AF profile for autofocus scanning. (Alt+2)" accesskey="2"><input type="radio" id="camera-profile-mode-af" name="camera-profile-mode" value="af" onchange="cameraProfiles.applySelectedMode()"> AF</label>
-                            <label for="camera-profile-mode-focus" title="Apply the Focus profile for manual focusing; typically MF with a wider aperture. (Alt+3)" accesskey="3"><input type="radio" id="camera-profile-mode-focus" name="camera-profile-mode" value="focus" onchange="cameraProfiles.applySelectedMode()"> Focus</label>
+                            <label for="camera-profile-mode-focus" title="Apply the MF Assist profile for manual focusing; typically MF with a wider aperture. (Alt+3)" accesskey="3"><input type="radio" id="camera-profile-mode-focus" name="camera-profile-mode" value="focus" onchange="cameraProfiles.applySelectedMode()"> MF Assist</label>
                             <small id="camera-profile-apply-status" class="hint" role="status" aria-live="polite"></small>
                         </div>
-                        <div id="camera-focus-actions" class="centered-btn vertical-spacer" hidden>
-                            <button id="focus-near-3-btn" data-camera-action="focus_near_3" title="Focus nearer - large step, (T)">&lt;&lt;&lt;</button>
-                            <button id="focus-near-2-btn" data-camera-action="focus_near_2" title="Focus nearer - medium step">&lt;&lt;</button>
-                            <button id="focus-near-1-btn" data-camera-action="focus_near_1" title="Focus nearer - small step (Shift+T)">&lt;</button>
-                            <label id="camera-autofocus-control" data-camera-action="autofocus" title="Enable autofocus; turn off to cancel autofocus"><input id="camera-af-cb" type="checkbox" onchange="cameraMappings.toggleAutofocus(this.checked)" /> AF</label>
-                            <button id="focus-far-1-btn" data-camera-action="focus_far_1" title="Focus farther - small step (Shift+U)">&gt;</button>
-                            <button id="focus-far-2-btn" data-camera-action="focus_far_2" title="Focus farther - medium step">&gt;&gt;</button>
-                            <button id="focus-far-3-btn" data-camera-action="focus_far_3" title="Focus farther - large step, (U)">&gt;&gt;&gt;</button>
+                        <div id="camera-focus-actions" class="compact-button-row vertical-spacer" hidden>
+                            <button id="focus-near-3-btn" data-camera-action="focus_near_3" title="Focus nearer - large step, (T)">↓₃</button>
+                            <button id="focus-near-2-btn" data-camera-action="focus_near_2" title="Focus nearer - medium step">↓₂</button>
+                            <button id="focus-near-1-btn" data-camera-action="focus_near_1" title="Focus nearer - small step (Shift+T)">↓₁</button>
+                            <button type="button" id="meter-exposure-btn" data-camera-action="meter_exposure" title="Meter exposure using the selected mapping (Shift+X)">AE</button>
+                            <button type="button" id="autofocus-btn" data-camera-action="autofocus" title="Run the Autofocus sequence from the selected mapping (Y)">AF</button>
+                            <button id="focus-far-1-btn" data-camera-action="focus_far_1" title="Focus farther - small step (Shift+U)">↑₁</button>
+                            <button id="focus-far-2-btn" data-camera-action="focus_far_2" title="Focus farther - medium step">↑₂</button>
+                            <button id="focus-far-3-btn" data-camera-action="focus_far_3" title="Focus farther - large step, (U)">↑₃</button>
                         </div>
                         <div class="centered-btn vertical-spacer">
                             <label for="capture-mode-single-rb" accesskey="n" title="It will capture one photo and move in case of Auto-move is set"><input type="radio" name="capture-mode" id="capture-mode-single-rb" value="single" checked />Si<u>n</u>gle</label>
@@ -1342,7 +1377,6 @@
                             </div>
                         </div>
                         <div class="vertical-spacer centered-btn">
-                            <button id="half-press-btn" title="Run the camera's remote half-press action. (Shift+X)" hidden>Half press</button>
                             <button id="shoot-btn" title="Capture one image using the selected shooting mode. (Numpad0, X)">Shoot!</button>
                         </div>
                     </div>
@@ -1376,12 +1410,13 @@
                             <label for="snapshot-focus-cb" accesskey="r" title="Measure contrast-detect focus at the selected marker"><input type="checkbox" id="snapshot-focus-cb" onchange="adjust_focus_score()"/>Focus sco<u>r</u>e</label>
                             <label for="snapshot-zoom-cb" accesskey="z" title="Magnify the latest analysis snapshot around the cursor or locked marker"><input type="checkbox" id="snapshot-zoom-cb" onchange="redraw_snapshot_marker()"/><u>Z</u>oom 4×</label>
                             <button id="snapshot-wb" type="button" disabled onclick="whiteBalance.start()" title="Select a reference point, RGB light mode and color profile before WB.">WB</button>
-                            <button id="snapshot-af" type="button" disabled onclick="window.autoFocus.start()" title="Select Focus mode, a point in the preview and a camera mapping with focus-near and focus-far commands.">AF</button>
+                            <button id="snapshot-af" type="button" disabled onclick="window.autoFocus.start()" title="Select MF Assist mode, a point in the preview and a camera mapping with focus-near and focus-far commands.">AF</button>
                         </div>
                         </details>
                     </div>
                     <div id="stream-container" class="media-container grey-border" data-sibling="stream-strip-container">
                         <img id="stream" onload="do_imgok();" onerror="do_imgerror();" />
+                        <canvas id="snapshot-analysis" class="hidden" style="pointer-events:none"></canvas>
                         <canvas id="snapshot" class="hidden"></canvas>
                         <div id="snapshot-info" hidden>
                             <canvas id="snapshot-loupe" width="144" height="144"></canvas>
@@ -1578,7 +1613,7 @@
                     <div class="form-group vertical-spacer"><div class="input-row">
                         <label for="notify-camera-mode-cb" accesskey="f">Notify <u>f</u>ocus changes</label>
                         <div class="switch-container"><label class="switch"><input type="checkbox" id="notify-camera-mode-cb" value="1" /><span class="slider round"></span></label></div>
-                    </div><small class="hint">Show the applied AF, MF, or Focus state full-screen after a successful camera profile change.</small></div>
+                    </div><small class="hint">Show the applied AF, MF, or MF Assist state full-screen after a successful camera profile change.</small></div>
                     <small id="camera-profile-status" class="hint" role="status" aria-live="polite"></small></div>
                 </div>
             </div>
@@ -1590,7 +1625,7 @@
                     <div id="camera-profile-editor">
                         <div class="form-group vertical-spacer"><div class="input-row">
                             <label for="camera-profile-name" accesskey="n">Profile <u>n</u>ame</label>
-                            <input id="camera-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" placeholder="Enter profile name..." />
+                            <input id="camera-profile-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" placeholder="Enter profile name..." oninput="if (cameraProfiles.draft) cameraProfiles.draft.name = this.value" />
                         </div></div>
                         <div class="form-group vertical-spacer"><div class="input-row">
                             <label>Mode</label>
@@ -1598,17 +1633,18 @@
                                 <button type="button" data-mode="default" onclick="cameraProfiles.selectMode('default')">Default</button>
                                 <button type="button" data-mode="af" onclick="cameraProfiles.selectMode('af')">AF</button>
                                 <button type="button" data-mode="mf" onclick="cameraProfiles.selectMode('mf')">MF</button>
-                                <button type="button" data-mode="focus" onclick="cameraProfiles.selectMode('focus')">Focus</button>
+                                <button type="button" data-mode="focus" onclick="cameraProfiles.selectMode('focus')">MF Assist</button>
                                 <button type="button" data-mode="calibration" onclick="cameraProfiles.selectMode('calibration')">Calibration</button>
                                 <button type="button" data-mode="off" onclick="cameraProfiles.selectMode('off')">Disconnect</button>
+                                <button type="button" data-mode="metering" onclick="cameraProfiles.selectMode('metering')">Metering</button>
                             </div>
-                        </div><small class="hint">Default is shared by every state. AF and MF are used for normal scanning; Focus is the temporary f/2.8 manual-focusing state; Calibration is applied temporarily while measuring the backlight and then restored; Disconnect is applied before the camera is deselected. Each state contains only values that override Default.</small></div>
+                        </div><small class="hint">Default is shared by every state. AF and MF are used for normal scanning; MF Assist is the temporary f/2.8 manual-focusing state; Calibration is applied temporarily while measuring the backlight and then restored; Disconnect is applied before the camera is deselected. Each state contains only values that override Default.</small></div>
                         <div class="form-group vertical-spacer"><div class="input-row">
                             <label for="camera-profile-add-parameter" accesskey="a"><u>A</u>dd parameter</label>
                             <select id="camera-profile-add-parameter" style="flex:1; min-width:0"></select>
-                            <button type="button" onclick="cameraProfiles.addParameter()">Add</button>
+                            <button id="camera-profile-add-button" type="button" onclick="cameraProfiles.addParameter()">Add</button>
                         </div><small id="camera-profile-camera-info" class="hint"></small></div>
-                        <div class="input-row"><button type="button" onclick="cameraProfiles.checkDraft()">Check current mode</button><button type="button" onclick="cameraProfiles.refreshCameraConfig()">Refresh camera parameters</button></div>
+                        <div class="input-row"><button id="camera-profile-check-button" type="button" onclick="cameraProfiles.checkDraft()">Check current mode</button><button type="button" onclick="cameraProfiles.refreshCameraConfig()">Refresh camera parameters</button></div>
                         <div id="camera-profile-parameters" class="vertical-spacer"></div>
                         <div class="input-row camera-profile-editor-buttons">
                             <button type="button" onclick="cameraProfiles.saveChanges()">Save changes</button>
@@ -1633,22 +1669,24 @@
         <div id="camera-mapping-editor-modal" class="modal-overlay">
             <div class="modal-container">
                 <div class="modal">
-                    <div class="header"><span class="title">Camera mapping</span><button class="close" onclick="cameraMappings.cancel(event)">&times;</button></div>
+                    <div class="header"><span id="camera-mapping-editor-title" class="title">Camera mapping</span><button class="close" onclick="cameraMappings.cancel(event)">&times;</button></div>
                     <div class="content">
                         <div class="form-group vertical-spacer">
                             <div class="input-row"><label for="camera-mapping-name" accesskey="n"><u>N</u>ame</label><input id="camera-mapping-name" maxlength="100" style="flex:1" placeholder="Enter mapping name..." /></div>
                         </div>
                         <div class="form-group vertical-spacer">
-                            <div class="input-row"><label for="camera-mapping-action">Action</label><select id="camera-mapping-action" style="flex:1" onchange="cameraMappings.selectAction(this.value)"><option value="half_press">Half press</option><option value="autofocus">Autofocus</option><option value="cancel_autofocus">Cancel autofocus</option><option value="focus_near_1">Focus nearer &mdash; small step</option><option value="focus_near_2">Focus nearer &mdash; medium step</option><option value="focus_near_3">Focus nearer &mdash; large step</option><option value="focus_far_1">Focus farther &mdash; small step</option><option value="focus_far_2">Focus farther &mdash; medium step</option><option value="focus_far_3">Focus farther &mdash; large step</option></select><button type="button" onclick="cameraMappings.removeAction()">Remove</button></div>
-                            <small class="hint mapping-action-hint">Each action runs its steps in sequence without taking a picture. Unconfigured actions are not available in the camera controls.</small>
+                            <div class="input-row"><label accesskey="a"for="camera-mapping-action"><u>A</u>ction</label><select id="camera-mapping-action" style="flex:1" onchange="cameraMappings.selectAction(this.value)"></select><button type="button" data-mapping-edit onclick="cameraMappings.removeAction()">Remove</button></div>
+                            <small class="hint mapping-action-hint">Steps run in order. Enter MF profile is shared by MF and MF Assist; Enter AF profile is used by AF. Put Apply profile parameters where the target mode's values should be applied. Without an entry action, only profile parameters are applied.</small>
                         </div>
-                        <div id="camera-mapping-steps" class="vertical-spacer"></div>
+                        <fieldset id="camera-mapping-steps" class="vertical-spacer" style="border:0; padding:0; min-width:0"></fieldset>
+                        <div id="camera-mapping-mode-row" class="input-row"><label for="camera-mapping-modes">Available in</label><select id="camera-mapping-modes" onchange="cameraMappings.setModes(this.value)"><option value="">MF and AF</option><option value="mf">MF (including MF Assist)</option><option value="af">AF</option></select></div>
+                        <small id="camera-mapping-editor-status" class="hint"></small>
                         <div class="vertical-spacer"></div>
                         <div class="form-group vertical-spacer">
-                            <div class="input-row"><label for="camera-mapping-add-step" accesskey="a"><u>A</u>dd step</label><select id="camera-mapping-add-step" style="flex:1"><option value="set">Set camera parameter</option><option value="delay">Wait</option></select><button type="button" onclick="cameraMappings.addStep()">Add</button></div>
+                            <div class="input-row" data-mapping-edit><label for="camera-mapping-add-step" accesskey="a"><u>A</u>dd step</label><select id="camera-mapping-add-step" style="flex:1"><option value="set">Set camera parameter</option><option value="delay">Wait</option></select><button type="button" onclick="cameraMappings.addStep()">Add</button></div>
                         </div>
                         <div class="camera-profile-parameter">
-                            <div class="input-row camera-profile-editor-buttons"><button type="button" onclick="cameraMappings.save()">Save changes</button><button type="button" onclick="cameraMappings.cancel()">Cancel</button></div>
+                            <div class="input-row camera-profile-editor-buttons"><button type="button" data-mapping-edit onclick="cameraMappings.save()">Save changes</button><button id="camera-mapping-editor-close" type="button" onclick="cameraMappings.cancel()">Cancel</button></div>
                         </div>
                     </div>
                 </div>
@@ -2027,7 +2065,7 @@
                 <div class="content">
                     <div class="form-group">
                     <div style="display:flex; align-items:center; gap:8px">
-                        <label for="led-preset-name">Preset name</label>
+                        <label for="led-preset-name" accesskey="n">Preset <u>n</u>ame</label>
                         <input id="led-preset-name" type="text" maxlength="100" autocomplete="off" style="flex:1; min-width:0" />
                         <button id="led-preset-save" type="button" onclick="ledPresets.save()">Save</button>
                     </div>
@@ -2211,6 +2249,8 @@
                     <div id="archived-image-error" class="error-message"><span class="icon">&#x26a0;</span>Image is not available</div>
                     <div class="inline-container">
                         <div id="archived-image-control" class="control">
+                            <button type="button" id="archived-image-run-analysis" onclick="analyze_archived_preview()" title="Analyze the saved preview and save the result">Run analysis</button>
+                            <small id="archived-image-analysis-status" role="status"></small>
                             <label for="archived-image-analyze-cb" accesskey="l" title="Show image analyze"><input type="checkbox" id="archived-image-analyze-cb" onchange="adjust_archived_image_mode()" />Ana<u>l</u>yze</label>
                             <label for="archived-image-invert-cb" accesskey="i" title="Invert preview"><input type="checkbox" id="archived-image-invert-cb" value="invert" onchange="adjust_media_viewer('archived-image')" /><u>I</u>nvert</label>
                             <div id="archived-image-no-analyze-control" class="inline-block">
@@ -2272,7 +2312,6 @@
         const project_list = document.getElementById("project-list");
         const film_list = document.getElementById("film-list");
         const usb_preview_checkbox = document.getElementById("usb-preview-cb");
-        const half_press_button = document.getElementById("half-press-btn");
 
         if (camera_list.selectedIndex == 0) {
             update_battery();
@@ -2394,23 +2433,17 @@
         shoot_button.disabled = Boolean(window.camera_capture_in_progress) || (camera_list.value == "") || (project_list.value == "") || (film_list.value == "") || !volume || !abilities ||
             elem.selectedIndex < 0 || elem.options[elem.selectedIndex].disabled;
         const mapping = window.cameraMappings?.selected?.();
-        const half_press_known = mapping?.actions?.half_press?.steps?.some(step => step?.id && step.value !== undefined);
-        half_press_button.hidden = false;
-        half_press_button.disabled = shoot_button.disabled || !half_press_known || Boolean(window.half_press_in_progress);
-        const camera_mode_busy = Boolean(window.camera_capture_in_progress || window.half_press_in_progress);
+        const camera_mode_busy = Boolean(window.camera_capture_in_progress || window.camera_action_in_progress);
         document.querySelectorAll("input[name='camera-profile-mode']").forEach(button => button.disabled = camera_mode_busy);
         const focus_actions = document.getElementById("camera-focus-actions");
         const focus_action_base_disabled = !connected || !abilities || camera_list.value == "" || camera_mode_busy;
         let focus_action_available = false;
         focus_actions.querySelectorAll("[data-camera-action]").forEach(control => {
             const action = control.dataset.cameraAction;
-            const known = action === "autofocus"
-                ? mapping?.actions?.autofocus?.steps?.some(step => step?.id && step.value !== undefined)
-                    && mapping?.actions?.cancel_autofocus?.steps?.some(step => step?.id && step.value !== undefined)
-                : mapping?.actions?.[action]?.steps?.some(step => step?.id && step.value !== undefined);
+            const known = Boolean(mapping?.actions?.[action]?.steps?.length);
             control.hidden = !known;
             const input = control.matches("label") ? control.querySelector("input") : control;
-            input.disabled = focus_action_base_disabled || !known;
+            input.disabled = focus_action_base_disabled || !known || !window.cameraMappings.modeAllowed(mapping.actions[action]);
             focus_action_available ||= Boolean(known);
         });
         focus_actions.hidden = !focus_action_available;
@@ -2462,7 +2495,8 @@
             document.getElementById("header-motion-name").textContent = !fs.disabled &&  action_elem ? action_elem.textContent : "";
             if (typeof data.camera_action != "undefined") {
                 adjust_class("shoot", "", data.camera_action == "shoot");
-                adjust_class("half-press", "", data.camera_action == "half-press");
+                adjust_class("meter-exposure", "", data.camera_action == "meter-exposure");
+                adjust_class("autofocus", "", data.camera_action === "autofocus");
                 Object.keys(window.adapter_buttons).filter(action => action.startsWith("focus-")).forEach(action =>
                     adjust_class(action, "", data.camera_action === action));
             } else if (typeof data.capturing != "undefined") {
@@ -3105,7 +3139,7 @@
                                 })
                                 adjust_camera_list(current_camera_id);
                                 if (elem.selectedIndex > 0 /*typeof pend != typeof window.pending_settings["camera-list"]*/ ) {
-                                    sendCommand("SET_CAMERA", ["camera-list"]);
+                                    cameraMappings.openCamera();
                                 }
                             }
                             if (typeof data.payload.project_list != "undefined") {
@@ -3142,10 +3176,12 @@
                                 update_battery(data.payload.battery);
                                 adjust_capabilities(false);
                                 adjust_camera_preview(false)
-                            } else if (data.cmd == "HALF_PRESS" || data.cmd == "RUN_CAMERA_ACTION") {
-                                window.half_press_in_progress = false;
+                            } else if (data.cmd == "ANALYZE_ARCHIVED_PREVIEW") {
+                                receive_archived_analysis(data.payload);
+                            } else if (data.cmd == "RUN_CAMERA_ACTION") {
+                                window.camera_action_in_progress = false;
                                 window.camera_capture_in_progress = false;
-                                if (data.cmd == "RUN_CAMERA_ACTION") cameraMappings.actionFinished();
+                                cameraMappings.actionFinished();
                             } else if (data.cmd == "GET_CAMERA_CONFIG" || data.cmd == "REFRESH_CAMERA_CONFIG") {
                                 cameraProfiles.receiveCameraConfig(data.payload);
                             } else if (data.cmd == "CHECK_CAMERA_PROFILE") {
@@ -3323,11 +3359,10 @@
                     }
                     // console.debug(data);  it leaks likely memory as data are kept in memory till log entry exists
                 } else {
-                    if (window.half_press_in_progress) {
+                    if (window.camera_action_in_progress) {
                         cameraMappings.lastActionError = event.data;
-                        window.half_press_in_progress = false;
+                        window.camera_action_in_progress = false;
                         window.camera_capture_in_progress = false;
-                        cameraMappings.actionFailed();
                         adjust();
                     }
                     update_status_info(event.data);
@@ -3706,6 +3741,27 @@
         }
         return analyze_mode.checked;
     }
+    function analyze_archived_preview() {
+        const button = document.getElementById("archived-image-run-analysis");
+        if (button.disabled || (!window.control_socket || window.control_socket.readyState !== window.control_socket.OPEN)) return;
+        const image_name = document.getElementById("archived-image-name").textContent;
+        const request_id = (window.archived_analysis_request_id || 0) + 1;
+        window.archived_analysis_request_id = request_id;
+        button.disabled = true;
+        document.getElementById("archived-image-analysis-status").textContent = "Analyzing…";
+        sendCommand("ANALYZE_ARCHIVED_PREVIEW", [], {image_name, request_id});
+    }
+
+    function receive_archived_analysis(result) {
+        if (result.request_id !== window.archived_analysis_request_id || result.image_name !== document.getElementById("archived-image-name").textContent) return;
+        document.getElementById("archived-image-run-analysis").disabled = false;
+        document.getElementById("archived-image-analysis-status").textContent = result.error || "Analysis saved.";
+        if (result.error) return;
+        window.archived_image_analysis = result.vision;
+        document.getElementById("archived-image-analyze-cb").checked = true;
+        adjust_archived_image_mode();
+    }
+
     function show_lightbox(image_name) {
         if (!image_name) {
             return;
@@ -3725,12 +3781,17 @@
         document.getElementById("archived-image-rotate0-rb").checked = true;
         document.getElementById("archived-image-analyze-cb").checked = false;
         window.archived_image_analysis = null;
+        window.archived_analysis_request_id = (window.archived_analysis_request_id || 0) + 1;
+        const analysisRequest = window.archived_analysis_request_id;
+        document.getElementById("archived-image-analysis-status").textContent = "";
+        document.getElementById("archived-image-run-analysis").disabled = (!window.control_socket || window.control_socket.readyState !== window.control_socket.OPEN) || !window.capabilities?.vision;
         adjust_archived_image_mode();
         adjust_media_viewer("archived-image");
 
         fetch(img.src+"?info=1")
             .then(res=>res.json())
             .then(data=>{
+                if (analysisRequest !== window.archived_analysis_request_id) return;
                 for (const key in cb_names) {
                     if (data[key] != "undefined") {
                         if (key == "rotation") {
@@ -3935,7 +3996,8 @@
             const actions = window.cameraMappings?.selected?.()?.actions || {};
             for (const level of [1, 2, 3]) {
                 const near = `focus_near_${level}`, far = `focus_far_${level}`;
-                if ([near, far].every(action => actions[action]?.steps?.some(step => step?.id && step.value !== undefined))) {
+                if ([near, far].every(action => actions[action]?.steps?.some(step => step?.id && step.value !== undefined)
+                    && (!actions[action].modes || actions[action].modes.includes("mf")))) {
                     return {near, far};
                 }
             }
@@ -3946,7 +4008,7 @@
                 && Boolean(this.pair()) && Boolean(window.snapshot_marker_position)
                 && Boolean(window.snapshot_frame) && Boolean(window.snapshot_canvas_ctx)
                 && Boolean(window.capabilities?.vision) && Boolean(window.control_socket?.readyState === window.control_socket.OPEN)
-                && !window.camera_capture_in_progress && !window.half_press_in_progress;
+                && !window.camera_capture_in_progress && !window.camera_action_in_progress;
         },
         update() {
             const button = document.getElementById("snapshot-af");
@@ -3954,7 +4016,7 @@
             button.textContent = this.running ? "Cancel AF" : "AF";
             button.disabled = !this.running && !this.available();
             button.title = this.running ? "Stop after the current focus step."
-                : "In Focus mode, find the contrast maximum at the selected preview marker.";
+                : "In MF assist mode, find the contrast maximum at the selected preview marker.";
         },
         sleep(milliseconds) { return new Promise(resolve => setTimeout(resolve, milliseconds)); },
         async waitFor(predicate, timeout, message) {
@@ -3967,6 +4029,8 @@
         },
         async waitForFrame(sequence) {
             await this.sleep(preview_settings().wb_delay);
+            // Discard frames received while the lens was moving/settling.
+            sequence = Math.max(sequence, window.snapshot_frame?.sequence ?? 0);
             await this.waitFor(() => (window.snapshot_frame?.sequence ?? 0) > sequence,
                 preview_settings().timeout, "No fresh preview after focus movement.");
         },
@@ -3977,23 +4041,14 @@
             return result.focus_score;
         },
         async move(action) {
+            if (this.cancelled) throw new Error("Autofocus cancelled.");
             const button = get_adapter_button(action.replaceAll("_", "-"), "");
             if (!button || button.disabled) throw new Error(`Focus action is unavailable: ${action}`);
-            const sequence = window.snapshot_frame?.sequence ?? 0;
             button.click(); // Use the normal control path so the active button is visible.
-            await this.waitFor(() => !window.camera_capture_in_progress && !window.half_press_in_progress,
+            await this.waitFor(() => !window.camera_capture_in_progress && !window.camera_action_in_progress,
                 10000, "Camera focus movement timed out.");
             if (cameraMappings.lastActionError) throw new Error(cameraMappings.lastActionError);
-            return this.score(sequence);
-        },
-        async disableCameraAutofocus() {
-            const checkbox = document.getElementById("camera-af-cb");
-            if (!checkbox?.checked) return;
-            checkbox.checked = false;
-            cameraMappings.toggleAutofocus(false);
-            await this.waitFor(() => !window.camera_capture_in_progress && !window.half_press_in_progress,
-                10000, "Cancelling camera autofocus timed out.");
-            if (cameraMappings.lastActionError) throw new Error(cameraMappings.lastActionError);
+            return this.score(window.snapshot_frame?.sequence ?? 0);
         },
         async run() {
             const pair = this.pair();
@@ -4001,18 +4056,30 @@
             document.getElementById("snapshot-focus-cb").checked = true;
             clear_focus_score();
             redraw_snapshot_marker();
-            await this.disableCameraAutofocus();
             const initialSequence = window.snapshot_frame?.sequence ?? 0;
             let best = {score: await this.score(initialSequence), position: 0};
             const startingScore = best.score;
             let position = 0;
+            let finalScore = startingScore;
             const better = score => score > best.score * 1.005;
             const step = async (action, delta) => {
                 const score = await this.move(action);
+                finalScore = score;
                 position += delta;
                 update_status_info(`AF: ${score.toFixed(1)} (${position > 0 ? "far" : position < 0 ? "near" : "start"})`, "AF");
                 if (better(score)) best = {score, position};
                 return score;
+            };
+            const finish = async (limited = false) => {
+                const target = best.position;
+                while (position !== target) {
+                    const delta = position < target ? 1 : -1;
+                    finalScore = await this.move(delta > 0 ? pair.far : pair.near);
+                    position += delta;
+                }
+                // Relative lens steps need not be perfectly reversible:
+                // report the measurement at the actual final position.
+                return {score: finalScore, bestScore: best.score, position, limited};
             };
 
             // Probe both sides of the starting position.  One action is used
@@ -4027,19 +4094,17 @@
                 if (nearScore > startingScore * 1.005) {
                     direction = pair.near;
                 } else {
-                    await step(pair.far, 1); // Leave the lens at the starting position.
-                    return best;
+                    return finish();
                 }
             }
-            const reverse = direction === pair.far ? pair.near : pair.far;
-            for (let count = 0; count < 8; count++) {
+            for (let count = 0; count < 32; count++) {
+                const previousBest = best.score;
                 const score = await step(direction, direction === pair.far ? 1 : -1);
-                if (score <= best.score * 1.005) {
-                    await step(reverse, reverse === pair.far ? 1 : -1);
-                    break;
+                if (score <= previousBest * 1.005) {
+                    return finish();
                 }
             }
-            return best;
+            return finish(true);
         },
         async start() {
             if (this.running) { this.cancelled = true; return; }
@@ -4050,7 +4115,7 @@
             try {
                 update_status_info("AF: measuring…", "AF");
                 const best = await this.run();
-                update_status_info(`AF: best score ${best.score.toFixed(1)}.`, "AF");
+                update_status_info(`AF: final score ${best.score.toFixed(1)}; best measured ${best.bestScore.toFixed(1)}.${best.limited ? " Search step limit reached." : ""}`, "AF");
             } catch (error) {
                 update_status_info(error.message, "AF");
             } finally {
@@ -4208,13 +4273,18 @@
     // The live image stays underneath; only the optional lens copies a snapshot.
     function redraw_snapshot_marker() {
         const ctx = window.snapshot_canvas_ctx;
+        const analysisCanvas = document.getElementById("snapshot-analysis");
+        const analysisCtx = analysisCanvas?.getContext?.("2d");
+        if (analysisCtx) {
+            analysisCtx.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
+            if (ctx && window.snapshot_analysis != null && document.getElementById("stream-vision-cb").checked) {
+                snapshot_draw_analysis(analysisCtx, window.snapshot_analysis);
+            }
+        }
         const source = window.snapshot_sample_ctx?.canvas;
         if (!ctx) { snapshot_draw_zoom(null, null); return; }
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         if (!source?.width || !source.height) { snapshot_draw_zoom(null, null); return; }
-        if (window.snapshot_analysis != null && document.getElementById("stream-vision-cb").checked) {
-            snapshot_draw_analysis(ctx, window.snapshot_analysis);
-        }
         const position = window.snapshot_marker_position ?? window.snapshot_cursor_position;
         if (position) {
             snapshot_draw_marker(ctx, position);
@@ -4519,6 +4589,12 @@
             canvas.width = img.clientWidth;
             canvas.height = img.clientHeight;
         }
+        const analysisCanvas = document.getElementById("snapshot-analysis");
+        if (analysisCanvas) {
+            for (const property of ["left", "top", "width", "height"]) analysisCanvas.style[property] = canvas.style[property];
+            analysisCanvas.width = canvas.width;
+            analysisCanvas.height = canvas.height;
+        }
         redraw_snapshot_marker();
     }
 
@@ -4529,6 +4605,7 @@
         const canvas = document.getElementById("snapshot");
         document.getElementById("snapshot-only-control").classList.toggle("hidden", !enabled);
         canvas.classList.toggle("hidden", !enabled);
+        document.getElementById("snapshot-analysis")?.classList.toggle("hidden", !enabled);
         if (window.autoFocus?.running) window.autoFocus.cancelled = true;
         window.snapshot_sample_ctx = null;
         window.snapshot_frame = null;
@@ -4560,21 +4637,18 @@
         window.cameraProfiles = createCameraProfiles();
         window.cameraProfiles.syncMode();
         window.cameraMappings = {
-            builtins: [], mappings: [], draft: null, deleteId: null, action: "half_press",
-            actionLabels: {
-                half_press: "Half press",
-                autofocus: "Autofocus",
-                cancel_autofocus: "Cancel autofocus",
-                focus_near_1: "Focus nearer \u2014 small step",
-                focus_near_2: "Focus nearer \u2014 medium step",
-                focus_near_3: "Focus nearer \u2014 large step",
-                focus_far_1: "Focus farther \u2014 small step",
-                focus_far_2: "Focus farther \u2014 medium step",
-                focus_far_3: "Focus farther \u2014 large step",
-            },
+            builtins: [], mappings: [], draft: null, deleteId: null, action: "meter_exposure",
+            actionLabels: {}, entryActions: {}, lastActions: {},
             refresh() { sendCommand("LIST_CAMERA_MAPPINGS"); },
+            openCamera() {
+                const mappingId = this.selected()?.id || localStorage.getItem("camera.mapping") || "";
+                sendCommand("SET_CAMERA", ["camera-list"], {include_config: true, mapping_id: mappingId});
+            },
             receive(data) {
                 this.builtins = data.builtins || []; this.mappings = data.mappings || [];
+                if (data.action_labels) this.actionLabels = data.action_labels;
+                if (data.profile_entry_actions) this.entryActions = data.profile_entry_actions;
+                if (this.draft) this.renderActionOptions();
                 const select = document.getElementById("camera-mapping-list");
                 const wanted = select.value || localStorage.getItem("camera.mapping") || "";
                 select.replaceChildren(new Option("No mapping", ""));
@@ -4590,62 +4664,159 @@
                 this.selectionChanged();
             },
             selected() { const id = document.getElementById("camera-mapping-list").value; return this.mappings.find(x => x.id === id) || this.builtins.find(x => x.id === id); },
-            selectionChanged() { const selected = this.selected(); localStorage.setItem("camera.mapping", selected?.id || ""); document.getElementById("camera-mapping-copy").disabled = !selected; document.getElementById("camera-mapping-edit").disabled = !this.mappings.includes(selected); document.getElementById("camera-mapping-delete").disabled = !this.mappings.includes(selected); adjust(); },
+            selectionChanged() { const selected = this.selected(); localStorage.setItem("camera.mapping", selected?.id || ""); document.getElementById("camera-mapping-copy").disabled = !selected; document.getElementById("camera-mapping-edit").disabled = !selected; document.getElementById("camera-mapping-edit").textContent = selected && !this.mappings.includes(selected) ? "View" : "Edit"; document.getElementById("camera-mapping-delete").disabled = !this.mappings.includes(selected); adjust(); },
+            modeAllowed(definition, mode = window.cameraProfiles?.selectedMode?.() || "mf") {
+                return !definition?.modes || definition.modes.includes(mode === "focus" ? "mf" : mode);
+            },
+            setModes(value) {
+                if (this.readOnly || !this.draft || this.isEntryAction() || this.action === "after_open") return;
+                const action = this.draft.actions[this.action] ||= {steps: []};
+                if (value) action.modes = [value];
+                else delete action.modes;
+            },
             runAction(action) {
                 const mapping = this.selected();
-                if (!mapping?.actions?.[action]?.steps?.some(step => step?.id && step.value !== undefined)) return;
+                if (!mapping?.actions?.[action]?.steps?.length || !this.modeAllowed(mapping.actions[action])) return;
                 this.lastActionError = null;
-                window.half_press_in_progress = true;
+                window.camera_action_in_progress = true;
                 window.camera_capture_in_progress = true;
                 adjust();
-                sendCommand("RUN_CAMERA_ACTION", ["camera-list"], {mapping_id: mapping.id, action});
+                sendCommand("RUN_CAMERA_ACTION", ["camera-list"], {mapping_id: mapping.id, action, mode: window.cameraProfiles?.selectedMode?.() || "mf"});
             },
-            toggleAutofocus(enabled) {
-                const action = enabled ? "autofocus" : "cancel_autofocus";
-                const mapping = this.selected();
-                if (!mapping?.actions?.[action]?.steps?.some(step => step?.id && step.value !== undefined)) {
-                    document.querySelector("#camera-autofocus-control input").checked = !enabled;
-                    return;
-                }
-                this.autofocusPrevious = !enabled;
-                this.runAction(action);
-            },
-            actionFinished() { this.autofocusPrevious = undefined; this.lastActionError = null; },
-            actionFailed() {
-                if (this.autofocusPrevious !== undefined) {
-                    document.querySelector("#camera-autofocus-control input").checked = this.autofocusPrevious;
-                }
-                this.autofocusPrevious = undefined;
-            },
-            open() {
-                this.draft.actions ||= {};
-                this.action = Object.keys(this.draft.actions)[0] || "half_press";
-                document.getElementById("camera-mapping-name").value = this.draft.name || "";
+            actionFinished() { this.lastActionError = null; },
+            renderActionOptions() {
                 const select = document.getElementById("camera-mapping-action");
-                if (!this.actionLabels[this.action]) {
-                    select.add(new Option(this.action, this.action));
-                }
+                const labels = this.readOnly ? {} : {...this.actionLabels};
+                Object.keys(this.draft?.actions || {}).forEach(action => labels[action] ||= this.actionLabels[action] || action);
+                select.replaceChildren(...Object.entries(labels).map(([id, label]) => new Option(label, id)));
                 select.value = this.action;
+            },
+            open(readOnly = false) {
+                this.readOnly = readOnly;
+                document.getElementById("camera-mapping-editor-title").textContent = readOnly ? "Camera mapping — view" : "Camera mapping";
+                document.getElementById("camera-mapping-name").readOnly = readOnly;
+                document.getElementById("camera-mapping-steps").disabled = readOnly;
+                document.getElementById("camera-mapping-editor-close").textContent = readOnly ? "Close" : "Cancel";
+                document.querySelectorAll("#camera-mapping-editor-modal [data-mapping-edit]").forEach(control => control.hidden = readOnly);
+                document.getElementById("camera-mapping-editor-status").textContent = readOnly ? "Built-in mapping. Use Copy to create an editable version." : "";
+                this.draft.actions ||= {};
+                const previous = this.lastActions[this.draft.id || "new"];
+                this.action = previous && Object.hasOwn(this.draft.actions, previous)
+                    ? previous : Object.keys(this.draft.actions)[0] || "meter_exposure";
+                document.getElementById("camera-mapping-name").value = this.draft.name || "";
+                this.renderActionOptions();
                 this.renderSteps();
                 show_modal("camera-mapping-editor-modal");
             },
             selectAction(action) {
                 this.action = action;
-                this.draft.actions[action] ||= {steps: []};
+                this.lastActions[this.draft.id || "new"] = action;
+                if (!this.readOnly) this.draft.actions[action] ||= {steps: this.isEntryAction(action) ? [{apply_profile: true}] : []};
                 this.renderSteps();
             },
             removeAction() {
-                if (!this.draft || !this.draft.actions?.[this.action]) return;
+                if (this.readOnly || !this.draft || !this.draft.actions?.[this.action]) return;
                 delete this.draft.actions[this.action];
-                this.action = Object.keys(this.draft.actions)[0] || "half_press";
+                this.action = Object.keys(this.draft.actions)[0] || "meter_exposure";
                 document.getElementById("camera-mapping-action").value = this.action;
                 this.renderSteps();
             },
+            isEntryAction(action = this.action) { return Object.values(this.entryActions).includes(action); },
+            parameterCatalog() {
+                const id = document.getElementById("camera-list").value;
+                const config = cameraProfiles.cameraConfig;
+                return id && config?.camera?.id === id ? config.parameters || [] : [];
+            },
+            writableParameters() {
+                return this.parameterCatalog().filter(item => !item.error && !item.readonly
+                    && (item.choices?.length || item.type_name === "toggle" || item.type_name === "range"))
+                    .sort((left, right) => (left.label || left.id).localeCompare(
+                        right.label || right.id, undefined, {numeric: true, sensitivity: "base"}));
+            },
+            updateAddStep() {
+                const select = document.getElementById("camera-mapping-add-step");
+                const option = Array.from(select.options).find(option => option.value === "set");
+                option.disabled = !this.writableParameters().length;
+                if (option.disabled && select.value === "set") select.value = "delay";
+            },
+            populateChoices(select, step, kind) {
+                const item = this.parameterCatalog().find(item => item.id === step.id);
+                if (kind === "parameter") {
+                    const options = this.writableParameters().map(item => new Option(`${item.label || item.name || item.id} (${item.id})`, item.id));
+                    if (!options.some(option => option.value === step.id)) {
+                        const missing = new Option(step.id ? `${step.id} (not available)` : "Select parameter…", step.id || "");
+                        missing.disabled = true;
+                        options.unshift(missing);
+                    }
+                    select.replaceChildren(...options);
+                    select.value = step.id || "";
+                    select.disabled = !this.writableParameters().length;
+                } else {
+                    const selected = String(step.value ?? "");
+                    const toggle = item?.type_name === "toggle";
+                    const choices = toggle ? ["0", "1"] : (item?.choices || []).map(String);
+                    if (!choices.includes(selected)) choices.unshift(selected);
+                    select.replaceChildren(...choices.map(choice => new Option(
+                        toggle && choice === "0" ? "Off" : toggle && choice === "1" ? "On" : choice, choice)));
+                    select.value = selected;
+                    select.disabled = !item || item.readonly || Boolean(item.error);
+                }
+            },
+            refreshChoices(select, step, kind) {
+                const cameraId = document.getElementById("camera-list").value;
+                if (this.readOnly || !cameraId || this.pendingChoices) return;
+                const pending = this.pendingChoices = {select, step, kind, draft: this.draft, action: this.action};
+                document.getElementById("camera-mapping-editor-status").textContent = "Refreshing camera choices…";
+                sendCommand("REFRESH_CAMERA_CONFIG", [], {camera_id: cameraId});
+                setTimeout(() => {
+                    if (this.pendingChoices !== pending) return;
+                    this.pendingChoices = null;
+                    if (pending.draft === this.draft) document.getElementById("camera-mapping-editor-status").textContent = "Could not refresh camera choices. Open the list again to retry.";
+                }, 10000);
+            },
+            bindChoiceRefresh(select, step, kind) {
+                select.onpointerdown = () => this.refreshChoices(select, step, kind);
+                select.onkeydown = event => {
+                    if (event.key === " " || event.key === "Enter" || (event.altKey && event.key === "ArrowDown")) this.refreshChoices(select, step, kind);
+                };
+            },
+            receiveConfigChoices() {
+                const pending = this.pendingChoices;
+                if (!pending) return false;
+                this.pendingChoices = null;
+                if (pending.draft === this.draft && pending.action === this.action && pending.select.isConnected) {
+                    this.populateChoices(pending.select, pending.step, pending.kind);
+                    this.updateAddStep();
+                    document.getElementById("camera-mapping-editor-status").textContent = "Camera choices refreshed.";
+                }
+                return true;
+            },
             renderSteps() {
+                this.updateAddStep();
                 const box = document.getElementById("camera-mapping-steps");
                 box.replaceChildren();
-                const action = this.draft.actions[this.action] ||= {steps: []};
-                const catalog = cameraProfiles.cameraConfig?.parameters || [];
+                const action = this.readOnly ? this.draft.actions[this.action] || {steps: []}
+                    : (this.draft.actions[this.action] ||= {steps: []});
+                action.steps ||= [];
+                document.getElementById("camera-mapping-mode-row").style.display = this.isEntryAction() || this.action === "after_open" ? "none" : "";
+                const modes = document.getElementById("camera-mapping-modes");
+                modes.value = action.modes?.length === 1 ? action.modes[0] : "";
+                modes.disabled = this.readOnly;
+                const profileCount = action.steps.filter(step => step.apply_profile === true).length;
+                if (this.isEntryAction() && profileCount !== 1) {
+                    const hint = document.createElement("small");
+                    hint.textContent = profileCount === 0 ? "Missing Apply profile parameters. Restore it, then move it to the intended position."
+                        : "Multiple Apply profile parameters steps. Remove the extra copies before saving.";
+                    box.append(hint);
+                    if (profileCount === 0 && !this.readOnly) {
+                        const restore = document.createElement("button");
+                        restore.type = "button";
+                        restore.textContent = "Restore Apply profile parameters";
+                        restore.onclick = () => this.restoreProfileStep();
+                        box.append(restore);
+                    }
+                }
+                const catalog = this.parameterCatalog();
                 const indexedSteps = (action.steps || []).map((step, index) => ({step, index}));
                 // Step order is executable semantics (for example, press,
                 // wait, release), so unavailable steps stay in place.
@@ -4654,7 +4825,9 @@
                     row.className = "camera-profile-parameter";
                     const inputRow = document.createElement("div");
                     inputRow.className = "input-row parameter-actions";
-                    if (step.delay_ms !== undefined) {
+                    if (step.apply_profile === true) {
+                        inputRow.append("Apply profile parameters — uses the target mode (MF, AF or Focus)");
+                    } else if (step.delay_ms !== undefined) {
                         const input = document.createElement("input");
                         input.type = "number";
                         input.min = 0;
@@ -4665,31 +4838,19 @@
                         const select = document.createElement("select");
                         const item = catalog.find(x => x.id === step.id);
                         const unavailableStep = !item;
-                        if (unavailableStep && step.id) {
-                            select.add(new Option(`${step.id} (not available)`, step.id));
-                        }
-                        catalog
-                            .filter(x => !x.readonly && (x.choices?.length || x.type_name === "toggle" || x.type_name === "range"))
-                            .forEach(x => select.add(new Option(x.label || x.id, x.id)));
-                        select.value = step.id || "";
-                        select.disabled = unavailableStep;
+                        this.populateChoices(select, step, "parameter");
+                        this.bindChoiceRefresh(select, step, "parameter");
                         select.onchange = () => {
                             step.id = select.value;
                             step.value = "";
                             this.renderSteps();
                         };
                         let value;
-                        if (item?.choices?.length) {
+                        if (item?.choices?.length || item?.type_name === "toggle") {
                             value = document.createElement("select");
-                            item.choices.forEach(x => value.add(new Option(x, x)));
-                            value.value = step.value ?? "";
-                            value.onchange = () => step.value = value.value;
-                        } else if (item?.type_name === "toggle") {
-                            value = document.createElement("select");
-                            value.add(new Option("Off", "0"));
-                            value.add(new Option("On", "1"));
-                            value.value = String(step.value ?? item.value ?? 0);
-                            value.onchange = () => step.value = Number(value.value);
+                            this.populateChoices(value, step, "value");
+                            this.bindChoiceRefresh(value, step, "value");
+                            value.onchange = () => step.value = item.type_name === "toggle" ? Number(value.value) : value.value;
                         } else if (item?.type_name === "range") {
                             value = document.createElement("input");
                             value.type = "number";
@@ -4706,29 +4867,66 @@
                             value.value = step.value ?? "";
                             value.onchange = () => step.value = value.value;
                         }
-                        value.disabled = unavailableStep;
+                        value.disabled = unavailableStep || Boolean(item?.readonly || item?.error);
                         inputRow.append(select, value);
                     }
                     const buttons = document.createElement("div");
                     buttons.className = "parameter-action-buttons";
                     const del = document.createElement("button");
                     del.type = "button";
-                    del.textContent = "Delete";
+                    del.textContent = step.apply_profile === true ? "Remove duplicate" : "Delete";
                     del.onclick = () => {
+                        if (this.readOnly) return;
+                        if (step.apply_profile === true && action.steps.filter(item => item.apply_profile === true).length <= 1) return;
                         action.steps.splice(index, 1);
                         this.renderSteps();
                     };
-                    buttons.append(del);
-                    inputRow.append(buttons);
+                    for (const [label, delta] of [["↑", -1], ["↓", 1]]) {
+                        const move = document.createElement("button");
+                        move.type = "button";
+                        move.textContent = label;
+                        move.title = delta < 0 ? "Move step up" : "Move step down";
+                        move.disabled = index + delta < 0 || index + delta >= action.steps.length;
+                        move.onclick = () => this.moveStep(index, delta);
+                        buttons.append(move);
+                    }
+                    if (step.apply_profile !== true || profileCount > 1) buttons.append(del);
+                    if (!this.readOnly) inputRow.append(buttons);
                     row.append(inputRow);
                     box.append(row);
                 });
             },
-            addStep() { const type = document.getElementById("camera-mapping-add-step").value; const action = this.draft.actions[this.action] ||= {steps: []}; action.steps.push(type === "delay" ? {delay_ms: 800} : {id: "", value: ""}); this.renderSteps(); },
+            restoreProfileStep() {
+                if (this.readOnly || !this.draft || !this.isEntryAction()) return;
+                const action = this.draft.actions[this.action] ||= {steps: []};
+                action.steps ||= [];
+                if (action.steps.some(step => step.apply_profile === true)) return;
+                action.steps.push({apply_profile: true});
+                this.renderSteps();
+            },
+            moveStep(index, delta) {
+                if (this.readOnly) return;
+                const steps = this.draft?.actions?.[this.action]?.steps;
+                const target = index + delta;
+                if (!steps || target < 0 || target >= steps.length) return;
+                [steps[index], steps[target]] = [steps[target], steps[index]];
+                this.renderSteps();
+            },
+            addStep() {
+                const type = document.getElementById("camera-mapping-add-step").value;
+                if (this.readOnly || !this.draft || !["set", "delay"].includes(type) || (type === "set" && !this.writableParameters().length)) return;
+                const action = this.draft.actions[this.action] ||= {steps: []};
+                action.steps.push(type === "delay" ? {delay_ms: 800} : {id: "", value: ""});
+                this.renderSteps();
+            },
             add() { this.draft = {schema_version: 1, name: "", actions: {}}; this.open(); },
             copy() { const selected = this.selected(); if (!selected) return; this.draft = structuredClone(selected); delete this.draft.id; delete this.draft.mapping_version; this.draft.schema_version = 1; this.draft.name = ""; this.open(); },
-            edit() { const selected = this.selected(); if (!this.mappings.includes(selected)) return; this.draft = structuredClone(selected); this.open(); },
-            save() { this.draft.name = document.getElementById("camera-mapping-name").value.trim(); if (!this.draft.name) return; sendCommand("SAVE_CAMERA_MAPPING", [], {mapping: this.draft}); this.draft = null; close_modal(); },
+            edit() { const selected = this.selected(); if (!selected) return; this.draft = structuredClone(selected); this.open(!this.mappings.includes(selected)); },
+            save() { if (this.readOnly || !this.draft) return; this.draft.name = document.getElementById("camera-mapping-name").value.trim(); if (!this.draft.name) return;
+                if (Object.entries(this.draft.actions).some(([action, value]) => this.isEntryAction(action) && (value.steps || []).filter(step => step.apply_profile === true).length !== 1)) {
+                    document.getElementById("camera-mapping-editor-status").textContent = "Entry actions require exactly one Apply profile parameters step.";
+                    return;
+                } sendCommand("SAVE_CAMERA_MAPPING", [], {mapping: this.draft}); this.draft = null; close_modal(); },
             cancel(event) { event?.stopImmediatePropagation(); this.draft = null; if (get_modal()?.id === "camera-mapping-editor-modal") close_modal(); },
             remove() { const selected = this.selected(); if (!this.mappings.includes(selected)) return; this.deleteId = selected.id; document.getElementById("camera-mapping-delete-name").textContent = selected.name; show_modal("camera-mapping-delete-modal"); },
             cancelDelete() { this.deleteId = null; if (get_modal()?.id === "camera-mapping-delete-modal") close_modal(); },
@@ -4739,8 +4937,17 @@
         window._hostname = location.hostname != "" ? location.hostname : "localhost";
         //window.current_usbpreview = false;
         window.onresize = do_onresize;
+        // A text-selection drag can end with a click targeted at the backdrop.
+        // Dismiss only when the gesture also started on that same backdrop.
+        let modalBackdropPointerTarget = null;
+        window.addEventListener("pointerdown", event => {
+            modalBackdropPointerTarget = event.target.classList.contains("modal-active") ? event.target : null;
+        }, true);
+        window.addEventListener("pointercancel", () => modalBackdropPointerTarget = null, true);
         window.onclick = function(event) {
-            if (event.target.classList.contains("modal-active")) {
+            const startedOnBackdrop = modalBackdropPointerTarget === event.target;
+            modalBackdropPointerTarget = null;
+            if (startedOnBackdrop && event.target.classList.contains("modal-active")) {
                 close_modal();
             }
         }
@@ -5077,15 +5284,24 @@
             profileId() {
                 return document.getElementById("camera-profile-list").value || localStorage.getItem("control.camera.profile") || "";
             },
+            showProfileWarning(message) {
+                const warning = document.createElement("span");
+                warning.className = "camera-profile-warning";
+                warning.textContent = "\u26a0";
+                warning.title = message;
+                warning.setAttribute("aria-label", message);
+                document.getElementById("camera-profile-apply-status").replaceChildren(warning);
+            },
             applySelectedMode(cameraId = document.getElementById("camera-list").value) {
                 const mode = this.selectedMode();
+                adjust();
                 localStorage.setItem("control.camera.profile.mode", mode);
                 const id = this.profileId();
                 const status = document.getElementById("camera-profile-apply-status");
                 status.replaceChildren();
                 if (!id) {
                     const message = "Select a camera profile in the Camera settings first.";
-                    status.textContent = message;
+                    this.showProfileWarning(message);
                     update_status_info(message, "CAMERA_PROFILE");
                     return;
                 }
@@ -5093,12 +5309,13 @@
                 if (document.getElementById("notify-camera-mode-cb").checked) {
                     screen_notification(mode.toUpperCase());
                 }
-                sendCommand("APPLY_CAMERA_PROFILE", [], {id, camera_id: cameraId, mode});
+                sendCommand("APPLY_CAMERA_PROFILE", [], {id, camera_id: cameraId, mode, mapping_id: cameraMappings.selected()?.id || ""});
             },
             receiveApply(report) {
                 const status = document.getElementById("camera-profile-apply-status");
                 const check = report.check || {};
-                const problems = [...(report.errors || []), ...(check.mismatches || []), ...(check.errors || [])];
+                const problems = [...(report.errors || []), ...(check.mismatches || []),
+                    ...(check.errors || []).map(item => ({...item, error: `Unable to verify: ${item.error}`}))];
                 if (problems.length) {
                     const describeProblem = item => {
                         const label = item.label || item.id;
@@ -5108,20 +5325,12 @@
                             ? label
                             : `${label}: ${item.actual} (expected ${expected})`;
                     };
-                    const message = `Camera settings differ: ${problems.map(describeProblem).join("; ")}.`;
-                    const warning = document.createElement("span");
-                    warning.className = "camera-profile-warning";
-                    warning.textContent = "\u26a0";
-                    warning.title = message;
-                    status.replaceChildren(warning);
+                    const message = `Camera profile issues: ${problems.map(describeProblem).join("; ")}.`;
+                    this.showProfileWarning(message);
                     update_status_info(message, "CAMERA_PROFILE");
-                } else if (!(report.set || []).length && !(report.unchanged || []).length && !(check.checked || []).length) {
+                } else if (!(report.actions || []).length && !(report.set || []).length && !(report.unchanged || []).length && !(check.checked || []).length) {
                     const message = `No ${report.mode?.toUpperCase() || ""} settings are defined in this profile.`;
-                    const warning = document.createElement("span");
-                    warning.className = "camera-profile-warning";
-                    warning.textContent = "\u26a0";
-                    warning.title = message;
-                    status.replaceChildren(warning);
+                    this.showProfileWarning(message);
                     update_status_info("", "CAMERA_PROFILE", true);
                 } else {
                     status.replaceChildren();
@@ -5131,6 +5340,7 @@
             cameraSelectionChanged() {
                 const selected = document.getElementById("camera-list").value;
                 const previous = window.current_camera?.id;
+                if (this.cameraConfig?.camera?.id !== selected) this.cameraConfig = null;
                 if (!selected) {
                     const id = this.profileId();
                     if (id && previous) sendCommand("APPLY_CAMERA_PROFILE", [], {id, camera_id: previous, mode: "off"});
@@ -5143,7 +5353,7 @@
                     return;
                 }
                 adjust();
-                sendCommand("SET_CAMERA", ["camera-list"], {include_config: true});
+                cameraMappings.openCamera();
             },
             deleteId: null,
             mode: "default",
@@ -5151,10 +5361,15 @@
                 sendCommand("LIST_CAMERA_PROFILES");
                 cameraMappings.refresh();
                 if (this.cameraConfig) this.renderEditor();
-                else sendCommand("GET_CAMERA_CONFIG");
+                else if (document.getElementById("camera-list").value) sendCommand("GET_CAMERA_CONFIG");
             },
             receive(data) {
                 this.profiles = data.profiles || [];
+                if (data.default_profile) this.builtinDefaults = data.default_profile;
+                if (this.pendingDefaults?.offline && this.pendingDefaults.draft === this.draft && this.builtinDefaults) {
+                    this.pendingDefaults = null;
+                    this.populateScanDefaults();
+                }
                 const select = document.getElementById("camera-profile-list");
                 const wanted = data.saved_profile?.id || select.value || localStorage.getItem("control.camera.profile") || "";
                 select.replaceChildren(new Option("No profile", ""));
@@ -5163,26 +5378,54 @@
                 this.updateSelection();
             },
             receiveCameraConfig(config) {
+                if (config.camera?.id !== document.getElementById("camera-list").value) return;
                 this.cameraConfig = config;
+                const choices = this.pendingChoices;
+                this.pendingChoices = null;
+                const pending = this.pendingDefaults;
+                if (pending && pending.draft === this.draft && pending.cameraId === config.camera?.id) {
+                    this.pendingDefaults = null;
+                    this.populateScanDefaults();
+                }
                 if (window.current_camera?.id === config.camera?.id) {
                     window.current_camera.camera_config = config;
                     window.current_camera.config_catalog_count = config.parameters?.length || 0;
                     document.getElementById("camera-abilities").value = JSON.stringify(window.current_camera, null, 2);
                 }
-                this.renderEditor();
+                if (choices) {
+                    if (choices.draft === this.draft && choices.mode === this.mode && choices.select.isConnected) {
+                        if (choices.parameter) this.populateParameterChoices(choices.select, choices.parameter, choices.setting);
+                        else this.populateParameterCatalog();
+                        document.getElementById("camera-profile-editor-status").textContent = "Camera choices refreshed.";
+                    }
+                } else this.renderEditor();
                 this.renderMetering();
-                window.cameraMappings?.draft && window.cameraMappings.renderSteps();
+                if (!window.cameraMappings?.receiveConfigChoices() && window.cameraMappings?.draft) window.cameraMappings.renderSteps();
             },
             receiveMetering(values) {
                 if (!this.cameraConfig) return;
                 const currentValues = new Map(values.map(item => [
-                    `${item.id}#${item.occurrence || 0}`, item.value,
+                    this.parameterKey(item), item.value,
                 ]));
-                this.cameraConfig.parameters?.forEach(item => {
+                [...(this.cameraConfig.parameters || []), ...(this.cameraConfig.logical_parameters || [])].forEach(item => {
                     const value = currentValues.get(this.parameterKey(item));
                     if (value !== undefined) item.value = value;
                 });
                 this.renderMetering();
+            },
+            logicalParameterId(parameter) {
+                if (parameter.kind === "logical") return parameter.id;
+                if (parameter.logical_id) return parameter.logical_id;
+                const matched = this.cameraConfig?.default_profile?.parameters?.find(definition => {
+                    const item = definition.camera_parameter;
+                    return item && this.parameterKey(item) === this.parameterKey(parameter);
+                });
+                if (matched) return matched.id;
+                // Older profiles did not retain their logical identity.
+                const name = parameter.id.split("/").pop();
+                return {aperture: "aperture", "f-number": "aperture", iso: "iso",
+                    autoexposuremode: "exposure_mode", expprogram: "exposure_mode", shutterspeed: "shutter_speed",
+                    shutterspeed2: "shutter_speed", exposurecompensation: "exposure_compensation"}[name];
             },
             renderMetering() {
                 const overlay = document.getElementById("metering-overlay");
@@ -5190,22 +5433,25 @@
                 const profile = this.selected();
                 const values = [];
                 if (enabled && profile && this.cameraConfig) {
-                    Object.values(profile.parameters || {}).filter(parameter => parameter.display).forEach(parameter => {
+                    this.meteringParameters(profile).map(([, parameter]) => parameter).filter(parameter => parameter.display).forEach(parameter => {
                         const item = this.catalogItem(parameter);
-                        if (!item || item.value === undefined) return;
+                        if (!item || item.value === undefined) {
+                            if (parameter.kind === "logical") values.push(`${parameter.label || parameter.id}: unavailable`);
+                            return;
+                        }
                         let value = String(item.value);
-                        if (parameter.id === "aperture" && !/^f\//i.test(value)) value = `f/${value}`;
-                        else if (parameter.id === "iso" && !/^ISO\s/i.test(value)) value = `ISO ${value}`;
-                        else if (parameter.id === "exposurecompensation") {
+                        const logicalId = this.logicalParameterId(parameter);
+                        if (logicalId === "aperture") value = /^f\//i.test(value) ? value : `f/${value}`;
+                        else if (logicalId === "iso") value = /^ISO\s/i.test(value) ? value : `ISO ${value}`;
+                        else if (logicalId === "exposure_compensation") {
                             const numeric = Number(value);
                             value = Number.isFinite(numeric)
                                 ? `${numeric > 0 ? "+" : ""}${String(numeric).replace(".", ",")} Ev`
                                 : `${value} Ev`;
-                        } else if (parameter.id === "shutterspeed" && !/\bs$/i.test(value) && !/^bulb$/i.test(value)) {
-                            value = `${value.replace(".", ",")} s`;
+                        } else if (logicalId === "shutter_speed") {
+                            if (!/s$/i.test(value) && !/^bulb$/i.test(value)) value = `${value.replace(".", ",")} s`;
                         }
-                        else if (parameter.id === "autoexposuremode") value = value;
-                        else if (!/^(aperture|iso|autoexposuremode|shutterspeed|exposurecompensation)$/.test(parameter.id)) value = `${parameter.label || parameter.id}: ${value}`;
+                        else if (logicalId !== "exposure_mode") value = `${parameter.label || parameter.id}: ${value}`;
                         values.push(value);
                     });
                 }
@@ -5246,9 +5492,10 @@
                 if (report.ok) {
                     status.textContent = `Camera profile is OK (${report.checked.length} checked).`;
                 } else {
-                    const failures = [...(report.mismatches || []), ...(report.errors || [])]
-                        .map(item => item.label || item.id).join(", ");
-                    status.textContent = `Camera profile differs: ${failures || "unable to read setting"}.`;
+                    const messages = [];
+                    if (report.mismatches?.length) messages.push(`Camera profile differs: ${report.mismatches.map(item => item.label || item.id).join(", ")}`);
+                    if (report.errors?.length) messages.push(`Unable to verify: ${report.errors.map(item => item.label || item.id).join(", ")}`);
+                    status.textContent = messages.join(". ") + ".";
                 }
                 this.renderEditor();
             },
@@ -5273,8 +5520,29 @@
             },
             addFromDefaults() {
                 this.draft = {schema_version: 1, name: "", parameters: {}};
-                const added = this.addScanDefaults();
+                this.pendingDefaults = null;
                 this.openDraft();
+                const cameraId = document.getElementById("camera-list").value;
+                if (!cameraId) {
+                    if (this.builtinDefaults) this.populateScanDefaults();
+                    else {
+                        this.pendingDefaults = {draft: this.draft, offline: true};
+                        document.getElementById("camera-profile-editor-status").textContent = "Loading scan defaults…";
+                        sendCommand("LIST_CAMERA_PROFILES");
+                    }
+                    return;
+                }
+                if (this.cameraConfig?.camera?.id === cameraId && this.cameraConfig.default_profile) {
+                    this.populateScanDefaults();
+                    return;
+                }
+                this.pendingDefaults = {draft: this.draft, cameraId};
+                document.getElementById("camera-profile-editor-status").textContent = "Reading camera parameters for scan defaults…";
+                sendCommand("REFRESH_CAMERA_CONFIG", [], {camera_id: cameraId});
+            },
+            populateScanDefaults() {
+                const added = this.addScanDefaults();
+                this.renderEditor();
                 document.getElementById("camera-profile-editor-status").textContent = added
                     ? `Added ${added} scan default${added === 1 ? "" : "s"}.`
                     : "No built-in scan defaults match this camera.";
@@ -5300,6 +5568,7 @@
             },
             cancelEdit(event) {
 				event?.stopImmediatePropagation();
+                this.pendingDefaults = null;
                 this.draft = null;
                 this.checkReport = null;
                 if (get_modal()?.id === "camera-profile-editor-modal") close_modal();
@@ -5309,30 +5578,128 @@
                 this.checkReport = null;
                 this.renderEditor();
             },
-            parameterKey(item) { return `${item.id}#${item.occurrence || 0}`; },
+            parameterKey(item) { return `${item.kind === "logical" ? "logical:" : ""}${item.id}#${item.occurrence || 0}`; },
+            generalParameters() { return (this.cameraConfig?.default_profile || this.builtinDefaults)?.parameters || []; },
             catalogItem(parameter) {
+                if (parameter.kind === "logical") return this.cameraConfig?.logical_parameters?.find(item => item.id === parameter.id);
                 return this.cameraConfig?.parameters?.find(item => item.id === parameter.id && (item.occurrence || 0) === (parameter.occurrence || 0));
             },
-            renderEditor() {
-                if (!this.draft) return;
-                document.getElementById("camera-profile-name").value = this.draft.name || "";
-                document.querySelectorAll(".camera-profile-modes button").forEach(button => button.classList.toggle("active", button.dataset.mode === this.mode));
+            populateParameterChoices(select, parameter, setting) {
+                const item = this.catalogItem(parameter);
+                const selected = String(setting.value ?? item?.value ?? "");
+                const choices = (item?.choices || []).map(String);
+                // A camera mode can remove a choice. Keep the profile's value
+                // visible and unchanged instead of silently displaying a blank.
+                if (!choices.includes(selected)) choices.unshift(selected);
+                select.replaceChildren(...choices.map(choice => new Option(choice, choice)));
+                select.value = selected;
+            },
+            refreshParameterChoices(select, parameter = null, setting = null) {
+                const cameraId = document.getElementById("camera-list").value;
+                if (!cameraId || this.pendingChoices) return;
+                const pending = this.pendingChoices = {select, parameter, setting, draft: this.draft, mode: this.mode};
+                document.getElementById("camera-profile-editor-status").textContent = "Refreshing camera choices…";
+                sendCommand("REFRESH_CAMERA_CONFIG", [], {camera_id: cameraId});
+                setTimeout(() => {
+                    if (this.pendingChoices !== pending) return;
+                    this.pendingChoices = null;
+                    if (pending.draft === this.draft) {
+                        document.getElementById("camera-profile-editor-status").textContent = "Could not refresh camera choices. Open the list again to retry.";
+                    }
+                }, 10000);
+            },
+            populateParameterCatalog() {
                 const catalog = this.cameraConfig?.parameters || [];
                 const addSelect = document.getElementById("camera-profile-add-parameter");
-                addSelect.replaceChildren(new Option(catalog.length ? "select camera parameter..." : "camera configuration is not available", ""));
+                const selected = addSelect.value;
+                addSelect.replaceChildren(new Option("Select parameter…", ""));
+                const general = this.generalParameters();
+                const heading = new Option("— General parameters —", "");
+                heading.disabled = true;
+                addSelect.add(heading);
+                general.forEach(item => addSelect.add(new Option(item.label || item.id, `logical:${item.id}`)));
+                if (catalog.length) {
+                    const separator = new Option("— Camera-specific parameters —", "");
+                    separator.disabled = true;
+                    addSelect.add(separator);
+                }
                 catalog.filter(item => !item.error && !["window", "section", "button"].includes(item.type_name))
                     .sort((left, right) => (left.label || left.name || left.id).localeCompare(
                         right.label || right.name || right.id, undefined, {numeric: true, sensitivity: "base"}))
                     .forEach(item => {
                     const suffix = item.readonly ? " (read-only)" : "";
-                    addSelect.add(new Option(`${item.label || item.name || item.id}${suffix}`, this.parameterKey(item)));
+                    addSelect.add(new Option(`${item.label || item.name || item.id} (${item.id})${suffix}`, this.parameterKey(item)));
                 });
-                addSelect.disabled = !catalog.length;
+                if (catalog.some(item => this.parameterKey(item) === selected) || general.some(item => `logical:${item.id}` === selected)) addSelect.value = selected;
+                addSelect.disabled = !catalog.length && !general.length;
+                addSelect.onpointerdown = () => this.refreshParameterChoices(addSelect);
+                addSelect.onkeydown = event => {
+                    if (event.key === " " || event.key === "Enter" || (event.altKey && event.key === "ArrowDown")) {
+                        this.refreshParameterChoices(addSelect);
+                    }
+                };
+            },
+            meteringParameters(profile) {
+                return Object.entries(profile?.parameters || {}).sort(([, a], [, b]) =>
+                    (Number.isFinite(a.display_order) ? a.display_order : Infinity)
+                    - (Number.isFinite(b.display_order) ? b.display_order : Infinity));
+            },
+            moveMeteringParameter(key, delta) {
+                const entries = this.meteringParameters(this.draft);
+                const index = entries.findIndex(([id]) => id === key);
+                const target = index + delta;
+                if (index < 0 || target < 0 || target >= entries.length) return;
+                [entries[index], entries[target]] = [entries[target], entries[index]];
+                entries.forEach(([, parameter], order) => parameter.display_order = order);
+                this.renderEditor();
+            },
+            renderMeteringEditor(container) {
+                const hint = document.createElement("small");
+                hint.className = "hint";
+                hint.textContent = "Choose values and their display order for all profile modes. Add new parameters in a settings tab. This order does not change how camera settings are applied.";
+                container.append(hint);
+                const entries = this.meteringParameters(this.draft);
+                entries.forEach(([key, parameter], index) => {
+                    const row = document.createElement("div");
+                    row.className = "camera-profile-parameter camera-profile-metering-row";
+                    const label = document.createElement("label");
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.checked = Boolean(parameter.display);
+                    checkbox.onchange = () => parameter.display = checkbox.checked;
+                    label.append(checkbox, ` ${parameter.label || parameter.id} (${parameter.id})`);
+                    row.append(label);
+                    const buttons = document.createElement("div");
+                    buttons.className = "parameter-action-buttons";
+                    for (const [text, delta] of [["↑", -1], ["↓", 1]]) {
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.textContent = text;
+                        button.title = delta < 0 ? "Move up in metering" : "Move down in metering";
+                        button.disabled = index + delta < 0 || index + delta >= entries.length;
+                        button.onclick = () => this.moveMeteringParameter(key, delta);
+                        buttons.append(button);
+                    }
+                    row.append(buttons);
+                    container.append(row);
+                });
+            },
+            renderEditor() {
+                if (!this.draft) return;
+                document.getElementById("camera-profile-name").value = this.draft.name || "";
+                document.querySelectorAll(".camera-profile-modes button").forEach(button => button.classList.toggle("active", button.dataset.mode === this.mode));
+                this.populateParameterCatalog();
+                document.getElementById("camera-profile-add-button").parentElement.style.display = this.mode === "metering" ? "none" : "";
+                document.getElementById("camera-profile-check-button").hidden = this.mode === "metering";
                 document.getElementById("camera-profile-camera-info").textContent = this.cameraConfig
                     ? `${this.cameraConfig.camera.model || "Camera"}: values and writable state come from gphoto2.`
-                    : "Camera configuration is not available. Select a camera or start preview, then reopen this dialog.";
+                    : "General parameters can be edited without a camera. Translation is resolved when a camera is connected.";
                 const container = document.getElementById("camera-profile-parameters");
                 container.replaceChildren();
+                if (this.mode === "metering") {
+                    this.renderMeteringEditor(container);
+                    return;
+                }
                 const parameters = this.draft.parameters || {};
                 const active = Object.entries(parameters).filter(([, parameter]) => parameter.modes?.[this.mode]
                     || (this.mode === "focus" && parameter.modes?.focusing)
@@ -5385,7 +5752,13 @@
                 let value;
                 if (item?.choices?.length) {
                     value = document.createElement("select");
-                    item.choices.forEach(choice => value.add(new Option(choice, choice)));
+                    this.populateParameterChoices(value, parameter, setting);
+                    value.onpointerdown = () => this.refreshParameterChoices(value, parameter, setting);
+                    value.onkeydown = event => {
+                        if (event.key === " " || event.key === "Enter" || (event.altKey && event.key === "ArrowDown")) {
+                            this.refreshParameterChoices(value, parameter, setting);
+                        }
+                    };
                 } else {
                     value = document.createElement("input");
                     value.type = item?.range ? "number" : "text";
@@ -5396,25 +5769,22 @@
                     }
                 }
                 value.value = setting.value ?? item?.value ?? "";
-                value.disabled = Boolean(unavailable || item?.readonly || inherited);
+                value.disabled = Boolean(inherited);
                 value.onchange = () => { setting.value = value.value; };
                 inputRow.append(value);
                 const actions = document.createElement("div");
                 actions.className = "parameter-action-buttons";
-                ["set", "check", "display"].forEach(action => {
-                    if (action === "display" && this.mode === "off") return;
+                ["set", "check"].forEach(action => {
                     const checkbox = document.createElement("input");
                     checkbox.type = "checkbox";
-                    checkbox.checked = action === "display" ? Boolean(parameter.display) : Boolean(setting[action]);
-                    checkbox.disabled = Boolean(unavailable || (action !== "display" && (inherited || (action === "set" && item?.readonly))));
-                    checkbox.title = action === "display" ? "Display this camera value in the metering overlay" : "";
+                    checkbox.checked = Boolean(setting[action]);
+                    checkbox.disabled = Boolean(inherited || (action === "set" && item?.readonly));
                     checkbox.onchange = () => {
-                        if (action === "display") parameter.display = checkbox.checked;
-                        else setting[action] = checkbox.checked;
+                        setting[action] = checkbox.checked;
                         this.renderMetering();
                     };
                     const checkboxLabel = document.createElement("label");
-                    checkboxLabel.textContent = action === "set" ? "Set" : action === "check" ? "Check" : "Display";
+                    checkboxLabel.textContent = action === "set" ? "Set" : "Check";
                     checkboxLabel.style.width = "auto";
                     checkboxLabel.prepend(checkbox);
                     actions.append(checkboxLabel);
@@ -5454,11 +5824,31 @@
             },
             addParameter() {
                 const value = document.getElementById("camera-profile-add-parameter").value;
+                if (value.startsWith("logical:") && this.draft) {
+                    const definition = this.generalParameters().find(item => `logical:${item.id}` === value);
+                    if (!definition) return;
+                    const parameter = {id: definition.id, kind: "logical", label: definition.label, modes: {}};
+                    const raw = definition.camera_parameter;
+                    if (raw && Object.values(this.draft.parameters || {}).some(item => item.kind !== "logical" && item.id.split("/").pop() === raw.id)) {
+                        document.getElementById("camera-profile-editor-status").textContent = `Already added as ${raw.id}. Remove that parameter first.`;
+                        return;
+                    }
+                    this.draft.parameters ||= {};
+                    const saved = this.draft.parameters[this.parameterKey(parameter)] ||= parameter;
+                    saved.modes[this.mode] ||= {value: this.catalogItem(parameter)?.value ?? this.templateValue(definition.default || {}) ?? "", set: false, check: false};
+                    this.renderEditor();
+                    return;
+                }
                 const item = this.cameraConfig?.parameters?.find(candidate => this.parameterKey(candidate) === value);
                 if (!item || !this.draft) return;
+                if (Object.values(this.draft.parameters || {}).some(parameter => parameter.kind === "logical" && this.generalParameters().find(definition => definition.id === parameter.id)?.camera_parameter?.id === item.id)) {
+                    document.getElementById("camera-profile-editor-status").textContent = "Already added as a general parameter. Remove it first.";
+                    return;
+                }
                 this.draft.parameters ||= {};
                 const key = this.parameterKey(item);
                 const parameter = this.draft.parameters[key] ||= {id: item.id, occurrence: item.occurrence || 0, label: item.label || item.name || item.id, modes: {}};
+                parameter.logical_id ||= this.logicalParameterId(parameter);
                 parameter.modes ||= {};
                 parameter.modes[this.mode] ||= {value: item.value ?? "", set: !item.readonly, check: false};
                 this.renderEditor();
@@ -5470,15 +5860,13 @@
                 this.checkReport = null;
                 this.renderEditor();
             },
-            mappedDefaultValue(parameter, logicalValue) {
-                const mapped = parameter.mapping?.values?.[logicalValue] ?? logicalValue;
-                const choices = parameter.camera_parameter?.choices || [];
-                return choices.find(choice => String(choice).toLocaleLowerCase() === String(mapped).toLocaleLowerCase())
-                    ?? choices.find(choice => String(choice).toLocaleLowerCase() === String(logicalValue).toLocaleLowerCase())
-                    ?? mapped;
+            templateValue(specification) {
+                if (specification.value !== undefined) return specification.value;
+                // Legacy templates stored values in set/check; booleans are flags only.
+                return [specification.set, specification.check].find(value => value != null && typeof value !== "boolean");
             },
             addDefaultMode(parameter, profileParameter, mode, specification) {
-                const logicalValue = specification.set ?? specification.check;
+                const logicalValue = this.templateValue(specification);
                 profileParameter.modes ||= {};
                 let added = false;
 
@@ -5488,8 +5876,8 @@
                 if ((logicalValue !== undefined || specification.display) && !profileParameter.modes[mode]) {
                     profileParameter.modes[mode] = {
                         value: logicalValue === undefined
-                            ? parameter.camera_parameter.value
-                            : this.mappedDefaultValue(parameter, logicalValue),
+                            ? ""
+                            : logicalValue,
                         set: Boolean(specification.set),
                         check: Boolean(specification.check),
                     };
@@ -5505,18 +5893,24 @@
             addScanDefaults() {
                 if (!this.draft) return 0;
                 let added = 0;
-                (this.cameraConfig?.default_profile?.parameters || []).forEach(parameter => {
-                    if (!parameter.available || !parameter.camera_parameter) return;
-                    const item = parameter.camera_parameter;
+                const cameraId = document.getElementById("camera-list").value;
+                const defaults = cameraId && this.cameraConfig?.camera?.id === cameraId
+                    ? this.cameraConfig.default_profile : this.builtinDefaults;
+                (defaults?.parameters || []).forEach(parameter => {
+                    if (!Object.keys(parameter.default || {}).length && !Object.keys(parameter.overrides || {}).length) return;
+                    if (parameter.camera_parameter && Object.values(this.draft.parameters || {}).some(item => item.kind !== "logical" && item.id.split("/").pop() === parameter.camera_parameter.id)) return;
+                    const item = {id: parameter.id, kind: "logical"};
                     const key = this.parameterKey(item);
                     this.draft.parameters ||= {};
                     const profileParameter = this.draft.parameters[key] ||= {
                         id: item.id,
+                        kind: "logical",
                         occurrence: item.occurrence || 0,
                         label: parameter.label || item.label || item.name || item.id,
                         modes: {},
                     };
                     if (this.addDefaultMode(parameter, profileParameter, "default", parameter.default || {})) added += 1;
+                    profileParameter.logical_id = parameter.id;
                     Object.entries(parameter.overrides || {}).forEach(([mode, specification]) => {
                         if (this.addDefaultMode(parameter, profileParameter, mode, specification)) added += 1;
                     });
@@ -5616,7 +6010,6 @@
             "control.focus_warning_interval": "focus-warning-list",
             "control.external_trigger": "external-trigger-cb",
             "control.camera.profile": "camera-profile-list",
-			// "control.camera.af": "camera-af-cb",
             "capture.multi": "capture-multi",
             "capture.shoot.mode": "shoot-mode-list",
             "capture.preview.latency": "preview-latency-rng",
@@ -5713,18 +6106,8 @@
 				}
 			},
 
-            "half-press": {
-                "action": function() {
-                    const mapping = cameraMappings.selected();
-                    if (mapping) {
-                        window.half_press_in_progress = true;
-                        window.camera_capture_in_progress = true;
-                        adjust();
-                        sendCommand("HALF_PRESS", ["camera-list"], {mapping_id: mapping.id});
-                    }
-                }
-            },
-
+            "meter-exposure": { action: () => cameraMappings.runAction("meter_exposure") },
+            "autofocus": { action: () => cameraMappings.runAction("autofocus") },
             "focus-near-1": { action: () => cameraMappings.runAction("focus_near_1") },
             "focus-near-2": { action: () => cameraMappings.runAction("focus_near_2") },
             "focus-near-3": { action: () => cameraMappings.runAction("focus_near_3") },
@@ -6100,6 +6483,9 @@
 			case "KeyM":
 				btn = "align";
 				break;
+			case "KeyY":
+				btn = "autofocus";
+				break;
 			case "KeyT":
 				btn = "focus-near-3";
 				break;
@@ -6141,7 +6527,7 @@
             //case "Numpad0": seems does not get shift key info
             case "KeyX":
                 if (event.shiftKey) {
-					btn = "half-press";
+					btn = "meter-exposure";
 				}
 				break;
 			case "KeyT":
@@ -6176,7 +6562,7 @@
                     delete window.sticky_mouse;
                     delete window.sticky_touch;
                 }
-                if (btn == "shoot" || btn == "half-press" || btn.startsWith("focus-") || window.capabilities.motorized) {
+                if (btn == "shoot" || btn == "meter-exposure" || btn.startsWith("focus-") || btn == "autofocus" || window.capabilities.motorized) {
                     document.getElementById(btn+"-btn").click();
                 }
             }
@@ -6273,7 +6659,7 @@
                 }
             }
         }
-        const canvas = viewer.parentNode.querySelector("canvas");
+        const canvas = viewer_name === "stream" ? document.getElementById("snapshot") : viewer.parentNode.querySelector("canvas");
         if (canvas && (canvas.getAttribute("data-draw_image") || viewer_name === "stream")) {
             // Invert the live image only; measurement overlays keep their colors.
             const copy_style = viewer_name === "stream" ? [] : ["invert"];
@@ -6284,6 +6670,7 @@
             }
             copy_style.forEach(value => {
                 canvas.classList.toggle(value, viewer.classList.contains(value));
+                if (viewer_name === "stream") document.getElementById("snapshot-analysis")?.classList.toggle(value, viewer.classList.contains(value));
             });
         }
         if (viewer_name === "stream" && window.snapshot_canvas_ctx) {
@@ -6298,6 +6685,7 @@
         if (vc && hc) {
             viewer.style["clip-path"] = "inset("+vc.value+"px "+hc.value+"px "+vc.value+"px "+hc.value+"px)";
             if (viewer_name === "stream" && canvas) canvas.style["clip-path"] = viewer.style["clip-path"];
+            if (viewer_name === "stream" && document.getElementById("snapshot-analysis")) document.getElementById("snapshot-analysis").style["clip-path"] = viewer.style["clip-path"];
         }
         const bck = document.getElementById(control_name+"-background-rng");
         if (bck) {

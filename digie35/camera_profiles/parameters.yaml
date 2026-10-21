@@ -1,0 +1,271 @@
+# Built-in defaults for a camera used to scan film.
+#
+# The values in the default and override sections are logical values shown in
+# the UI. General profile parameters retain these logical IDs and values.
+# Translation to the current camera happens at runtime; concrete gphoto2
+# parameters remain supported for camera-specific settings.
+schema_version: 1
+profile_version: 2
+id: default-scan
+label: Default film-scanning camera setup
+
+# Mode entries use value plus independent set/check flags, including inactive values.
+parameters:
+  exposure_mode:
+    label: Exposure mode
+    group: primary
+    default:
+      display: true
+      value: "Av"
+      set: false
+      check: false
+    overrides:
+      "calibration":
+        value: "M"
+        set: true
+        check: true
+    mapping:
+      canon:
+        ids: [autoexposuremode, /main/capturesettings/autoexposuremode]
+        values:
+          Av: AV
+          M: Manual
+      sony:
+        ids: [expprogram, /main/capturesettings/expprogram]
+        values:
+          Av: A
+          M: M
+      nikon:
+        id: /main/other/500e
+        values:
+          Av: 3
+
+  aperture:
+    label: Aperture
+    group: primary
+    default:
+      display: true
+      value: "f/8"
+      set: false
+      check: false
+    overrides:
+      "focus":
+        value: "f/2.8"
+        set: true
+        check: false
+      "mf":
+        value: "f/8"
+        set: true
+        check: true
+      "af":
+        value: "f/8"
+        set: true
+        check: true
+    mapping:
+      canon:
+        ids: [aperture, /main/capturesettings/aperture]
+        number_format: "f/%f"
+      default:
+        ids: [f-number, /main/capturesettings/f-number]
+
+  shutter_speed:
+    label: Shutter speed
+    group: primary
+    default:
+      display: true
+      value: ""
+      set: false
+      check: false
+    mapping:
+      default:
+        ids: [shutterspeed, /main/capturesettings/shutterspeed]
+        value_type: shutter_speed
+      nikon:
+        # Prefer fractional choices when the body exposes this helper.
+        # Z9 and other bodies without it fall back to shutterspeed.
+        ids:
+          - shutterspeed2
+          - /main/capturesettings/shutterspeed2
+          - shutterspeed
+          - /main/capturesettings/shutterspeed
+        # Defaults may use e.g. set: "1/20". Select the equivalent original
+        # camera choice: "1/20" or "0.0500s", depending on the body.
+        value_type: shutter_speed
+
+  iso:
+    label: ISO
+    group: primary
+    default:
+      display: true
+      value: "100"
+      set: false
+      check: true
+    overrides:
+      "focus":
+        value: "100"
+        set: false
+        check: false
+      "off":
+        value: "100"
+        set: false
+        check: false
+    mapping:
+      default:
+        ids: [iso, /main/imgsettings/iso]
+
+  exposure_compensation:
+    label: Exposure compensation
+    group: primary
+    default:
+      display: true
+      value: "0"
+      set: false
+      check: false
+    overrides:
+      "focus":
+        value: "0"
+        set: false
+        check: false
+      "off":
+        value: "0"
+        set: false
+        check: false
+    mapping:
+      default:
+        ids: [exposurecompensation, /main/capturesettings/exposurecompensation]
+
+  focus_mode:
+    label: Focus mode
+    group: primary
+    default:
+      value: ""
+      set: false
+      check: false
+    overrides:
+      "mf":
+        value: "manual_focus"
+        set: false
+        check: true
+      "af":
+        value: "autofocus"
+        set: false
+        check: true
+    mapping:
+      canon:
+        ids: [focusmode, /main/capturesettings/focusmode]
+        values:
+          manual_focus: Manual
+          autofocus: One Shot
+      default:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: Manual Focus
+          autofocus: Auto Focus
+      sony:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: ["Manual", "Manual Focus"]
+          autofocus: ["AF-S", "Automatic"]
+      nikon:
+        id: /main/capturesettings/focusmode
+        values:
+          manual_focus: Manual
+          autofocus: AF-S
+
+  white_balance:
+    label: White balance
+    group: primary
+    default:
+      value: "color_temperature"
+      set: false
+      check: false
+    overrides:
+      "calibration":
+        value: "color_temperature"
+        set: true
+        check: true
+    mapping:
+      canon:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Color Temperature"
+      sony:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Choose Color Temperature"
+      nikon:
+        ids: [whitebalance, /main/imgsettings/whitebalance]
+        values:
+          color_temperature: "Color Temperature"
+
+  color_temperature:
+    label: Color temperature
+    group: primary
+    default:
+      value: "5000"
+      set: false
+      check: false
+    overrides:
+      "calibration":
+        value: "5000"
+        set: true
+        check: true
+    mapping:
+      canon:
+        ids: [colortemperature, /main/imgsettings/colortemperature]
+      sony:
+        ids: [colortemperature, /main/imgsettings/colortemperature]
+      nikon:
+        ids: [/main/other/d01e]
+
+  white_balance_adjust_ab:
+    label: White balance shift A/B
+    group: primary
+    default:
+      value: "0"
+      set: false
+      check: false
+    overrides:
+      "calibration":
+        value: "0"
+        set: false
+        check: false
+    mapping:
+      canon:
+        ids: [whitebalanceadjusta, /main/imgsettings/whitebalanceadjusta]
+      panasonic:
+        ids: [whitebalanceadjustab, /main/capturesettings/whitebalanceadjustab]
+
+  white_balance_adjust_gm:
+    label: White balance shift G/M
+    group: primary
+    default:
+      value: "0"
+      set: false
+      check: false
+    overrides:
+      "calibration":
+        value: "0"
+        set: false
+        check: false
+    mapping:
+      canon:
+        ids: [whitebalanceadjustb, /main/imgsettings/whitebalanceadjustb]
+      panasonic:
+        ids: [whitebalanceadjustgm, /main/capturesettings/whitebalanceadjustgm]
+
+  aeb:
+    label: Exposure bracketing
+    group: primary
+    mapping:
+      canon:
+        ids: [aeb, /main/capturesettings/aeb]
+        values:
+          "off": "off"
+      sony:
+        id: /main/capturesettings/capturemode
+        check_not_matching: Bracketing
+      nikon:
+        id: /main/capturesettings/bracketmode
+        values:
+          "off": "Off"

@@ -5,19 +5,33 @@ mappings:
     mapping_version: 1
     name: Canon EOS
     actions:
-      half_press:
+      after_open:
+        steps:
+          # TODO: just test
+          - id: viewfinder
+            value: 1
+      enter_mf:
+        steps:
+          - id: focusmode
+            value: Manual
+          - apply_profile: true
+      enter_af:
+        steps:
+          - id: focusmode
+            value: One Shot
+          - apply_profile: true
+      meter_exposure:
         steps:
           - id: eosremoterelease
-            value: Press 1
+            value: Press Half
           - delay_ms: 800
           - id: eosremoterelease
-            value: Release 1
+            value: Release Half
       autofocus:
         steps:
           - id: autofocusdrive
             value: 1
-      cancel_autofocus:
-        steps:
+          - delay_ms: 800
           - id: cancelautofocus
             value: 1
       focus_near_1:
@@ -87,33 +101,78 @@ mappings:
   - id: sony-ilce-7m3
     schema_version: 1
     mapping_version: 1
-    name: Sony ILCE-7 III / 7R III
+    name: Sony ILCE-7-III
     actions:
       autofocus:
+        modes: [af]
         steps:
           - id: autofocus
             value: 1
+      enter_mf:
+        steps:
+          - id: focusmode
+            value: Manual
+          - apply_profile: true
+      enter_af:
+        steps:
+          - id: focusmode
+            value: Automatic
+          - apply_profile: true
       focus_near_1:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: -1
       focus_near_2:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: -3
       focus_near_3:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: -7
       focus_far_1:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: 1
       focus_far_2:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: 3
       focus_far_3:
+        modes: [mf]
         steps:
           - id: manualfocus
             value: 7
+
+  - id: sony-ilce-7m1
+    schema_version: 1
+    mapping_version: 1
+    name: Sony ILCE-7-I
+    actions:
+      autofocus:
+        modes: [af]
+        steps:
+          - id: autofocus
+            value: 1
+          - delay_ms: 2000
+          - id: autofocus
+            value: 0
+      enter_mf:
+        steps:
+          - id: focusmode
+            value: Manual
+          - apply_profile: true
+      enter_af:
+        steps:
+          - id: focusmode
+            value: Automatic
+          - apply_profile: true
+      meter_exposure:
+        steps:
+          # camera measures instantly
+          - delay_ms: 0

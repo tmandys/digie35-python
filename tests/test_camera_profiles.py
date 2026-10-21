@@ -6,33 +6,25 @@ import unittest
 import yaml
 
 
-PROFILE_PATH = Path(__file__).resolve().parents[1] / "digie35" / "camera_profiles" / "default-scan.yaml"
+PROFILE_PATH = Path(__file__).resolve().parents[1] / "digie35" / "camera_profiles" / "parameters.yaml"
 
 
 class CameraProfileTests(unittest.TestCase):
-    def test_default_scan_profile_has_the_primary_safety_checks(self):
+    def test_default_scan_template_has_independent_values_and_flags(self):
         with PROFILE_PATH.open(encoding="utf-8") as profile_file:
             profile = yaml.safe_load(profile_file)
-
-        self.assertEqual(profile["schema_version"], 1)
-        self.assertEqual(profile["id"], "default-scan")
-
+        self.assertEqual(profile["profile_version"], 2)
         parameters = profile["parameters"]
-        self.assertEqual(parameters["exposure_mode"]["default"]["check"], "Av")
-        self.assertEqual(parameters["aperture"]["default"]["check"], "f/8")
-        self.assertEqual(parameters["aperture"]["overrides"]["focus"]["set"], "f/2.8")
-        self.assertEqual(parameters["iso"]["default"]["check"], "100")
-        self.assertEqual(parameters["focus_mode"]["overrides"]["af"]["set"], "autofocus")
-        self.assertEqual(parameters["focus_mode"]["overrides"]["mf"]["set"], "manual_focus")
-        self.assertTrue(parameters["aeb"]["default"]["blocking"])
-        self.assertEqual(parameters["exposure_mode"]["overrides"]["calibration"]["set"], "M")
-        self.assertEqual(parameters["white_balance"]["overrides"]["calibration"]["set"], "color_temperature")
-        self.assertEqual(parameters["white_balance"]["mapping"]["canon"]["values"]["color_temperature"], "Color Temperature")
+        aperture = parameters["aperture"]
+        self.assertEqual(aperture["default"], {"display": True, "value": "f/8", "set": False, "check": False})
+        for mode in ("mf", "af"):
+            self.assertEqual(aperture["overrides"][mode], {"value": "f/8", "set": True, "check": True})
+        self.assertEqual(aperture["overrides"]["focus"], {"value": "f/2.8", "set": True, "check": False})
+        self.assertEqual(parameters["exposure_mode"]["overrides"]["calibration"], {"value": "M", "set": True, "check": True})
+        self.assertFalse(parameters["exposure_compensation"]["default"]["set"])
+        self.assertTrue(parameters["iso"]["default"]["check"])
+        for name in ("white_balance_adjust_ab", "white_balance_adjust_gm"):
+            self.assertEqual(parameters[name]["overrides"]["calibration"], {"value": "0", "set": False, "check": False})
+        self.assertNotIn("default", parameters["aeb"])
+        self.assertIn("mapping", parameters["aeb"])
         self.assertEqual(parameters["white_balance"]["mapping"]["sony"]["values"]["color_temperature"], "Choose Color Temperature")
-        self.assertEqual(parameters["white_balance"]["mapping"]["nikon"]["values"]["color_temperature"], "Color Temperature")
-        self.assertEqual(parameters["color_temperature"]["overrides"]["calibration"]["set"], "5000")
-        self.assertIn("colortemperature", parameters["color_temperature"]["mapping"]["sony"]["ids"])
-        self.assertIn("/main/other/d01e", parameters["color_temperature"]["mapping"]["nikon"]["ids"])
-        self.assertEqual(parameters["white_balance_adjust_ab"]["overrides"]["calibration"]["set"], "0")
-        self.assertIn("whitebalanceadjusta", parameters["white_balance_adjust_ab"]["mapping"]["canon"]["ids"])
-        self.assertIn("whitebalanceadjustgm", parameters["white_balance_adjust_gm"]["mapping"]["panasonic"]["ids"])
