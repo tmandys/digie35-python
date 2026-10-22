@@ -117,6 +117,8 @@ def main():
         "backlight_profiles.js": [],
         "led_presets.js": [],
         "white_balance.js": [],
+        "film_browser.js": [],
+        "film_browser.css": [],
         "tagify.css": [],
         "tagify.js": [],
         "tagify.polyfills.min.js": [],

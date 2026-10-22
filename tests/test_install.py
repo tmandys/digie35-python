@@ -51,6 +51,8 @@ class InstallTests(unittest.TestCase):
         self.invoke("-i", "-w", "/var/www/html")
         links = [c for c in self.calls if c[:3] == ["sudo", "ln", "-s"]]
         self.assertTrue(links)
+        for asset in ("film_browser.js", "film_browser.css"):
+            self.assertTrue(any(c[-1] == "/var/www/html/" + asset for c in links), asset)
         for command in links:
             self.assertTrue(Path(command[3]).is_file(), command)
         mkdir = ["sudo", "mkdir", "-p", "/var/www/html/sounds"]

@@ -33,6 +33,7 @@ Features
   - backlight profiles and calibration
   - autofocus driven by digie on particular point
   - zoom around cursor position
+  - improved image browser
 
 Fixes
 -----

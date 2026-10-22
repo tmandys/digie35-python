@@ -14,6 +14,8 @@
     <script src="backlight_profiles.js"></script>
     <script src="led_presets.js"></script>
     <script src="white_balance.js"></script>
+    <script src="film_browser.js"></script>
+    <link rel="stylesheet" href="film_browser.css" />
     <link href="dragsort.css" rel="stylesheet" type="text/css" />
     <title>Digie35</title>
 
@@ -1732,10 +1734,64 @@
                 </div>
                 <div class="content">
                     <div class="vertical-spacer">
-                        <div class="capture-list">
-                            <ul id="capture-list">
-                            </ul>
+                        <div class="film-toolbar">
+                            <label for="film-view" accesskey="v"><u>V</u>iew</label>
+                            <select id="film-view" onchange="filmBrowser.changeView()">
+                                <option value="list">List</option><option value="thumbnails" selected>Thumbnails</option><option value="details">Details</option>
+                            </select>
+                            <span id="film-selection" role="status"></span>
+                            <button id="film-delete" onclick="filmBrowser.askDelete()" disabled>Delete selected</button>
+                            <button id="film-move" onclick="filmBrowser.askMove()" disabled>Move to film…</button>
+                            <button id="film-clear" onclick="filmBrowser.clear()" disabled>Clear selection</button>
                         </div>
+                        <div class="capture-list"><div id="capture-list"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="film-file-info-modal" class="modal-overlay">
+            <div class="modal"><div class="header"><span class="title">Image details</span><button class="close">&times;</button></div>
+                <div class="content"><p id="film-file-info"></p></div>
+            </div>
+        </div>
+        <div id="film-delete-modal" class="modal-overlay">
+            <div class="modal"><div class="header"><span class="title">Delete selected images?</span><button class="close">&times;</button></div>
+                <div class="content">
+                    <p id="film-delete-names"></p>
+                    <p>This permanently deletes the selected local images, their saved previews and preview JSON. XMP is deleted unless another image uses it.</p>
+                    <p>For camera-only images, only the local record and preview are deleted. Originals on the camera are kept.</p>
+                    <p id="film-delete-status" role="status"></p>
+                    <div class="film-delete-actions">
+                        <button onclick="close_modal()">Cancel</button>
+                        <button id="film-delete-confirm" onclick="filmBrowser.confirmDelete()">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="film-move-modal" class="modal-overlay">
+            <div class="modal"><div class="header"><span class="title">Move selected images</span><button class="close">&times;</button></div>
+                <div class="content">
+                    <p id="film-move-names"></p>
+                    <div class="form-group">
+                        <div class="input-row">
+                            <label for="film-move-project" accesskey="p"><u>P</u>roject</label>
+                            <select id="film-move-project" onchange="filmBrowser.moveProjectChanged()"></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-row">
+                            <label for="film-move-film" accesskey="f"><u>F</u>ilm</label>
+                            <select id="film-move-film" onchange="filmBrowser.moveTargetChanged()"></select>
+                        </div>
+                    </div>
+                    <p>Move local images or placeholders, XMP and saved previews to the selected film on this storage volume. Originals on the camera stay unchanged.</p>
+                    <p>Existing destination images or placeholders block the move. Orphaned preview JPG, JSON and XMP are replaced, or removed if missing at the source.</p>
+                    <p id="film-move-status" role="status"></p>
+                    <div class="film-delete-actions">
+                        <button onclick="close_modal()">Cancel</button>
+                        <button id="film-move-confirm" onclick="filmBrowser.confirmMove()" disabled>Move</button>
                     </div>
                 </div>
             </div>
@@ -2249,6 +2305,7 @@
                     <div id="archived-image-error" class="error-message"><span class="icon">&#x26a0;</span>Image is not available</div>
                     <div class="inline-container">
                         <div id="archived-image-control" class="control">
+                            <div class="film-image-options">
                             <button type="button" id="archived-image-run-analysis" onclick="analyze_archived_preview()" title="Analyze the saved preview and save the result">Run analysis</button>
                             <small id="archived-image-analysis-status" role="status"></small>
                             <label for="archived-image-analyze-cb" accesskey="l" title="Show image analyze"><input type="checkbox" id="archived-image-analyze-cb" onchange="adjust_archived_image_mode()" />Ana<u>l</u>yze</label>
@@ -2259,6 +2316,12 @@
                                 <label for="archived-image-rotate180-rb" accesskey="o" title="Rotate 180&deg;"><input type="radio" name="archived-image-rotate" id="archived-image-rotate180-rb" value="rotate180" onchange="adjust_media_viewer('archived-image')" />R<u>o</u>tate 180&deg;</label>
                                 <label for="archived-image-rotate90-rb" accesskey="e" title="Rotate 90&deg;"><input type="radio" name="archived-image-rotate" id="archived-image-rotate90-rb" value="rotate90" onchange="adjust_media_viewer('archived-image')" />Rotat<u>e</u> 90&deg;</label>
                                 <label for="archived-image-flip-cb" accesskey="f" title="Flip preview"><input type="checkbox" id="archived-image-flip-cb" value="flip" onchange="adjust_media_viewer('archived-image')" /><u>F</u>lip</label>
+                            </div>
+                            </div>
+                            <div class="film-image-navigation">
+                                <button type="button" id="film-prev" onclick="filmBrowser.navigate(-1)" title="Previous image" aria-label="Previous image">←</button>
+                                <span id="film-image-position"></span>
+                                <button type="button" id="film-next" onclick="filmBrowser.navigate(1)" title="Next image" aria-label="Next image">→</button>
                             </div>
                         </div>
                         <div id="archived-image-container" class="media-container grey-border">
@@ -2388,37 +2451,14 @@
             }
         }
         let cnt = 0;
-        const capture_list = document.getElementById("capture-list");
-        capture_list.innerHTML = "";
-
-        function shorten_bytes(n) {
-            const k = n > 0 ? Math.floor((Math.log2(n)/10)) : 0;
-            const rank = (k > 0 ? 'kMGT'[k - 1] : '') + 'B';
-            const count = Math.floor(n / Math.pow(1024, k));
-            return count + rank;
+        const captured = film_list.selectedIndex > 0 ? film_list.options[film_list.selectedIndex]._custom_data.captured : [];
+        if (typeof filmBrowser !== "undefined") {
+            filmBrowser.update(captured || []);
+        } else {
+            document.getElementById("film-view").disabled = true;
+            document.getElementById("capture-list").textContent = "Film browser could not load. Check that film_browser.js and film_browser.css are installed, then reload the page.";
         }
-
-        if (film_list.selectedIndex > 0) {
-            const custom = film_list.options[film_list.selectedIndex]._custom_data;
-            custom.captured.forEach(capt=>{
-                const sz = capt.size ? shorten_bytes(capt.size) : "link";
-                const s = `${capt.name} (${sz})`
-                const line = document.createElement("li");
-                if (capt["preview"]) {
-                    const link = document.createElement("a");
-                    link.href = "#";
-                    // link.target = "digie35_preview";
-                    link.textContent = s;
-                    link.setAttribute("data-image-name", `${document.getElementById("project_id").value}/${document.getElementById("film_id").value}/${capt.name}`);
-                    link.onclick = _listener_show_lightbox;
-                    line.appendChild(link);
-                } else {
-                    line.textContent = s;
-                }
-                capture_list.appendChild(line);
-            });
-            cnt = custom["captured"].length;
-        }
+        cnt = (captured || []).length;
         document.getElementById("capture-count").innerHTML = "Image count: " + cnt;
 
         document.getElementById("create-film-btn").disabled = (project_list.value == "") || (film_list.value != "");
@@ -2953,6 +2993,7 @@
                     } catch(err) {
                         update_status_info(err);
                     }
+                    if (typeof filmBrowser !== "undefined" && filmBrowser.receive(data)) return;
                     if (backlightProfiles.receive(data)) {
                         return;
                     }
@@ -3623,6 +3664,7 @@
 
     function close_modal() {
         const elem = get_modal();
+        if (["film-delete-modal", "film-move-modal"].includes(elem?.id) && typeof filmBrowser !== "undefined" && filmBrowser.pending) return;
         if (elem?.id === "backlight-calibration-modal" && backlightProfiles.running) {
             backlightProfiles.cancel();
             return;
@@ -3768,7 +3810,7 @@
         }
         document.getElementById("archived-image-name").textContent = image_name;
         const img = document.getElementById("archived-image");
-        img.src = get_stream_url(true, `preview/archive/${image_name}`);
+        img.src = get_stream_url(true, `preview/archive/${image_name.split("/").map(encodeURIComponent).join("/")}`);
         const cb_names = {
             "flipped": ["flip", "-cb", false],
             "negative": ["invert", "-cb", false],
@@ -3812,7 +3854,8 @@
                 adjust_archived_image_mode();
             })
             .catch(error=>console.error(`Fetch (${img.src}) error: ${error}`));
-        show_modal("lightbox-modal");
+        if (typeof filmBrowser !== "undefined") filmBrowser.navigation(image_name);
+        if (get_modal()?.id !== "lightbox-modal") show_modal("lightbox-modal");
     }
 
     function add_frame_to_filmstrip(image_name) {
@@ -3827,7 +3870,7 @@
             img.src = "";
             img.setAttribute("title", image_name);
             container.insertBefore(last, container.firstElementChild);
-            img.src = get_stream_url(true, `preview/archive/${image_name}`);
+            img.src = get_stream_url(true, `preview/archive/${image_name.split("/").map(encodeURIComponent).join("/")}`);
             adjust_media_viewer(img.id, "stream", true);
         }
     }

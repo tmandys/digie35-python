@@ -118,6 +118,15 @@ class RingBuffer(object):
                         break
                     idx += 1
 
+    def remove(self, id):
+        with self.condition:
+            count = len(self._data) if self._full else self._index
+            items = [self._data[(self._index - count + i) % len(self._data)] for i in range(count)]
+            items = [item for item in items if item[0] != id]
+            self._data = items + [None] * (len(self._data) - len(items))
+            self._full = len(items) == len(self._data)
+            self._index = len(items) % len(self._data)
+
     def foreach(self, callback):
         with self.condition:
             cnt = len(self._data) if self._full else self._index

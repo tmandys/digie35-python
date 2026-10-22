@@ -1728,6 +1728,12 @@ class CameraWrapper:
                     fname = filename
                 if len(fname) > 4 and fname[len(fname)-4] == "." and (is_link or os.path.getsize(filepath) > self._MIN_PICTURE_FILE_SIZE):   # expected 3 char extension and minimal size to filter out potential metadata or so
                     picture_files[fname] = {"name": fname}
+                    picture_files[fname].update({
+                        "modified": os.path.getmtime(filepath),
+                        "camera_only": is_link,
+                        "xmp": os.path.isfile(os.path.join(path, os.path.splitext(fname)[0] + self._XMP_EXTENSION)),
+                        "preview_json": os.path.isfile(os.path.join(self._get_path(project_id, film_id, True), fname + self._PREVIEW_SUFFIX_2)),
+                    })
                     if not is_link:
                         picture_files[fname] |= {"size": os.path.getsize(filepath)}
                     preview_filepath = os.path.join(self._get_path(project_id, film_id, True), fname + self._PREVIEW_SUFFIX)
@@ -1739,6 +1745,80 @@ class CameraWrapper:
             pictures.append(picture_files[key])
         pictures.sort(key=lambda x: x.get("name"))
         result["captured"] = pictures
+        return result
+
+    def delete_captures(self, project_id, film_id, names, volume, request_id=None):
+        """Delete only listed film captures and their local companions, never camera files."""
+        result = {"deleted": [], "errors": {}, "request_id": request_id}
+        try:
+            from pathlib import Path
+            if volume != (self._cur_volume if self._media_dir is not None else True):
+                raise CameraControlError("Storage changed; refresh the film before deleting")
+            if self._capture_in_progress:
+                raise CameraControlError("Cannot delete while capturing")
+            for part in (project_id, film_id):
+                if not isinstance(part, str) or not part or part in (".", "..") or any(c in part for c in "/\\:"):
+                    raise CameraControlError("Invalid film path")
+            root = Path(self._cur_proj_dir).resolve()
+            for directory in (root / project_id, root / project_id / film_id,
+                              root / self._PREVIEW_SUBDIR, root / self._PREVIEW_SUBDIR / project_id,
+                              root / self._PREVIEW_SUBDIR / project_id / film_id):
+                if directory.is_symlink():
+                    raise CameraControlError("Refusing to delete through a symbolic link")
+            folder = Path(self._get_path(project_id, film_id)).resolve()
+            previews = Path(self._get_path(project_id, film_id, True)).resolve()
+            if not folder.is_relative_to(root) or not previews.is_relative_to(root):
+                raise CameraControlError("Invalid film path")
+            captures = {item["name"]: item for item in self.get_film(project_id, film_id)["captured"]}
+            if not isinstance(names, list) or not names or any(not isinstance(n, str) or n not in captures or any(c in n for c in "/\\:") for n in names):
+                raise CameraControlError("Invalid capture selection; refresh the film")
+            remaining = set(captures)
+            for name in dict.fromkeys(names):
+                try:
+                    stem = os.path.splitext(name)[0]
+                    targets = [previews / (name + self._PREVIEW_SUFFIX), previews / (name + self._PREVIEW_SUFFIX_2)]
+                    if not any(other != name and os.path.splitext(other)[0] == stem for other in remaining):
+                        targets.append(folder / (stem + self._XMP_EXTENSION))
+                    targets.extend([folder / (name + self._LINK_EXTENSION), folder / name])
+                    for target in targets:
+                        if target.is_symlink() or not target.resolve().is_relative_to(root):
+                            raise CameraControlError("Refusing to delete a symbolic link")
+                        if target.exists() and not target.is_file():
+                            raise CameraControlError("Expected a regular file")
+                    for target in targets:
+                        target.unlink(missing_ok=True)
+                    if self._snapshot_list:
+                        self._snapshot_list.remove(f"{project_id}/{film_id}/{name}")
+                    remaining.discard(name)
+                    result["deleted"].append(name)
+                except (OSError, CameraControlError) as error:
+                    result["errors"][name] = str(error)
+        except (OSError, CameraControlError) as error:
+            result["error"] = str(error)
+        return result
+
+    def move_captures(self, project_id, film_id, target_project, target_film, names, volume, request_id=None):
+        from digie35.film_files import move_film_files
+        result = {"moved": [], "request_id": request_id}
+        try:
+            if volume != (self._cur_volume if self._media_dir is not None else True):
+                raise CameraControlError("Storage changed; refresh the film")
+            if self._capture_in_progress:
+                raise CameraControlError("Cannot move while capturing")
+            self._check_id(project_id, "project")
+            self._check_id(film_id, "film")
+            self._check_id(target_project, "target project")
+            self._check_id(target_film, "target film")
+            self._check_film_exists(target_project, target_film)
+            captures = {item["name"]: item for item in self.get_film(project_id, film_id)["captured"]}
+            result["moved"] = move_film_files(self._cur_proj_dir, project_id, film_id,
+                                                target_project, target_film, names, captures)
+            if self._snapshot_list:
+                for name in result["moved"]:
+                    self._snapshot_list.remove(f"{project_id}/{film_id}/{name}")
+                    self._snapshot_list.remove(f"{target_project}/{target_film}/{name}")
+        except (OSError, ValueError, CameraControlError) as error:
+            result["error"] = str(error)
         return result
 
     def list_presets(self):
@@ -2312,6 +2392,10 @@ async def ws_control_handler(websocket, path):
                             reply = safe_call(camera.delete_film, **params)
                         case "GET_FILM":
                             reply = safe_call(camera.get_film, **params)
+                        case "DELETE_CAPTURES":
+                            reply = safe_call(camera.delete_captures, **params)
+                        case "MOVE_CAPTURES":
+                            reply = safe_call(camera.move_captures, **params)
 
                         case "GET_TEMPLATE":
                             reply = safe_call(camera.get_file_template_options, **params)
