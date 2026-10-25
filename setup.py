@@ -56,6 +56,8 @@ setup(
             "digie35_board_tool = digie35.board_tool:main",
             "digie35_log = digie35.log_term:main",
             "digie35_image_analyzer = digie35.image_analyzer:main",
+            "digie35_target_analyzer = digie35.target_analyzer:main",
+            "digie35_backlight_analyzer = digie35.backlight_analyzer:main",
             "digie35_tmc2208 = digie35.tmc2208_uart:main",
         ],
     },
